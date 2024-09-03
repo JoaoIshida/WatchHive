@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-blue-950;
+}
+@layer components {
+  .banner {
+    width: 150px;
+    height: 200px;
+    border-radius: 9px;
+    overflow: hidden;
+  }
+}
