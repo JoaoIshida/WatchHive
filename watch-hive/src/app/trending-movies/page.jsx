@@ -44,11 +44,11 @@ const TrendingMoviesPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         {movies.map((movie) => (
                             <a href={`/movies/${movie.id}`} key={movie.id} className="block">
-                                <div className="flex flex-col items-center">
+                                <div className="flex flex-col items-center hover:opacity-90 hover:scale-105">
                                     <img
-                                        src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                                        src={`https://image.tmdb.org/t/p/w500${movie.backdrop_path}`}
                                         alt={movie.title}
-                                        className="object-cover rounded-lg w-full h-auto"
+                                        className="object-cover rounded-lg w-full h-32"
                                     />
                                     <h2 className="text-lg font-semibold mt-2 text-center w-full">
                                         {movie.title}
