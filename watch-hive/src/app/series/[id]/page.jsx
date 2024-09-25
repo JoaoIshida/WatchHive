@@ -15,7 +15,7 @@ async function getSerieDetails(id) {
 }
 
 async function getSerieMoreDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/season/1/watch/providers`, {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },
