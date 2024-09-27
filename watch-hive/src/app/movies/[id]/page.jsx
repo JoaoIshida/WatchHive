@@ -40,11 +40,26 @@ async function getMovieTrailer(id) {
     return res.json();
 }
 
+async function getMovieRecommendations(id) {
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}/recommendations`, {
+        headers: {
+            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch movie recommendations');
+    }
+
+    return res.json();
+}
+
 const MovieDetailPage = async ({ params }) => {
     const { id } = params;
     const movie = await getMovieDetails(id);
     const movie_more = await getMovieMoreDetails(id);
     const movie_trailer = await getMovieTrailer(id);
+    const movie_recommendations = await getMovieRecommendations(id);
 
     const officialTrailer = movie_trailer.results.find(
         trailer => trailer.type === "Trailer" && trailer.name.toLowerCase().includes("official")
@@ -149,6 +164,26 @@ const MovieDetailPage = async ({ params }) => {
                                             />
                                         )}
                                         <p>{provider.provider_name}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {movie_recommendations.results.length > 0 && (
+                        <div>
+                            <p className="font-semibold">Recommendations:</p>
+                            <div className="flex gap-2">
+                                {movie_recommendations.results.map(movie => (
+                                    <div key={movie.id} className="flex items-center gap-2">
+                                        <img
+                                            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                                            alt={movie.title}
+                                            width={50}
+                                            height={50}
+                                            className="rounded"
+                                        />
+                                        <p>{movie.title}</p>
                                     </div>
                                 ))}
                             </div>
