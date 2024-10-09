@@ -55,13 +55,13 @@ const SearchPage = () => {
                     <h2 className="text-lg font-semibold">Search Results:</h2>
                     <div className="flex flex-col space-y-2">
                         {results.map((movie) => (
-                            <div key={movie.id} className="border p-2 rounded flex flex-row gap-2">
+                            <a href={`/movies/${movie.id}`} key={movie.id} className="border p-2 rounded flex flex-row gap-2">
                                 <img src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} className="w-16 h-24" alt={movie.title} />
                                 <div className='flex flex-col'>
                                     <h3 className="font-bold">{movie.title}</h3>
                                     <p>{movie.overview}</p>
                                 </div>
-                            </div>
+                            </a>
                         ))}
                     </div>
                 </div>

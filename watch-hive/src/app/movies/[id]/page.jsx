@@ -169,9 +169,9 @@ const MovieDetailPage = async ({ params }) => {
                     )}
 
                     {movie_recommendations.results.length > 0 && (
-                        <div className="overflow-x-scroll overflow-y-hidden h-[300px] scrollbar">
+                        <div>
                             <p className="font-semibold mb-4 text-xl">Recommendations:</p>
-                            <div className="flex gap-4">
+                            <div className="flex gap-4 overflow-x-scroll overflow-y-hidden h-[300px] scrollbar">
                                 {movie_recommendations.results.map(movie => (
                                     <a href={`/movies/${movie.id}`} key={movie.id} className="block">
                                         <div className="flex flex-col items-center hover:opacity-90 hover:scale-105 w-[100px] h-[120px]">
