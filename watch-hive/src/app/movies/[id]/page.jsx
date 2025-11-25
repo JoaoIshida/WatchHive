@@ -40,21 +40,43 @@ async function getMovieTrailer(id) {
     return res.json();
 }
 
-async function getMovieRecommendations(id) {
+async function getMovieRecommendations(id, title) {
     try {
+        // Get standard recommendations
         const res = await fetch(`https://api.themoviedb.org/3/movie/${id}/recommendations`, {
             headers: {
                 Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
             },
         });
 
-        if (!res.ok) {
-            // Return empty results if recommendations fail
-            return { results: [] };
+        let standardRecs = { results: [] };
+        if (res.ok) {
+            standardRecs = await res.json();
         }
 
-        const data = await res.json();
-        return data;
+        // Also get similar titles based on title search (server-side)
+        let similarTitles = [];
+        if (title) {
+            try {
+                const { findSimilarTitles } = await import('../../utils/similarTitles');
+                similarTitles = await findSimilarTitles(title, 'movie', 5);
+            } catch (error) {
+                console.error('Error fetching similar titles:', error);
+            }
+        }
+
+        // Combine and deduplicate
+        const allRecs = [...(standardRecs.results || [])];
+        const seenIds = new Set(allRecs.map(r => r.id));
+        
+        similarTitles.forEach(item => {
+            if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                allRecs.push(item);
+            }
+        });
+
+        return { results: allRecs };
     } catch (error) {
         console.error('Error fetching movie recommendations:', error);
         return { results: [] };
@@ -65,17 +87,17 @@ import ImageWithFallback from '../../components/ImageWithFallback';
 import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';
 import ContentCard from '../../components/ContentCard';
+import TrailerPlayer from '../../components/TrailerPlayer';
+import { getBestTrailer } from '../../utils/trailerHelper';
 
 const MovieDetailPage = async ({ params }) => {
     const { id } = params;
     const movie = await getMovieDetails(id);
     const movie_more = await getMovieMoreDetails(id);
     const movie_trailer = await getMovieTrailer(id);
-    const movie_recommendations = await getMovieRecommendations(id);
+    const movie_recommendations = await getMovieRecommendations(id, movie.title);
 
-    const officialTrailer = movie_trailer.results.find(
-        trailer => trailer.type === "Trailer" && trailer.name.toLowerCase().includes("official")
-    );
+    const bestTrailer = getBestTrailer(movie_trailer);
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -190,18 +212,14 @@ const MovieDetailPage = async ({ params }) => {
                     </div>
 
                     {/* Video Trailer */}
-                    {officialTrailer && (
+                    {bestTrailer && (
                         <div className="flex-shrink-0 lg:w-96">
-                            <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Official Trailer</h2>
-                            <div className="relative w-full futuristic-card p-2" style={{ paddingBottom: '56.25%' }}>
-                                <iframe
-                                    className="absolute top-0 left-0 w-full h-full rounded-lg border border-futuristic-blue-500/30"
-                                    src={`https://www.youtube.com/embed/${officialTrailer.key}`}
-                                    allow="autoplay; encrypted-media"
-                                    allowFullScreen
-                                    title="Official Trailer"
-                                ></iframe>
-                            </div>
+                            <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                                {bestTrailer.name.includes('Official') ? 'Official Trailer' : 
+                                 bestTrailer.type === 'Trailer' ? 'Trailer' : 
+                                 bestTrailer.type || 'Video'}
+                            </h2>
+                            <TrailerPlayer trailerKey={bestTrailer.key} title={movie.title} />
                         </div>
                     )}
                 </div>

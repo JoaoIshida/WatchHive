@@ -3,6 +3,8 @@ import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';
 import SeriesSeasons from '../../components/SeriesSeasons';
 import ContentCard from '../../components/ContentCard';
+import TrailerPlayer from '../../components/TrailerPlayer';
+import { getBestTrailer } from '../../utils/trailerHelper';
 
 async function getSerieDetails(id) {
     const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
@@ -32,21 +34,62 @@ async function getSerieMoreDetails(id) {
     return res.json();
 }
 
-async function getSerieRecommendations(id) {
+async function getSerieTrailer(id) {
     try {
-        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/recommendations`, {
+        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/videos`, {
             headers: {
                 Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
             },
         });
 
         if (!res.ok) {
-            // Return empty results if recommendations fail
             return { results: [] };
         }
 
-        const data = await res.json();
-        return data;
+        return res.json();
+    } catch (error) {
+        console.error('Error fetching series trailer:', error);
+        return { results: [] };
+    }
+}
+
+async function getSerieRecommendations(id, name) {
+    try {
+        // Get standard recommendations
+        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/recommendations`, {
+            headers: {
+                Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+            },
+        });
+
+        let standardRecs = { results: [] };
+        if (res.ok) {
+            standardRecs = await res.json();
+        }
+
+        // Also get similar titles based on title search (server-side)
+        let similarTitles = [];
+        if (name) {
+            try {
+                const { findSimilarTitles } = await import('../../utils/similarTitles');
+                similarTitles = await findSimilarTitles(name, 'tv', 5);
+            } catch (error) {
+                console.error('Error fetching similar titles:', error);
+            }
+        }
+
+        // Combine and deduplicate
+        const allRecs = [...(standardRecs.results || [])];
+        const seenIds = new Set(allRecs.map(r => r.id));
+        
+        similarTitles.forEach(item => {
+            if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                allRecs.push(item);
+            }
+        });
+
+        return { results: allRecs };
     } catch (error) {
         console.error('Error fetching series recommendations:', error);
         return { results: [] };
@@ -57,7 +100,10 @@ const SerieDetailPage = async ({ params }) => {
     const { id } = params;
     const tv = await getSerieDetails(id);
     const tv_more = await getSerieMoreDetails(id);
-    const tv_recommendations = await getSerieRecommendations(id);
+    const tv_trailer = await getSerieTrailer(id);
+    const tv_recommendations = await getSerieRecommendations(id, tv.name);
+
+    const bestTrailer = getBestTrailer(tv_trailer);
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -132,6 +178,18 @@ const SerieDetailPage = async ({ params }) => {
                             </div>
                         )}
                     </div>
+
+                    {/* Video Trailer */}
+                    {bestTrailer && (
+                        <div className="flex-shrink-0 lg:w-96 mt-6 lg:mt-0">
+                            <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                                {bestTrailer.name.includes('Official') ? 'Official Trailer' : 
+                                 bestTrailer.type === 'Trailer' ? 'Trailer' : 
+                                 bestTrailer.type || 'Video'}
+                            </h2>
+                            <TrailerPlayer trailerKey={bestTrailer.key} title={tv.name} />
+                        </div>
+                    )}
                 </div>
             </div>
 

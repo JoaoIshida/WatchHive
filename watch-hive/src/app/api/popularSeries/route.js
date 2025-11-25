@@ -16,13 +16,81 @@ export async function GET(req) {
     }
 
     try {
-        const data = await fetchTMDB('/discover/tv', {
+        const genreIds = searchParams.get('genres');
+        const year = searchParams.get('year');
+        const minRating = searchParams.get('minRating');
+        const maxRating = searchParams.get('maxRating');
+        const sortBy = searchParams.get('sortBy') || 'popularity.desc';
+        const dateRange = searchParams.get('dateRange');
+        const daysPast = searchParams.get('daysPast');
+        const includeUpcoming = searchParams.get('includeUpcoming') === 'true';
+        
+        const params = {
             language: 'en-US',
             page: page,
-            sort_by: 'popularity.desc',
+            sort_by: sortBy,
             include_adult: false,
-            include_video: true,
-        });
+        };
+
+        // Genre filter
+        if (genreIds) {
+            params.with_genres = genreIds;
+        }
+
+        // Year filter
+        if (year) {
+            params.first_air_date_year = year;
+        }
+
+        // Rating filter
+        if (minRating) {
+            params['vote_average.gte'] = minRating;
+        }
+        if (maxRating) {
+            params['vote_average.lte'] = maxRating;
+        }
+
+        // Date range filters
+        const now = new Date();
+        if (dateRange) {
+            switch (dateRange) {
+                case 'upcoming':
+                    params['first_air_date.gte'] = now.toISOString().split('T')[0];
+                    break;
+                case 'this_week':
+                    const thisWeek = new Date(now);
+                    thisWeek.setDate(now.getDate() - now.getDay());
+                    params['first_air_date.gte'] = thisWeek.toISOString().split('T')[0];
+                    params['first_air_date.lte'] = now.toISOString().split('T')[0];
+                    break;
+                case 'this_month':
+                    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                    params['first_air_date.gte'] = thisMonth.toISOString().split('T')[0];
+                    params['first_air_date.lte'] = now.toISOString().split('T')[0];
+                    break;
+                case 'this_year':
+                    const thisYear = new Date(now.getFullYear(), 0, 1);
+                    params['first_air_date.gte'] = thisYear.toISOString().split('T')[0];
+                    params['first_air_date.lte'] = now.toISOString().split('T')[0];
+                    break;
+            }
+        }
+
+        // Days past filter
+        if (daysPast) {
+            const days = parseInt(daysPast, 10);
+            const cutoffDate = new Date(now);
+            cutoffDate.setDate(now.getDate() - days);
+            params['first_air_date.gte'] = cutoffDate.toISOString().split('T')[0];
+            params['first_air_date.lte'] = now.toISOString().split('T')[0];
+        }
+
+        // Exclude upcoming series by default (unless includeUpcoming is true)
+        if (!includeUpcoming && !dateRange && !daysPast) {
+            params['first_air_date.lte'] = now.toISOString().split('T')[0];
+        }
+
+        const data = await fetchTMDB('/discover/tv', params);
 
         return new Response(JSON.stringify(data), {
             status: 200,

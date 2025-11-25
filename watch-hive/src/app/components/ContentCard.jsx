@@ -1,6 +1,7 @@
 "use client";
 import ImageWithFallback from './ImageWithFallback';
 import NewReleaseBadge from './NewReleaseBadge';
+import UpcomingBadge from './UpcomingBadge';
 import SeriesNotificationBadge from './SeriesNotificationBadge';
 
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
@@ -21,6 +22,9 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                     
                     {/* New Release Badge */}
                     <NewReleaseBadge releaseDate={releaseDate} />
+                    
+                    {/* Upcoming Badge */}
+                    {!isSeries && <UpcomingBadge releaseDate={releaseDate} />}
                     
                     {/* Series Notification Badge */}
                     {isSeries && (

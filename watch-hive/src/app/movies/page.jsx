@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
 import SortFilter from '../components/SortFilter';
@@ -16,7 +16,110 @@ const PopularMoviesPage = () => {
     const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
     const [filters, setFilters] = useState({});
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
     const queryPage = searchParams.get('page');
+    const isInitialMount = useRef(true);
+
+    // Initialize state from URL params
+    useEffect(() => {
+        // Initialize page
+        const urlPage = searchParams.get('page');
+        if (urlPage) {
+            setPage(Number(urlPage));
+        }
+
+        // Initialize sort config
+        const urlSortBy = searchParams.get('sortBy');
+        if (urlSortBy) {
+            const [sortField, sortOrder] = urlSortBy.split('.');
+            let sortBy = 'popularity';
+            if (sortField === 'vote_average') sortBy = 'rating';
+            else if (sortField === 'primary_release_date') sortBy = 'release_date';
+            else if (sortField === 'title') sortBy = 'title';
+            setSortConfig({ sortBy, sortOrder: sortOrder || 'desc' });
+        }
+
+        // Initialize filters
+        const urlFilters = {};
+        const urlGenres = searchParams.get('genres');
+        if (urlGenres) {
+            urlFilters.genres = urlGenres.split(',').map(Number).filter(Boolean);
+        }
+        const urlYear = searchParams.get('year');
+        if (urlYear) {
+            urlFilters.year = urlYear;
+        }
+        const urlMinRating = searchParams.get('minRating');
+        if (urlMinRating) {
+            urlFilters.minRating = urlMinRating;
+        }
+        const urlMaxRating = searchParams.get('maxRating');
+        if (urlMaxRating) {
+            urlFilters.maxRating = urlMaxRating;
+        }
+        const urlDateRange = searchParams.get('dateRange');
+        if (urlDateRange) {
+            urlFilters.dateRange = urlDateRange;
+        }
+        const urlDaysPast = searchParams.get('daysPast');
+        if (urlDaysPast) {
+            urlFilters.daysPast = urlDaysPast;
+        }
+        const urlIncludeUpcoming = searchParams.get('includeUpcoming');
+        if (urlIncludeUpcoming === 'true') {
+            urlFilters.includeUpcoming = true;
+        }
+        if (Object.keys(urlFilters).length > 0) {
+            setFilters(urlFilters);
+        }
+    }, []); // Only run on mount
+
+    // Update URL when filters, sort, or page changes
+    const updateURL = useCallback((newPage, newFilters, newSortConfig) => {
+        const params = new URLSearchParams();
+        
+        if (newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+        
+        // Add filters to URL
+        if (newFilters.genres && newFilters.genres.length > 0) {
+            params.set('genres', newFilters.genres.join(','));
+        }
+        if (newFilters.year) {
+            params.set('year', newFilters.year);
+        }
+        if (newFilters.minRating) {
+            params.set('minRating', newFilters.minRating);
+        }
+        if (newFilters.maxRating) {
+            params.set('maxRating', newFilters.maxRating);
+        }
+        if (newFilters.dateRange) {
+            params.set('dateRange', newFilters.dateRange);
+        }
+        if (newFilters.daysPast) {
+            params.set('daysPast', newFilters.daysPast);
+        }
+        if (newFilters.includeUpcoming) {
+            params.set('includeUpcoming', 'true');
+        }
+        
+        // Add sorting to URL
+        const sortByValue = newSortConfig.sortBy === 'popularity' ? 'popularity' :
+                           newSortConfig.sortBy === 'rating' ? 'vote_average' :
+                           newSortConfig.sortBy === 'release_date' ? 'primary_release_date' :
+                           'title';
+        const sortOrder = newSortConfig.sortOrder || 'desc';
+        if (sortByValue !== 'popularity' || sortOrder !== 'desc') {
+            params.set('sortBy', `${sortByValue}.${sortOrder}`);
+        }
+        
+        const queryString = params.toString();
+        const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+        router.replace(newUrl, { scroll: false });
+    }, [pathname, router]);
 
     // Fetch genres
     useEffect(() => {
@@ -34,24 +137,69 @@ const PopularMoviesPage = () => {
         fetchGenres();
     }, []);
 
+    // Update URL when filters change (but not on initial mount)
     useEffect(() => {
-        if (queryPage) {
-            setPage(Number(queryPage));
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
         }
-    }, [queryPage]);
+        updateURL(page, filters, sortConfig);
+    }, [page, filters, sortConfig, updateURL]);
+
+    // Reset page to 1 when filters change (but not on initial load)
+    useEffect(() => {
+        if (Object.keys(filters).length > 0 && page > 1) {
+            setPage(1);
+        }
+    }, [filters]);
 
     useEffect(() => {
         const fetchPopularMovies = async () => {
             setLoading(true);
             setError(null);
             try {
-                const response = await fetch(`/api/popularMovies?page=${page}`);
+                // Build query string with filters and sorting
+                const queryParams = new URLSearchParams();
+                queryParams.set('page', page.toString());
+                
+                // Add filters
+                if (filters.genres && filters.genres.length > 0) {
+                    queryParams.set('genres', filters.genres.join(','));
+                }
+                if (filters.year) {
+                    queryParams.set('year', filters.year);
+                }
+                if (filters.minRating) {
+                    queryParams.set('minRating', filters.minRating);
+                }
+                if (filters.maxRating) {
+                    queryParams.set('maxRating', filters.maxRating);
+                }
+                if (filters.dateRange) {
+                    queryParams.set('dateRange', filters.dateRange);
+                }
+                if (filters.daysPast) {
+                    queryParams.set('daysPast', filters.daysPast);
+                }
+                if (filters.includeUpcoming) {
+                    queryParams.set('includeUpcoming', 'true');
+                }
+                
+                // Add sorting
+                const sortByValue = sortConfig.sortBy === 'popularity' ? 'popularity' :
+                                   sortConfig.sortBy === 'rating' ? 'vote_average' :
+                                   sortConfig.sortBy === 'release_date' ? 'primary_release_date' :
+                                   'title';
+                const sortOrder = sortConfig.sortOrder === 'asc' ? 'asc' : 'desc';
+                queryParams.set('sortBy', `${sortByValue}.${sortOrder}`);
+
+                const response = await fetch(`/api/popularMovies?${queryParams.toString()}`);
                 if (!response.ok) {
                     throw new Error('Failed to fetch popular movies');
                 }
                 const data = await response.json();
-                setAllMovies(data.results);
                 setMovies(data.results);
+                setAllMovies(data.results); // Keep for reference, but filtering is done server-side
             } catch (error) {
                 setError(error.message);
             } finally {
@@ -60,112 +208,13 @@ const PopularMoviesPage = () => {
         };
 
         fetchPopularMovies();
-    }, [page]);
-
-    // Apply sorting and filtering
-    useEffect(() => {
-        let filtered = [...allMovies];
-
-        // Apply filters
-        if (filters.genres && filters.genres.length > 0) {
-            filtered = filtered.filter(movie =>
-                movie.genre_ids && movie.genre_ids.some(genreId => filters.genres.includes(genreId))
-            );
-        }
-
-        if (filters.year) {
-            const year = parseInt(filters.year);
-            filtered = filtered.filter(movie => {
-                if (!movie.release_date) return false;
-                return new Date(movie.release_date).getFullYear() === year;
-            });
-        }
-
-        if (filters.minRating) {
-            const minRating = parseFloat(filters.minRating);
-            filtered = filtered.filter(movie => movie.vote_average >= minRating);
-        }
-
-        if (filters.daysPast) {
-            const days = parseInt(filters.daysPast);
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - days);
-            filtered = filtered.filter(movie => {
-                if (!movie.release_date) return false;
-                const releaseDate = new Date(movie.release_date);
-                return releaseDate >= cutoffDate && releaseDate <= new Date();
-            });
-        }
-
-        if (filters.dateRange) {
-            const now = new Date();
-            const thisWeek = new Date(now);
-            thisWeek.setDate(now.getDate() - now.getDay());
-            const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const thisYear = new Date(now.getFullYear(), 0, 1);
-
-            filtered = filtered.filter(movie => {
-                if (!movie.release_date) return false;
-                const releaseDate = new Date(movie.release_date);
-                
-                switch (filters.dateRange) {
-                    case 'upcoming':
-                        return releaseDate > now;
-                    case 'this_week':
-                        return releaseDate >= thisWeek && releaseDate <= now;
-                    case 'this_month':
-                        return releaseDate >= thisMonth && releaseDate <= now;
-                    case 'this_year':
-                        return releaseDate >= thisYear && releaseDate <= now;
-                    default:
-                        return true;
-                }
-            });
-        }
-
-        // Apply sorting
-        filtered.sort((a, b) => {
-            let aValue, bValue;
-            
-            switch (sortConfig.sortBy) {
-                case 'rating':
-                    aValue = a.vote_average || 0;
-                    bValue = b.vote_average || 0;
-                    break;
-                case 'release_date':
-                    aValue = a.release_date ? new Date(a.release_date).getTime() : 0;
-                    bValue = b.release_date ? new Date(b.release_date).getTime() : 0;
-                    break;
-                case 'title':
-                    aValue = (a.title || '').toLowerCase();
-                    bValue = (b.title || '').toLowerCase();
-                    break;
-                case 'popularity':
-                default:
-                    aValue = a.popularity || 0;
-                    bValue = b.popularity || 0;
-                    break;
-            }
-
-            if (sortConfig.sortBy === 'title') {
-                return sortConfig.sortOrder === 'asc' 
-                    ? aValue.localeCompare(bValue)
-                    : bValue.localeCompare(aValue);
-            } else {
-                return sortConfig.sortOrder === 'desc' 
-                    ? bValue - aValue 
-                    : aValue - bValue;
-            }
-        });
-
-        setMovies(filtered);
-    }, [allMovies, sortConfig, filters]);
+    }, [page, filters, sortConfig]);
 
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     <LoadingCard count={12} />
                 </div>
             </div>
@@ -182,6 +231,8 @@ const PopularMoviesPage = () => {
                 onFilterChange={setFilters}
                 genres={genres}
                 showDateFilter={true}
+                sortConfig={sortConfig}
+                filters={filters}
             />
             <div className="flex items-center justify-center my-6 gap-2">
                 <button
@@ -203,7 +254,7 @@ const PopularMoviesPage = () => {
                 movies.length === 0 ? (
                     <div className="text-center py-6 text-white">No popular movies available</div>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {movies.map((movie) => (
                             <ContentCard
                                 key={movie.id}
