@@ -1,13 +1,37 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import LoadingCard from '../components/LoadingCard';
+import SortFilter from '../components/SortFilter';
+import ContentCard from '../components/ContentCard';
 
 const TrendingSeriesPage = () => {
     const [series, setSeries] = useState([]);
-    const [loading, setLoading] = useState(true); // Loading state
-    const [error, setError] = useState(null); // Error state
+    const [allSeries, setAllSeries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [genres, setGenres] = useState([]);
+    const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
+    const [filters, setFilters] = useState({});
     const searchParams = useSearchParams();
-    const language = searchParams.get('language') || 'en-US'; // Default language
+    const language = searchParams.get('language') || 'en-US';
+
+    // Fetch genres
+    useEffect(() => {
+        const fetchGenres = async () => {
+            try {
+                const response = await fetch('/api/genres?type=tv');
+                if (response.ok) {
+                    const data = await response.json();
+                    setGenres(data);
+                }
+            } catch (error) {
+                console.error('Error fetching genres:', error);
+            }
+        };
+        fetchGenres();
+    }, []);
 
     useEffect(() => {
         const fetchTrendingSeries = async () => {
@@ -19,6 +43,7 @@ const TrendingSeriesPage = () => {
                     throw new Error('Failed to fetch trending series');
                 }
                 const data = await response.json();
+                setAllSeries(data);
                 setSeries(data);
             } catch (error) {
                 setError(error.message);
@@ -28,33 +53,116 @@ const TrendingSeriesPage = () => {
         };
 
         fetchTrendingSeries();
-    }, [language]); // Fetch series when language changes
+    }, [language]);
 
-    if (loading) return <div className="text-center py-6">Loading...</div>;
-    if (error) return <div className="text-center py-6 text-red-600">{`Error: ${error}`}</div>;
+    // Apply sorting and filtering
+    useEffect(() => {
+        let filtered = [...allSeries];
+
+        // Apply filters
+        if (filters.genres && filters.genres.length > 0) {
+            filtered = filtered.filter(serie =>
+                serie.genre_ids && serie.genre_ids.some(genreId => filters.genres.includes(genreId))
+            );
+        }
+
+        if (filters.year) {
+            const year = parseInt(filters.year);
+            filtered = filtered.filter(serie => {
+                if (!serie.first_air_date) return false;
+                return new Date(serie.first_air_date).getFullYear() === year;
+            });
+        }
+
+        if (filters.minRating) {
+            const minRating = parseFloat(filters.minRating);
+            filtered = filtered.filter(serie => serie.vote_average >= minRating);
+        }
+
+        if (filters.daysPast) {
+            const days = parseInt(filters.daysPast);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            filtered = filtered.filter(serie => {
+                if (!serie.first_air_date) return false;
+                const airDate = new Date(serie.first_air_date);
+                return airDate >= cutoffDate && airDate <= new Date();
+            });
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            let aValue, bValue;
+            
+            switch (sortConfig.sortBy) {
+                case 'rating':
+                    aValue = a.vote_average || 0;
+                    bValue = b.vote_average || 0;
+                    break;
+                case 'release_date':
+                    aValue = a.first_air_date ? new Date(a.first_air_date).getTime() : 0;
+                    bValue = b.first_air_date ? new Date(b.first_air_date).getTime() : 0;
+                    break;
+                case 'title':
+                    aValue = (a.name || '').toLowerCase();
+                    bValue = (b.name || '').toLowerCase();
+                    break;
+                case 'popularity':
+                default:
+                    aValue = a.popularity || 0;
+                    bValue = b.popularity || 0;
+                    break;
+            }
+
+            if (sortConfig.sortBy === 'title') {
+                return sortConfig.sortOrder === 'asc' 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            } else {
+                return sortConfig.sortOrder === 'desc' 
+                    ? bValue - aValue 
+                    : aValue - bValue;
+            }
+        });
+
+        setSeries(filtered);
+    }, [allSeries, sortConfig, filters]);
+
+    if (loading) {
+        return (
+            <div className="container mx-auto px-4 py-8">
+                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <LoadingCard count={12} />
+                </div>
+            </div>
+        );
+    }
+    if (error) return <div className="text-center py-6 text-red-400">{`Error: ${error}`}</div>;
 
     return (
-        <div className="mx-auto px-4">
-            <h1 className="text-2xl font-bold mb-6">Trending Series of the Week</h1>
+        <div className="container mx-auto px-4 py-8">
+            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+            
+            <SortFilter
+                onSortChange={setSortConfig}
+                onFilterChange={setFilters}
+                genres={genres}
+                showDateFilter={true}
+            />
 
             {
                 series.length === 0 ? (
-                    <div className="text-center py-6">No trending series available</div>
+                    <div className="text-center py-6 text-white">No trending series available</div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                         {series.map((serie) => (
-                            <a href={`/series/${serie.id}`} key={serie.id} className="block">
-                                <div className="flex flex-col items-center hover:opacity-90 hover:scale-105">
-                                    <img
-                                        src={`https://image.tmdb.org/t/p/w500${serie.backdrop_path}`}
-                                        alt={serie.title}
-                                        className="object-cover rounded-lg w-full h-32"
-                                    />
-                                    <h2 className="text-lg font-semibold mt-2 text-center w-full">
-                                        {serie.name}
-                                    </h2>
-                                </div>
-                            </a>
+                            <ContentCard
+                                key={serie.id}
+                                item={serie}
+                                mediaType="tv"
+                                href={`/series/${serie.id}`}
+                            />
                         ))}
                     </div>
                 )

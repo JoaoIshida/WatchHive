@@ -1,4 +1,8 @@
-import Image from 'next/image';
+import ImageWithFallback from '../../components/ImageWithFallback';
+import WatchedButton from '../../components/WatchedButton';
+import WishlistButton from '../../components/WishlistButton';
+import SeriesSeasons from '../../components/SeriesSeasons';
+import ContentCard from '../../components/ContentCard';
 
 async function getSerieDetails(id) {
     const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
@@ -28,60 +32,135 @@ async function getSerieMoreDetails(id) {
     return res.json();
 }
 
+async function getSerieRecommendations(id) {
+    try {
+        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/recommendations`, {
+            headers: {
+                Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+            },
+        });
+
+        if (!res.ok) {
+            // Return empty results if recommendations fail
+            return { results: [] };
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching series recommendations:', error);
+        return { results: [] };
+    }
+}
+
 const SerieDetailPage = async ({ params }) => {
     const { id } = params;
     const tv = await getSerieDetails(id);
     const tv_more = await getSerieMoreDetails(id);
+    const tv_recommendations = await getSerieRecommendations(id);
 
     return (
-        <div className="container mx-auto px-4">
-            <h1 className="text-3xl font-bold mb-4">{tv.name}</h1>
-            <div className="flex flex-col md:flex-row gap-6">
-                <img
-                    src={`https://image.tmdb.org/t/p/w500${tv.poster_path}`}
-                    alt={tv.name}
-                    width={500}
-                    height={750}
-                    className="w-full md:w-1/3 rounded-lg"
-                />
-                <div className="md:w-2/3">
-                    <p className="text-lg font-semibold mb-2">Overview:</p>
-                    <p className="mb-4">{tv.overview}</p>
-                    <p className="font-semibold">First Air Date:</p>
-                    <p>{tv.first_air_date}</p>
-                    <p className="font-semibold">Last Air Date:</p>
-                    <p>{tv.last_air_date}</p>
-                    <p className="font-semibold">Rating:</p>
-                    <p>{tv.vote_average} / 10</p>
-                    <p className="font-semibold">Genres:</p>
-                    <ul>
-                        {tv.genres.map((genre) => (
-                            <li key={genre.id}>{genre.name}</li>
-                        ))}
-                    </ul>
-                    {tv_more.results.CA?.flatrate?.length > 0 && (
-                        <div>
-                            <p className="font-semibold">Available On:</p>
-                            <div className="flex gap-2">
-                                {tv_more.results.CA.flatrate.map(provider => (
-                                    <div key={provider.provider_id} className="flex items-center gap-2">
-                                        {provider.logo_path && (
-                                            <img
-                                                src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                                                alt={provider.provider_name}
-                                                width={50}
-                                                height={50}
-                                                className="rounded"
-                                            />
-                                        )}
-                                        <p>{provider.provider_name}</p>
-                                    </div>
-                                ))}
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+            {/* Top Section: Image and Overview */}
+            <div className="mb-8">
+                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">{tv.name}</h1>
+                
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Series Image */}
+                    <div className="flex-shrink-0">
+                        <ImageWithFallback
+                            src={tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image'}
+                            alt={tv.name}
+                            className="w-full max-w-sm rounded-lg shadow-glow-blue"
+                        />
+                    </div>
+
+                    {/* Overview and Details */}
+                    <div className="flex-1">
+                        <div className="mb-6 futuristic-card p-6">
+                            <h2 className="font-bold mb-2 text-xl text-futuristic-yellow-400 futuristic-text-glow-yellow">Overview:</h2>
+                            <p className="text-white leading-relaxed">{tv.overview}</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div className="futuristic-card p-4">
+                                <p className="font-bold text-lg text-futuristic-yellow-400">First Air Date:</p>
+                                <p className="text-white font-medium">{tv.first_air_date}</p>
+                            </div>
+                            <div className="futuristic-card p-4">
+                                <p className="font-bold text-lg text-futuristic-yellow-400">Last Air Date:</p>
+                                <p className="text-white font-medium">{tv.last_air_date || 'Ongoing'}</p>
+                            </div>
+                            <div className="futuristic-card p-4">
+                                <p className="font-bold text-lg text-futuristic-yellow-400">Rating:</p>
+                                <p className="text-white font-medium">{tv.vote_average} / 10</p>
+                            </div>
+                            <div className="md:col-span-2 futuristic-card p-4">
+                                <p className="font-bold text-lg text-futuristic-yellow-400">Genres:</p>
+                                <p className="text-white font-medium">{tv.genres.map((genre) => genre.name).join(", ")}</p>
                             </div>
                         </div>
-                    )}
+
+                        {/* User Actions */}
+                        <div className="mb-6 futuristic-card p-4">
+                            <div className="flex flex-wrap gap-4">
+                                <WatchedButton itemId={tv.id} mediaType="tv" seasons={tv.seasons} />
+                                <WishlistButton itemId={tv.id} mediaType="tv" />
+                            </div>
+                        </div>
+
+                        {/* Watch Providers */}
+                        {tv_more.results.CA?.flatrate?.length > 0 && (
+                            <div className="mb-4">
+                                <p className="font-bold text-lg mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Available On:</p>
+                                <div className="flex flex-wrap gap-3">
+                                    {tv_more.results.CA.flatrate.map(provider => (
+                                        <div key={provider.provider_id} className="flex items-center gap-2 bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 px-4 py-2.5 rounded-lg shadow-glow-yellow hover:border-futuristic-yellow-400 hover:shadow-glow-yellow-lg transition-all">
+                                            {provider.logo_path && (
+                                                <img
+                                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
+                                                    alt={provider.provider_name}
+                                                    width={40}
+                                                    height={40}
+                                                    className="rounded"
+                                                />
+                                            )}
+                                            <p className="text-base font-semibold text-futuristic-yellow-400">{provider.provider_name}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
+
+            {/* Seasons & Episodes Section */}
+            {tv.seasons && tv.seasons.length > 0 && (
+                <div className="mt-12 border-t border-futuristic-blue-500/30 pt-8">
+                    <SeriesSeasons seriesId={tv.id} seasons={tv.seasons} />
+                </div>
+            )}
+
+            {/* Bottom Section: Recommendations */}
+            {tv_recommendations?.results && tv_recommendations.results.length > 0 && (
+                <div className="mt-12 border-t border-futuristic-blue-500/30 pt-8">
+                    <h2 className="text-3xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">You Might Also Like</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {tv_recommendations.results
+                            .filter(series => series && series.id)
+                            .slice(0, 10)
+                            .map(series => (
+                                <ContentCard
+                                    key={series.id}
+                                    item={series}
+                                    mediaType="tv"
+                                    href={`/series/${series.id}`}
+                                />
+                            ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

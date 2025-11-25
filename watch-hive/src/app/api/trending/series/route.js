@@ -1,27 +1,27 @@
-import axios from 'axios';
+import { fetchTMDB } from '../../utils';
 
 export async function GET(req) {
-    const { searchParams } = new URL(req.url, 'http://localhost'); // Adjust the base URL if needed
-    const language = searchParams.get('language') || 'en-US'; // Default to English if no language is provided
+    const { searchParams } = new URL(req.url, 'http://localhost');
+    const language = searchParams.get('language') || 'en-US';
 
     try {
-        const response = await axios.get(`https://api.themoviedb.org/3/trending/tv/week`, {
-            params: {
-                api_key: process.env.TMDB_API_KEY,
-                language: language,
-            },
+        const data = await fetchTMDB('/trending/tv/week', {
+            language: language,
         });
 
-        return new Response(JSON.stringify(response.data.results), {
+        return new Response(JSON.stringify(data.results), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
             },
         });
     } catch (error) {
-        console.error('Error fetching trending tv:', error);
-        return new Response(JSON.stringify({ error: 'Failed to fetch trending tv' }), {
+        console.error('Error fetching trending series:', error);
+        return new Response(JSON.stringify({ error: 'Failed to fetch trending series' }), {
             status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
     }
 }

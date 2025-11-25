@@ -1,0 +1,182 @@
+"use client";
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import ImageWithFallback from './ImageWithFallback';
+
+const QuickSearch = ({ onClose, isNavbar = false }) => {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [showResults, setShowResults] = useState(false);
+    const searchRef = useRef(null);
+    const resultsRef = useRef(null);
+    const router = useRouter();
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (
+                searchRef.current && 
+                !searchRef.current.contains(event.target) &&
+                resultsRef.current &&
+                !resultsRef.current.contains(event.target)
+            ) {
+                setShowResults(false);
+                if (onClose) onClose();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    useEffect(() => {
+        if (!query.trim()) {
+            setResults([]);
+            setShowResults(false);
+            return;
+        }
+
+        const debounceTimer = setTimeout(() => {
+            searchContent(query);
+        }, 300);
+
+        return () => clearTimeout(debounceTimer);
+    }, [query]);
+
+    const searchContent = async (searchQuery) => {
+        if (!searchQuery.trim()) return;
+
+        setLoading(true);
+        try {
+            const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
+            if (response.ok) {
+                const data = await response.json();
+                setResults(data.slice(0, 6)); // Show top 6 results
+                setShowResults(true);
+            }
+        } catch (error) {
+            console.error('Error searching:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResultClick = (item) => {
+        const path = item.media_type === 'movie' 
+            ? `/movies/${item.id}` 
+            : `/series/${item.id}`;
+        router.push(path);
+        setShowResults(false);
+        setQuery('');
+        if (onClose) onClose();
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && query.trim()) {
+            router.push(`/search?q=${encodeURIComponent(query)}`);
+            setShowResults(false);
+            setQuery('');
+            if (onClose) onClose();
+        }
+    };
+
+    return (
+        <div className="relative w-full" ref={searchRef}>
+            <div className="relative">
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => {
+                        if (results.length > 0 || query.trim()) {
+                            setShowResults(true);
+                        }
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Search movies and series..."
+                    className={`futuristic-input w-full ${isNavbar ? 'pr-10' : ''} pl-10`}
+                />
+                <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-futuristic-yellow-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {loading && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-futuristic-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                )}
+            </div>
+
+            {showResults && results.length > 0 && (
+                <div
+                    ref={resultsRef}
+                    className="absolute z-50 w-full mt-2 bg-futuristic-blue-900/95 backdrop-blur-md border border-futuristic-blue-500/50 rounded-lg shadow-glow-blue-lg max-h-96 overflow-y-auto"
+                >
+                    {results.map((item) => {
+                        const title = item.title || item.name;
+                        const mediaType = item.media_type === 'movie' ? 'Movie' : 'TV';
+                        const releaseDate = item.release_date || item.first_air_date;
+                        
+                        return (
+                            <div
+                                key={`${item.media_type}-${item.id}`}
+                                onClick={() => handleResultClick(item)}
+                                className="flex items-center gap-3 p-3 hover:bg-futuristic-blue-700 cursor-pointer transition-colors border-b border-futuristic-blue-800/50 last:border-b-0"
+                            >
+                                <div className="relative w-16 h-24 flex-shrink-0">
+                                    <ImageWithFallback
+                                        src={item.poster_path 
+                                            ? `https://image.tmdb.org/t/p/w200${item.poster_path}` 
+                                            : 'https://via.placeholder.com/200x300?text=No+Image'}
+                                        alt={title}
+                                        className="object-cover w-full h-full rounded"
+                                    />
+                                    <div className="absolute top-1 right-1 bg-futuristic-blue-600 text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                                        {mediaType}
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-semibold text-white truncate mb-1">
+                                        {title}
+                                    </h3>
+                                    {item.overview && (
+                                        <p className="text-xs text-futuristic-gray-100/70 line-clamp-2 mb-1">
+                                            {item.overview}
+                                        </p>
+                                    )}
+                                    <div className="flex items-center gap-2 text-xs text-futuristic-yellow-400/80">
+                                        {releaseDate && <span>{releaseDate}</span>}
+                                        {item.vote_average && (
+                                            <span className="flex items-center gap-1">
+                                                ⭐ {item.vote_average.toFixed(1)}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {query.trim() && (
+                        <div
+                            onClick={() => {
+                                router.push(`/search?q=${encodeURIComponent(query)}`);
+                                setShowResults(false);
+                                if (onClose) onClose();
+                            }}
+                            className="p-3 text-center text-futuristic-yellow-400 hover:bg-futuristic-blue-700 cursor-pointer border-t border-futuristic-blue-800/50 font-semibold"
+                        >
+                            View all results for "{query}"
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default QuickSearch;
+

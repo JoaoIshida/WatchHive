@@ -3,15 +3,114 @@
 @tailwind utilities;
 
 body {
-  @apply bg-blue-950;
+  @apply bg-futuristic-blue-950;
   @apply text-white;
+  background: linear-gradient(135deg, #0f1a33 0%, #1f3569 50%, #2b4f90 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
 }
+
+.container {
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
 @layer components {
   .banner {
     width: 150px;
     height: 200px;
     border-radius: 9px;
     overflow: hidden;
+  }
+
+  .futuristic-card {
+    @apply bg-futuristic-blue-900/70 backdrop-blur-md border border-futuristic-blue-500/20 rounded-xl shadow-glow-blue;
+    transition: all 0.3s ease;
+  }
+
+  .futuristic-card:hover {
+    @apply border-futuristic-blue-400/50 shadow-glow-blue-lg transform translate-y-[-4px];
+  }
+
+  .futuristic-button {
+    @apply bg-futuristic-blue-700 hover:bg-futuristic-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-glow-blue transition-all duration-300 border border-futuristic-blue-500/30;
+  }
+
+  .futuristic-button:hover {
+    @apply shadow-glow-blue-lg transform translate-y-[-2px] border-futuristic-yellow-500/50;
+  }
+
+  .futuristic-button-yellow {
+    @apply bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black font-bold py-2 px-4 rounded-lg shadow-glow-yellow transition-all duration-300 border border-futuristic-yellow-400/30;
+  }
+
+  .futuristic-button-yellow:hover {
+    @apply shadow-glow-yellow-lg transform translate-y-[-2px] border-futuristic-yellow-300/50;
+  }
+
+  .futuristic-text-glow {
+    text-shadow: 0 0 8px rgba(64, 129, 210, 0.6), 0 0 15px rgba(64, 129, 210, 0.3);
+  }
+
+  .futuristic-text-glow-yellow {
+    text-shadow: 0 0 8px rgba(255, 236, 102, 0.6), 0 0 15px rgba(255, 236, 102, 0.3);
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .loading-shimmer {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(
+      to right,
+      rgba(64, 129, 210, 0.1) 0%,
+      rgba(255, 236, 102, 0.2) 50%,
+      rgba(64, 129, 210, 0.1) 100%
+    );
+    background-size: 1000px 100%;
   }
 }
 
@@ -21,10 +120,12 @@ body {
 }
 
 .scrollbar::-webkit-scrollbar-thumb {
-  background-color: #6c90f5; /* Blue color */
+  background: linear-gradient(135deg, #0066ff, #003d99);
   border-radius: 6px;
+  box-shadow: 0 0 10px rgba(0, 102, 255, 0.5);
 }
 
 .scrollbar::-webkit-scrollbar-track {
-  background-color: #b7c7f4; /* Track color */
+  background-color: rgba(0, 20, 51, 0.5);
+  border-radius: 6px;
 }

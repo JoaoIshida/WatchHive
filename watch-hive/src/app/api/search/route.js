@@ -1,9 +1,9 @@
-import axios from 'axios';
+import { fetchTMDB } from '../utils';
 
 export async function GET(req) {
-    const { searchParams } = new URL(req.url, 'http://localhost'); // Adjust the base URL if needed
-    const query = searchParams.get('query'); // Get the search query from the URL
-    const language = searchParams.get('language') || 'en-US'; // Default to English if no language is provided
+    const { searchParams } = new URL(req.url, 'http://localhost');
+    const query = searchParams.get('query');
+    const language = searchParams.get('language') || 'en-US';
 
     if (!query) {
         return new Response(JSON.stringify({ error: 'Query parameter is required' }), {
@@ -15,17 +15,20 @@ export async function GET(req) {
     }
 
     try {
-        const response = await axios.get(`https://api.themoviedb.org/3/search/movie`, {
-            params: {
-                api_key: process.env.TMDB_API_KEY,
-                query: query,
-                include_adult: false,
-                language: language,
-                page: 1,
-            },
+        // Use multi-search endpoint to search both movies and TV series
+        const data = await fetchTMDB('/search/multi', {
+            query: query,
+            include_adult: false,
+            language: language,
+            page: 1,
         });
 
-        return new Response(JSON.stringify(response.data.results), {
+        // Filter to only include movies and TV series (exclude people)
+        const filteredResults = data.results.filter(
+            item => item.media_type === 'movie' || item.media_type === 'tv'
+        );
+
+        return new Response(JSON.stringify(filteredResults), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
@@ -35,6 +38,9 @@ export async function GET(req) {
         console.error('Error fetching search results:', error);
         return new Response(JSON.stringify({ error: 'Failed to fetch search results' }), {
             status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
     }
 }

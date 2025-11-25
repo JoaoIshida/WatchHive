@@ -1,9 +1,9 @@
-import axios from 'axios';
+import { fetchTMDB } from '../utils';
 
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const pageParam = searchParams.get('page');
-    const page = parseInt(pageParam, 10); // Convert to integer
+    const page = parseInt(pageParam, 10);
 
     // Validate page number
     if (isNaN(page) || page < 1 || page > 500) {
@@ -16,27 +16,27 @@ export async function GET(req) {
     }
 
     try {
-        const response = await axios.get('https://api.themoviedb.org/3/discover/tv', {
-            params: {
-                api_key: process.env.TMDB_API_KEY,
-                language: 'en-US',
-                page: page,  // Use the valid page number
-                sort_by: 'popularity.desc',
-                include_adult: false,
-                include_video: true,
-            },
+        const data = await fetchTMDB('/discover/tv', {
+            language: 'en-US',
+            page: page,
+            sort_by: 'popularity.desc',
+            include_adult: false,
+            include_video: true,
         });
 
-        return new Response(JSON.stringify(response.data), {
+        return new Response(JSON.stringify(data), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
             },
         });
     } catch (error) {
-        console.error('Error fetching popular tvs:', error.message);
-        return new Response(JSON.stringify({ error: 'Failed to fetch popular tvs' }), {
+        console.error('Error fetching popular series:', error.message);
+        return new Response(JSON.stringify({ error: 'Failed to fetch popular series' }), {
             status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
     }
 }

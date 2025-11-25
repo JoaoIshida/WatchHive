@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import QuickSearch from './QuickSearch';
 
-const DropdownMenu = () => {
+const DropdownMenu = ({ label, items }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -25,12 +26,12 @@ const DropdownMenu = () => {
             className="relative inline-block text-left"
         >
             <button
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm hover:bg-gray-200 focus:outline-none"
+                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-futuristic-blue-700 border border-futuristic-blue-500 rounded-lg shadow-glow-blue hover:bg-futuristic-blue-600 hover:shadow-glow-blue-lg transition-all duration-300"
                 onClick={() => setIsOpen(prev => !prev)}
             >
-                Trending
+                {label}
                 <svg
-                    className={`w-5 h-5 ml-2 -mr-1 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 ml-2 -mr-1 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -41,13 +42,12 @@ const DropdownMenu = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 z-10 mt-2 w-48 py-2 bg-white border border-gray-300 rounded-lg shadow-lg">
-                    <a href="/trending-series">
-                        <a className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Trending Series</a>
-                    </a>
-                    <a href="/trending-movies">
-                        <a className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Trending Movies</a>
-                    </a>
+                <div className="absolute right-0 z-10 mt-2 w-48 py-2 bg-futuristic-blue-900/95 backdrop-blur-sm border border-futuristic-blue-500/50 rounded-lg shadow-glow-blue-lg">
+                    {items.map((item, index) => (
+                        <a key={index} href={item.href} className="block px-4 py-2 text-white hover:bg-futuristic-blue-700 hover:text-futuristic-yellow-400 transition-colors">
+                            {item.label}
+                        </a>
+                    ))}
                 </div>
             )}
         </div>
@@ -57,6 +57,7 @@ const DropdownMenu = () => {
 const Navbar = () => {
     const router = useRouter();
     const [language, setLanguage] = useState('en-US');
+    const [showSearch, setShowSearch] = useState(false);
 
     // useEffect(() => {
     //     // Load the language from localStorage or default to 'en-US'
@@ -81,28 +82,51 @@ const Navbar = () => {
     // };
 
     return (
-        <nav className="bg-gray-800 p-4">
+        <nav className="bg-futuristic-blue-950/90 backdrop-blur-md border-b border-futuristic-blue-500/30 shadow-glow-blue p-4 sticky top-0 z-50">
             <div className="container mx-auto flex items-center justify-between">
-                <a className="text-white text-2xl font-bold cursor-pointer" href="/">Watch Hive</a>
+                <a className="text-futuristic-yellow-400 text-3xl font-bold cursor-pointer futuristic-text-glow-yellow hover:text-futuristic-yellow-300 transition-colors" href="/">
+                    <img src="/watchhive-logo.png" alt="Watch Hive Logo" className="inline h-8 w-auto mr-2 align-middle" />
+                </a>
                 <div className='flex items-center justify-between gap-6'>
-                    <DropdownMenu />
-                    <a href="/movies">Movies</a>
-                    <a href="/series">Series</a>
-                </div>
-                <a href="/profile">Profile</a>
-                {/* <div>
-                    <label htmlFor="language" className="text-white mr-4">Select Language:</label>
-                    <select
-                        id="language"
-                        value={language}
-                        onChange={handleLanguageChange}
-                        className="p-2 border border-gray-300 rounded"
+                    <DropdownMenu 
+                        label="Trending"
+                        items={[
+                            { href: '/trending-movies', label: 'Trending Movies' },
+                            { href: '/trending-series', label: 'Trending Series' }
+                        ]}
+                    />
+                    <DropdownMenu 
+                        label="Upcoming"
+                        items={[
+                            { href: '/upcoming-movies', label: 'Upcoming Movies' },
+                            { href: '/upcoming-series', label: 'Upcoming Series' }
+                        ]}
+                    />
+                    <a href="/movies" className="text-white font-semibold hover:text-futuristic-yellow-400 transition-colors border-b-2 border-transparent hover:border-futuristic-yellow-400 pb-1">
+                        Movies
+                    </a>
+                    <a href="/series" className="text-white font-semibold hover:text-futuristic-yellow-400 transition-colors border-b-2 border-transparent hover:border-futuristic-yellow-400 pb-1">
+                        Series
+                    </a>
+                    <button
+                        onClick={() => setShowSearch(!showSearch)}
+                        className="text-white font-semibold hover:text-futuristic-yellow-400 transition-colors"
+                        title="Search"
                     >
-                        <option value="en-US">English</option>
-                        <option value="pt-BR">Portuguese</option>
-                    </select>
-                </div> */}
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </button>
+                </div>
+                <a href="/profile" className="text-white font-semibold hover:text-futuristic-yellow-400 transition-colors">
+                    Profile
+                </a>
             </div>
+            {showSearch && (
+                <div className="container mx-auto px-4 pb-4">
+                    <QuickSearch onClose={() => setShowSearch(false)} isNavbar={true} />
+                </div>
+            )}
         </nav>
     );
 };

@@ -1,9 +1,9 @@
-import axios from 'axios';
+import { fetchTMDB } from '../utils';
 
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const pageParam = searchParams.get('page');
-    const page = parseInt(pageParam, 10); // Convert to integer
+    const page = parseInt(pageParam, 10);
 
     // Validate page number
     if (isNaN(page) || page < 1 || page > 500) {
@@ -16,18 +16,32 @@ export async function GET(req) {
     }
 
     try {
-        const response = await axios.get('https://api.themoviedb.org/3/discover/movie', {
-            params: {
-                api_key: process.env.TMDB_API_KEY,
-                language: 'en-US',
-                page: page,  // Use the valid page number
-                sort_by: 'popularity.desc',
-                include_adult: false,
-                include_video: false,
-            },
-        });
+        const genreIds = searchParams.get('genres');
+        const year = searchParams.get('year');
+        const minRating = searchParams.get('minRating');
+        const sortBy = searchParams.get('sortBy') || 'popularity.desc';
+        
+        const params = {
+            language: 'en-US',
+            page: page,
+            sort_by: sortBy,
+            include_adult: false,
+            include_video: false,
+        };
 
-        return new Response(JSON.stringify(response.data), {
+        if (genreIds) {
+            params.with_genres = genreIds;
+        }
+        if (year) {
+            params.primary_release_year = year;
+        }
+        if (minRating) {
+            params['vote_average.gte'] = minRating;
+        }
+
+        const data = await fetchTMDB('/discover/movie', params);
+
+        return new Response(JSON.stringify(data), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
@@ -37,6 +51,9 @@ export async function GET(req) {
         console.error('Error fetching popular movies:', error.message);
         return new Response(JSON.stringify({ error: 'Failed to fetch popular movies' }), {
             status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+            },
         });
     }
 }
