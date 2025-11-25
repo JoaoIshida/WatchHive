@@ -1,9 +1,10 @@
 import { fetchTMDB } from '../utils';
+import { findSimilarTitles } from '../../utils/similarTitles';
 
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { movieIds, seriesIds, mediaType } = body;
+        const { movieIds, seriesIds, mediaType, titles } = body; // Add titles parameter
 
         // Determine if we're working with movies, series, or both
         const isMovies = mediaType === 'movie' || (movieIds && movieIds.length > 0);
@@ -11,6 +12,36 @@ export async function POST(req) {
 
         let allRecommendations = [];
         const seenIds = new Set();
+
+        // Get similar titles based on title search (e.g., "Zootopia 2" -> "Zootopia")
+        if (titles && Array.isArray(titles) && titles.length > 0) {
+            for (const titleData of titles) {
+                const { title, type } = titleData;
+                if (title) {
+                    try {
+                        const similarTitles = await findSimilarTitles(
+                            title,
+                            type || mediaType || 'both',
+                            5 // Limit to 5 similar titles per input
+                        );
+                        
+                        similarTitles.forEach(item => {
+                            if (!seenIds.has(item.id)) {
+                                seenIds.add(item.id);
+                                allRecommendations.push({
+                                    ...item,
+                                    media_type: item.media_type || (type || 'movie'),
+                                    sourceType: 'similar_title',
+                                    similarity: item.similarity || 0,
+                                });
+                            }
+                        });
+                    } catch (error) {
+                        console.error(`Error finding similar titles for "${title}":`, error);
+                    }
+                }
+            }
+        }
 
         // Get recommendations for movies
         if (isMovies && movieIds && movieIds.length > 0) {
@@ -105,6 +136,23 @@ export async function POST(req) {
             // Sort by vote average for single source
             allRecommendations.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
         }
+
+        // Sort all recommendations: prioritize similar titles, then by vote average
+        allRecommendations.sort((a, b) => {
+            // Prioritize similar titles (from title search)
+            if (a.sourceType === 'similar_title' && b.sourceType !== 'similar_title') return -1;
+            if (b.sourceType === 'similar_title' && a.sourceType !== 'similar_title') return 1;
+            
+            // If both are similar titles, sort by similarity score
+            if (a.sourceType === 'similar_title' && b.sourceType === 'similar_title') {
+                if (b.similarity !== a.similarity) {
+                    return b.similarity - a.similarity;
+                }
+            }
+            
+            // Then by vote average
+            return (b.vote_average || 0) - (a.vote_average || 0);
+        });
 
         // Limit to top 20 recommendations
         const recommendations = allRecommendations.slice(0, 20);
