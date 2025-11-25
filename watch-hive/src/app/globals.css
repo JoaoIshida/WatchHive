@@ -65,6 +65,21 @@ body {
     @apply shadow-glow-yellow-lg transform translate-y-[-2px] border-futuristic-yellow-300/50;
   }
 
+  .futuristic-input {
+    @apply bg-futuristic-blue-900/90 border-2 border-futuristic-blue-500/50 text-white placeholder-white/60 rounded-full px-4 py-3 text-base font-medium;
+    @apply focus:outline-none focus:border-futuristic-yellow-500/70 focus:ring-2 focus:ring-futuristic-yellow-500/30;
+    @apply transition-all duration-300 shadow-glow-blue;
+    backdrop-filter: blur(8px);
+  }
+
+  .futuristic-input:hover {
+    @apply border-futuristic-blue-400/70 shadow-glow-blue-lg;
+  }
+
+  .futuristic-input:focus {
+    @apply bg-futuristic-blue-800/95 shadow-glow-yellow;
+  }
+
   .futuristic-text-glow {
     text-shadow: 0 0 8px rgba(64, 129, 210, 0.6), 0 0 15px rgba(64, 129, 210, 0.3);
   }

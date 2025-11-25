@@ -86,9 +86,11 @@ async function getMovieRecommendations(id, title) {
 import ImageWithFallback from '../../components/ImageWithFallback';
 import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';
+import AddToListButton from '../../components/AddToListButton';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import { getBestTrailer } from '../../utils/trailerHelper';
+import { formatDate } from '../../utils/dateFormatter';
 
 const MovieDetailPage = async ({ params }) => {
     const { id } = params;
@@ -103,15 +105,24 @@ const MovieDetailPage = async ({ params }) => {
         <div className="container mx-auto px-4 py-8 max-w-7xl">
             {/* Top Section: Title, Image, Overview, and Video */}
             <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
+                <div className="mb-4">
+                    <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
+                    
+                    {/* User Actions - Moved to top */}
+                    <div className="flex flex-wrap gap-3 mb-6">
+                        <WatchedButton itemId={movie.id} mediaType="movie" />
+                        <WishlistButton itemId={movie.id} mediaType="movie" />
+                        <AddToListButton itemId={movie.id} mediaType="movie" itemTitle={movie.title} />
+                    </div>
+                </div>
                 
                 <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Movie Image */}
+                    {/* Movie Image - Smaller */}
                     <div className="flex-shrink-0">
                         <ImageWithFallback
                             src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image'}
                             alt={movie.title}
-                            className="w-full max-w-sm rounded-lg shadow-lg"
+                            className="w-full max-w-[280px] rounded-lg shadow-lg"
                         />
                     </div>
 
@@ -125,7 +136,7 @@ const MovieDetailPage = async ({ params }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div className="futuristic-card p-4">
                                 <p className="font-bold text-lg text-futuristic-yellow-400">Release Date:</p>
-                                <p className="text-white font-medium">{movie.release_date}</p>
+                                <p className="text-white font-medium">{formatDate(movie.release_date)}</p>
                             </div>
                             <div className="futuristic-card p-4">
                                 <p className="font-bold text-lg text-futuristic-yellow-400">Rating:</p>
@@ -134,14 +145,6 @@ const MovieDetailPage = async ({ params }) => {
                             <div className="md:col-span-2 futuristic-card p-4">
                                 <p className="font-bold text-lg text-futuristic-yellow-400">Genres:</p>
                                 <p className="text-white font-medium">{movie.genres.map((genre) => genre.name).join(", ")}</p>
-                            </div>
-                        </div>
-
-                        {/* User Actions */}
-                        <div className="mb-6 futuristic-card p-4">
-                            <div className="flex flex-wrap gap-4">
-                                <WatchedButton itemId={movie.id} mediaType="movie" />
-                                <WishlistButton itemId={movie.id} mediaType="movie" />
                             </div>
                         </div>
 
@@ -213,7 +216,7 @@ const MovieDetailPage = async ({ params }) => {
 
                     {/* Video Trailer */}
                     {bestTrailer && (
-                        <div className="flex-shrink-0 lg:w-96">
+                        <div className="flex-shrink-0 lg:w-80">
                             <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
                                 {bestTrailer.name.includes('Official') ? 'Official Trailer' : 
                                  bestTrailer.type === 'Trailer' ? 'Trailer' : 
