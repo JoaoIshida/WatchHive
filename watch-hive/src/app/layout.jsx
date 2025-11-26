@@ -9,9 +9,19 @@ export const metadata = {
   title: "WatchHive",
   description: "Movies and TV Shows",
   icons: {
-    icon: '/watchhive-icon.png',
-    shortcut: '/watchhive-icon.png',
-    apple: '/watchhive-icon.png',
+    icon: {
+      url: '/watchhive-icon.png',
+      type: 'image/png',
+      sizes: 'any',
+    },
+    shortcut: {
+      url: '/watchhive-icon.png',
+      type: 'image/png',
+    },
+    apple: {
+      url: '/watchhive-icon.png',
+      type: 'image/png',
+    },
   },
 };
 

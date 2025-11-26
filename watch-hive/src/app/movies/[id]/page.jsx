@@ -197,16 +197,16 @@ const MovieDetailPage = async ({ params }) => {
                     {/* Video Trailer and Watch Providers */}
                     <div className="flex-shrink-0 lg:w-80 mt-6 lg:mt-0 space-y-6">
                         {/* Video Trailer */}
-                        <div>
-                            <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                            <div>
+                                <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
                                 {bestTrailer 
                                     ? (bestTrailer.name.includes('Official') ? 'Official Trailer' : 
-                                       bestTrailer.type === 'Trailer' ? 'Trailer' : 
+                                     bestTrailer.type === 'Trailer' ? 'Trailer' : 
                                        bestTrailer.type || 'Video')
                                     : 'Trailer'}
-                            </h2>
+                                </h2>
                             <TrailerPlayer trailerKey={bestTrailer?.key} title={movie.title} />
-                        </div>
+                            </div>
 
                         {/* Watch Providers */}
                         <WatchProvidersSection
