@@ -4,6 +4,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
 import SortFilter from '../components/SortFilter';
+import FilterSidebar from '../components/FilterSidebar';
+import ActiveFilters from '../components/ActiveFilters';
 import ContentCard from '../components/ContentCard';
 
 const PopularMoviesPage = () => {
@@ -214,8 +216,17 @@ const PopularMoviesPage = () => {
         return (
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    <LoadingCard count={12} />
+                <div className="flex gap-6">
+                    <div className="hidden sm:block w-64 flex-shrink-0">
+                        <div className="futuristic-card p-4">
+                            <div className="h-96 bg-futuristic-blue-900/40 rounded-lg animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            <LoadingCard count={12} />
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -226,61 +237,91 @@ const PopularMoviesPage = () => {
         <div className="container mx-auto px-4 py-8">
             <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
             
-            <SortFilter
-                onSortChange={setSortConfig}
-                onFilterChange={setFilters}
-                genres={genres}
-                showDateFilter={true}
-                sortConfig={sortConfig}
-                filters={filters}
-            />
-            <div className="flex items-center justify-center my-6 gap-2">
-                <button
-                    onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page === 1}
-                >
-                    Prev
-                </button>
-                <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
-                <button
-                    onClick={() => setPage((prevPage) => prevPage + 1)}
-                    className="futuristic-button"
-                >
-                    Next
-                </button>
+            {/* Mobile Filter - Hidden on sm and above */}
+            <div className="sm:hidden mb-4">
+                <SortFilter
+                    onSortChange={setSortConfig}
+                    onFilterChange={setFilters}
+                    genres={genres}
+                    showDateFilter={true}
+                    sortConfig={sortConfig}
+                    filters={filters}
+                />
             </div>
-            {
-                movies.length === 0 ? (
-                    <div className="text-center py-6 text-white">No popular movies available</div>
-                ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {movies.map((movie) => (
-                            <ContentCard
-                                key={movie.id}
-                                item={movie}
-                                mediaType="movie"
-                                href={`/movies/${movie.id}`}
-                            />
-                        ))}
+
+            {/* Desktop Layout with Sidebar */}
+            <div className="flex gap-6">
+                {/* Desktop Sidebar Filter - Hidden on mobile */}
+                <FilterSidebar
+                    onSortChange={setSortConfig}
+                    onFilterChange={setFilters}
+                    genres={genres}
+                    showDateFilter={true}
+                    sortConfig={sortConfig}
+                    filters={filters}
+                />
+
+                {/* Main Content */}
+                <div className="flex-1 min-w-0">
+                    {/* Active Filters - Desktop only */}
+                    <div className="hidden sm:block">
+                        <ActiveFilters
+                            filters={filters}
+                            genres={genres}
+                            onFilterChange={setFilters}
+                            onSortChange={setSortConfig}
+                            sortConfig={sortConfig}
+                        />
                     </div>
-                )
-            }
-            <div className="flex items-center justify-center my-6 gap-2">
-                <button
-                    onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page === 1}
-                >
-                    Prev
-                </button>
-                <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
-                <button
-                    onClick={() => setPage((prevPage) => prevPage + 1)}
-                    className="futuristic-button"
-                >
-                    Next
-                </button>
+                    <div className="flex items-center justify-center my-6 gap-2">
+                        <button
+                            onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
+                            className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={page === 1}
+                        >
+                            Prev
+                        </button>
+                        <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
+                        <button
+                            onClick={() => setPage((prevPage) => prevPage + 1)}
+                            className="futuristic-button"
+                        >
+                            Next
+                        </button>
+                    </div>
+                    {
+                        movies.length === 0 ? (
+                            <div className="text-center py-6 text-white">No popular movies available</div>
+                        ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {movies.map((movie) => (
+                                    <ContentCard
+                                        key={movie.id}
+                                        item={movie}
+                                        mediaType="movie"
+                                        href={`/movies/${movie.id}`}
+                                    />
+                                ))}
+                            </div>
+                        )
+                    }
+                    <div className="flex items-center justify-center my-6 gap-2">
+                        <button
+                            onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
+                            className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={page === 1}
+                        >
+                            Prev
+                        </button>
+                        <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
+                        <button
+                            onClick={() => setPage((prevPage) => prevPage + 1)}
+                            className="futuristic-button"
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

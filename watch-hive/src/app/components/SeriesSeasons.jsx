@@ -1,12 +1,17 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { seriesProgressStorage } from '../lib/localStorage';
+import { isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
+import { formatDate } from '../utils/dateFormatter';
 import ImageWithFallback from './ImageWithFallback';
+import UnreleasedNotification from './UnreleasedNotification';
 
-const SeriesSeasons = ({ seriesId, seasons }) => {
+const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const [expandedSeasons, setExpandedSeasons] = useState({});
     const [seasonDetails, setSeasonDetails] = useState({});
     const [progress, setProgress] = useState({});
+    const [showNotification, setShowNotification] = useState(false);
+    const [skippedItems, setSkippedItems] = useState([]);
 
     useEffect(() => {
         // Load progress from localStorage
@@ -46,6 +51,22 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
         if (isWatched) {
             seriesProgressStorage.markEpisodeUnwatched(seriesId, seasonNumber, episodeNumber);
         } else {
+            // Check if episode is released
+            const seasonData = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
+            const episode = seasonData?.episodes?.find(ep => ep.episode_number === episodeNumber);
+            
+            if (episode && !isEpisodeReleased(episode)) {
+                setSkippedItems([{
+                    type: 'episode',
+                    seriesName: seriesName,
+                    seasonName: seasonData?.name || `Season ${seasonNumber}`,
+                    episodeName: episode.name || `Episode ${episodeNumber}`,
+                    releaseDate: formatDate(episode.air_date)
+                }]);
+                setShowNotification(true);
+                return;
+            }
+            
             seriesProgressStorage.markEpisodeWatched(seriesId, seasonNumber, episodeNumber);
         }
         
@@ -59,8 +80,22 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
     const toggleSeasonCompleted = async (seasonNumber) => {
         const isCompleted = seriesProgressStorage.isSeasonCompleted(seriesId, seasonNumber);
         
+        // Check if season is released
+        const season = seasons.find(s => s.season_number === seasonNumber);
+        if (!isCompleted && season && !isSeasonReleased(season)) {
+            setSkippedItems([{
+                type: 'season',
+                seriesName: 'Series',
+                seasonName: season.name || `Season ${seasonNumber}`,
+                releaseDate: formatDate(season.air_date)
+            }]);
+            setShowNotification(true);
+            return;
+        }
+        
         // If marking as completed, fetch all episodes to mark them as watched
         let allEpisodes = [];
+        const skipped = [];
         if (!isCompleted) {
             // Fetch season details to get all episodes
             try {
@@ -76,11 +111,54 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                         setSeasonDetails(prev => ({ ...prev, [seasonNumber]: data }));
                     }
                 }
+                
+                // Filter out unreleased episodes
+                const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep));
+                const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep));
+                
+                unreleasedEpisodes.forEach(ep => {
+                    skipped.push({
+                        type: 'episode',
+                        seriesName: seriesName,
+                        seasonName: seasonData?.name || `Season ${seasonNumber}`,
+                        episodeName: ep.name || `Episode ${ep.episode_number}`,
+                        releaseDate: formatDate(ep.air_date)
+                    });
+                });
+                
+                allEpisodes = releasedEpisodes;
+                
+                // If all episodes are unreleased, don't mark season as complete
+                if (releasedEpisodes.length === 0 && unreleasedEpisodes.length > 0) {
+                    setSkippedItems(skipped);
+                    setShowNotification(true);
+                    return; // Don't mark as complete
+                }
             } catch (error) {
                 console.error('Error fetching season episodes:', error);
             }
         }
         
+        // If there are ANY unreleased episodes, don't mark season as complete
+        if (skipped.length > 0) {
+            setSkippedItems(skipped);
+            setShowNotification(true);
+            // Don't mark season as complete if there are unreleased episodes
+            // Only mark released episodes individually
+            if (allEpisodes.length > 0) {
+                // Mark only released episodes individually, but NOT the season itself as complete
+                allEpisodes.forEach(ep => {
+                    seriesProgressStorage.markEpisodeWatched(seriesId, seasonNumber, ep.episode_number);
+                });
+            }
+            // Reload progress
+            const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
+            setProgress(updatedProgress);
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            return;
+        }
+        
+        // Only mark as complete if ALL episodes are released (no skipped items)
         seriesProgressStorage.markSeasonCompleted(seriesId, seasonNumber, !isCompleted, allEpisodes);
         
         // Reload progress
@@ -95,15 +173,42 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
         
         // If marking as completed, fetch all seasons and episodes to mark them as watched
         let allSeasonsData = {};
+        const skipped = [];
         if (!isCompleted) {
             // Fetch all seasons data
             const seasonPromises = seasons.map(async (season) => {
                 try {
+                    // Check if season is released
+                    if (!isSeasonReleased(season)) {
+                        skipped.push({
+                            type: 'season',
+                            seriesName: seriesName,
+                            seasonName: season.name || `Season ${season.season_number}`,
+                            releaseDate: formatDate(season.air_date)
+                        });
+                        return null;
+                    }
+                    
                     // Try to get from already loaded season details
                     if (seasonDetails[season.season_number] && seasonDetails[season.season_number].episodes) {
+                        const seasonData = seasonDetails[season.season_number];
+                        // Filter unreleased episodes
+                        const releasedEpisodes = seasonData.episodes.filter(ep => isEpisodeReleased(ep));
+                        const unreleasedEpisodes = seasonData.episodes.filter(ep => !isEpisodeReleased(ep));
+                        
+                        unreleasedEpisodes.forEach(ep => {
+                            skipped.push({
+                                type: 'episode',
+                                seriesName: seriesName,
+                                seasonName: season.name || `Season ${season.season_number}`,
+                                episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                releaseDate: formatDate(ep.air_date)
+                            });
+                        });
+                        
                         return {
                             seasonNumber: season.season_number,
-                            data: seasonDetails[season.season_number]
+                            data: { ...seasonData, episodes: releasedEpisodes }
                         };
                     }
                     
@@ -112,9 +217,24 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                     if (response.ok) {
                         const data = await response.json();
                         setSeasonDetails(prev => ({ ...prev, [season.season_number]: data }));
+                        
+                        // Filter unreleased episodes
+                        const releasedEpisodes = (data.episodes || []).filter(ep => isEpisodeReleased(ep));
+                        const unreleasedEpisodes = (data.episodes || []).filter(ep => !isEpisodeReleased(ep));
+                        
+                        unreleasedEpisodes.forEach(ep => {
+                            skipped.push({
+                                type: 'episode',
+                                seriesName: seriesName,
+                                seasonName: season.name || `Season ${season.season_number}`,
+                                episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                releaseDate: formatDate(ep.air_date)
+                            });
+                        });
+                        
                         return {
                             seasonNumber: season.season_number,
-                            data: data
+                            data: { ...data, episodes: releasedEpisodes }
                         };
                     }
                 } catch (error) {
@@ -131,7 +251,36 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
             });
         }
         
-        seriesProgressStorage.markSeriesCompleted(seriesId, !isCompleted, allSeasonsData);
+        // Check if there are any released seasons/episodes to mark
+        const hasReleasedContent = Object.keys(allSeasonsData).length > 0;
+        
+        // If there are ANY unreleased items, don't mark the series as complete
+        if (skipped.length > 0) {
+            setSkippedItems(skipped);
+            setShowNotification(true);
+            // Don't mark series as complete if there's unreleased content
+            // Only mark individual released seasons/episodes
+            if (hasReleasedContent) {
+                // Mark only released episodes individually, but NOT the series/season itself as complete
+                Object.entries(allSeasonsData).forEach(([seasonNum, seasonData]) => {
+                    if (seasonData.episodes && seasonData.episodes.length > 0) {
+                        seasonData.episodes.forEach(ep => {
+                            seriesProgressStorage.markEpisodeWatched(seriesId, parseInt(seasonNum), ep.episode_number);
+                        });
+                    }
+                });
+            }
+            // Reload progress
+            const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
+            setProgress(updatedProgress);
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            return;
+        }
+        
+        // Only mark as complete if ALL content is released (no skipped items) or if unmarking
+        if (isCompleted || hasReleasedContent || skipped.length === 0) {
+            seriesProgressStorage.markSeriesCompleted(seriesId, !isCompleted, allSeasonsData);
+        }
         
         // Reload progress
         const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
@@ -236,24 +385,18 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                                 onClick={() => toggleSeason(season.season_number)}
                             >
                                 <div className="flex items-center gap-4">
-                                    {seasonData.poster_path && (
-                                        <ImageWithFallback
-                                            src={`https://image.tmdb.org/t/p/w200${seasonData.poster_path}`}
-                                            alt={`Season ${season.season_number}`}
-                                            className="w-20 h-28 object-cover rounded"
-                                        />
-                                    )}
+                                    <ImageWithFallback
+                                        src={seasonData.poster_path ? `https://image.tmdb.org/t/p/w200${seasonData.poster_path}` : null}
+                                        alt={`Season ${season.season_number}`}
+                                        className="w-20 h-28 object-cover rounded"
+                                    />
                                     <div>
                                         <h3 className="text-lg font-bold text-white">
                                             {season.name || `Season ${season.season_number}`}
                                         </h3>
                                         {seasonData.air_date && (
                                             <p className="text-sm text-futuristic-yellow-400/80">
-                                                {new Date(seasonData.air_date).toLocaleDateString('en-US', { 
-                                                    year: 'numeric', 
-                                                    month: 'long', 
-                                                    day: 'numeric' 
-                                                })}
+                                                {formatDate(seasonData.air_date)}
                                             </p>
                                         )}
                                         {seasonData.episode_count && (
@@ -323,13 +466,6 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                                                         E{episode.episode_number}
                                                     </span>
                                                 </div>
-                                                {episode.still_path && (
-                                                    <ImageWithFallback
-                                                        src={`https://image.tmdb.org/t/w300${episode.still_path}`}
-                                                        alt={episode.name}
-                                                        className="w-24 h-16 object-cover rounded"
-                                                    />
-                                                )}
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2">
                                                         <h4 className="font-semibold text-white">
@@ -341,7 +477,7 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                                                     </div>
                                                     {episode.air_date && (
                                                         <p className="text-xs text-futuristic-yellow-400/80">
-                                                            {new Date(episode.air_date).toLocaleDateString()}
+                                                            {formatDate(episode.air_date)}
                                                         </p>
                                                     )}
                                                     {episode.overview && (
@@ -350,9 +486,13 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                                                         </p>
                                                     )}
                                                 </div>
-                                                {episode.vote_average && (
+                                                {episode.vote_average && episode.vote_average > 0 ? (
                                                     <div className="text-xs text-futuristic-yellow-400">
                                                         ⭐ {episode.vote_average.toFixed(1)}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-xs text-white/60">
+                                                        No ratings
                                                     </div>
                                                 )}
                                             </div>
@@ -364,6 +504,11 @@ const SeriesSeasons = ({ seriesId, seasons }) => {
                     );
                 })}
             </div>
+            <UnreleasedNotification 
+                isOpen={showNotification}
+                onClose={() => setShowNotification(false)}
+                skippedItems={skippedItems}
+            />
         </div>
     );
 };

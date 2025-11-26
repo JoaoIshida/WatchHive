@@ -8,6 +8,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "WatchHive",
   description: "Movies and TV Shows",
+  icons: {
+    icon: '/watchhive-icon.png',
+    shortcut: '/watchhive-icon.png',
+    apple: '/watchhive-icon.png',
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -16,7 +21,7 @@ export default function RootLayout({ children }) {
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <Navbar />
         <main className="flex-grow">
-          {children}
+        {children}
         </main>
         <Footer />
       </body>

@@ -5,6 +5,7 @@ import AddToListButton from '../../components/AddToListButton';
 import SeriesSeasons from '../../components/SeriesSeasons';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
+import WatchProvidersSection from '../../components/WatchProvidersSection';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -112,94 +113,127 @@ const SerieDetailPage = async ({ params }) => {
             {/* Top Section: Image and Overview */}
             <div className="mb-8">
                 <div className="mb-4">
-                    <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{tv.name}</h1>
-                    
-                    {/* User Actions - Moved to top */}
-                    <div className="flex flex-wrap gap-3 mb-6">
-                        <WatchedButton itemId={tv.id} mediaType="tv" seasons={tv.seasons} />
-                        <WishlistButton itemId={tv.id} mediaType="tv" />
-                        <AddToListButton itemId={tv.id} mediaType="tv" itemTitle={tv.name} />
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                        <div className="flex-1">
+                            <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{tv.name}</h1>
+                            
+                            {/* User Actions */}
+                            <div className="flex flex-wrap gap-3">
+                                <WatchedButton itemId={tv.id} mediaType="tv" seasons={tv.seasons} itemData={tv} />
+                                <WishlistButton itemId={tv.id} mediaType="tv" />
+                                <AddToListButton itemId={tv.id} mediaType="tv" itemTitle={tv.name} />
+                            </div>
+                        </div>
+                        
+                        {/* Rating - Top Right */}
+                        <div className="flex-shrink-0">
+                            {tv.vote_average && tv.vote_average > 0 ? (
+                                <div className="flex items-center gap-2 bg-futuristic-blue-800/60 border border-futuristic-yellow-500/30 rounded-lg px-4 py-3">
+                                    <div className="flex items-center">
+                                        <span className="text-2xl font-bold text-futuristic-yellow-400">{tv.vote_average.toFixed(1)}</span>
+                                        <span className="text-white/60 text-sm ml-1">/ 10</span>
+                                    </div>
+                                    <div className="flex items-center gap-0.5">
+                                        {[...Array(5)].map((_, i) => (
+                                            <svg
+                                                key={i}
+                                                className={`w-4 h-4 ${i < Math.round(tv.vote_average / 2) ? 'text-futuristic-yellow-400 fill-current' : 'text-white/20'}`}
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-futuristic-blue-800/60 border border-futuristic-yellow-500/30 rounded-lg px-4 py-3">
+                                    <p className="text-white/60 font-medium">No ratings</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 
-                <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Series Image - Smaller */}
+                <div className="flex flex-col lg:flex-row gap-8">
+                    {/* Series Image */}
                     <div className="flex-shrink-0">
                         <ImageWithFallback
-                            src={tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image'}
+                            src={tv.poster_path ? `https://image.tmdb.org/t/p/w500${tv.poster_path}` : null}
                             alt={tv.name}
-                            className="w-full max-w-[280px] rounded-lg shadow-glow-blue"
+                            className="w-full max-w-[320px] rounded-xl shadow-2xl shadow-futuristic-blue-900/50"
                         />
                     </div>
 
                     {/* Overview and Details */}
-                    <div className="flex-1">
-                        <div className="mb-6 futuristic-card p-6">
-                            <h2 className="font-bold mb-2 text-xl text-futuristic-yellow-400 futuristic-text-glow-yellow">Overview:</h2>
-                            <p className="text-white leading-relaxed">{tv.overview}</p>
+                    <div className="flex-1 space-y-6">
+                        {/* Overview */}
+                        <div className="futuristic-card p-6">
+                            <h2 className="font-bold mb-3 text-xl text-futuristic-yellow-400 futuristic-text-glow-yellow">Overview</h2>
+                            <p className="text-white leading-relaxed text-base">{tv.overview}</p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Key Information */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">First Air Date:</p>
-                                <p className="text-white font-medium">{formatDate(tv.first_air_date)}</p>
+                                <p className="text-sm text-futuristic-yellow-400/80 mb-1">First Air Date</p>
+                                <p className="text-white font-semibold text-lg">{formatDate(tv.first_air_date)}</p>
                             </div>
                             <div className="futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Last Air Date:</p>
-                                <p className="text-white font-medium">{tv.last_air_date ? formatDate(tv.last_air_date) : 'Ongoing'}</p>
-                            </div>
-                            <div className="futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Rating:</p>
-                                <p className="text-white font-medium">{tv.vote_average} / 10</p>
-                            </div>
-                            <div className="md:col-span-2 futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Genres:</p>
-                                <p className="text-white font-medium">{tv.genres.map((genre) => genre.name).join(", ")}</p>
+                                <p className="text-sm text-futuristic-yellow-400/80 mb-1">Last Air Date</p>
+                                <p className="text-white font-semibold text-lg">{tv.last_air_date ? formatDate(tv.last_air_date) : 'Ongoing'}</p>
                             </div>
                         </div>
 
-                        {/* Watch Providers */}
-                        {tv_more.results.CA?.flatrate?.length > 0 && (
-                            <div className="mb-4">
-                                <p className="font-bold text-lg mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Available On:</p>
-                                <div className="flex flex-wrap gap-3">
-                                    {tv_more.results.CA.flatrate.map(provider => (
-                                        <div key={provider.provider_id} className="flex items-center gap-2 bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 px-4 py-2.5 rounded-lg shadow-glow-yellow hover:border-futuristic-yellow-400 hover:shadow-glow-yellow-lg transition-all">
-                                            {provider.logo_path && (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                                                    alt={provider.provider_name}
-                                                    width={40}
-                                                    height={40}
-                                                    className="rounded"
-                                                />
-                                            )}
-                                            <p className="text-base font-semibold text-futuristic-yellow-400">{provider.provider_name}</p>
-                                        </div>
+                        {/* Genres */}
+                        {tv.genres && tv.genres.length > 0 && (
+                            <div>
+                                <p className="text-sm text-futuristic-yellow-400/80 mb-3">Genres</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {tv.genres.map((genre) => (
+                                        <a
+                                            key={genre.id}
+                                            href={`/series?genres=${genre.id}`}
+                                            className="inline-flex items-center px-4 py-2 bg-futuristic-blue-800/60 hover:bg-futuristic-blue-700 border border-futuristic-yellow-500/30 hover:border-futuristic-yellow-400 rounded-lg text-white font-medium text-sm transition-all duration-200 hover:shadow-glow-yellow hover:scale-105"
+                                        >
+                                            {genre.name}
+                                        </a>
                                     ))}
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Video Trailer */}
-                    {bestTrailer && (
-                        <div className="flex-shrink-0 lg:w-80 mt-6 lg:mt-0">
+                    {/* Video Trailer and Watch Providers */}
+                    <div className="flex-shrink-0 lg:w-80 mt-6 lg:mt-0 space-y-6">
+                        {/* Video Trailer */}
+                        <div>
                             <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
-                                {bestTrailer.name.includes('Official') ? 'Official Trailer' : 
-                                 bestTrailer.type === 'Trailer' ? 'Trailer' : 
-                                 bestTrailer.type || 'Video'}
+                                {bestTrailer 
+                                    ? (bestTrailer.name.includes('Official') ? 'Official Trailer' : 
+                                       bestTrailer.type === 'Trailer' ? 'Trailer' : 
+                                       bestTrailer.type || 'Video')
+                                    : 'Trailer'}
                             </h2>
-                            <TrailerPlayer trailerKey={bestTrailer.key} title={tv.name} />
+                            <TrailerPlayer trailerKey={bestTrailer?.key} title={tv.name} />
                         </div>
-                    )}
+
+                        {/* Watch Providers */}
+                        <WatchProvidersSection
+                            flatrate={tv_more.results.CA?.flatrate}
+                            rent={tv_more.results.CA?.rent}
+                            buy={tv_more.results.CA?.buy}
+                            title={tv.name}
+                            mediaType="tv"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Seasons & Episodes Section */}
             {tv.seasons && tv.seasons.length > 0 && (
                 <div className="mt-12 border-t border-futuristic-blue-500/30 pt-8">
-                    <SeriesSeasons seriesId={tv.id} seasons={tv.seasons} />
+                    <SeriesSeasons seriesId={tv.id} seasons={tv.seasons} seriesName={tv.name} />
                 </div>
             )}
 

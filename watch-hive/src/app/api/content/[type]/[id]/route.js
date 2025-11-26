@@ -1,7 +1,7 @@
 import { fetchTMDB } from '../../../utils';
 
 export async function GET(req, { params }) {
-    const { type, id } = params;
+    const { type, id } = await params;
 
     if (!type || !id) {
         return new Response(JSON.stringify({ error: 'Type and ID are required' }), {

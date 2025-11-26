@@ -1,11 +1,16 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { watchedStorage, seriesProgressStorage } from '../lib/localStorage';
+import { isMovieReleased, isSeriesReleased, isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
+import { formatDate } from '../utils/dateFormatter';
+import UnreleasedNotification from './UnreleasedNotification';
 
-export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = null }) {
+export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = null, itemData = null }) {
     const [isWatched, setIsWatched] = useState(false);
     const [timesWatched, setTimesWatched] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [skippedItems, setSkippedItems] = useState([]);
 
     useEffect(() => {
         // Check if item is watched
@@ -30,26 +35,58 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     seriesProgressStorage.markSeriesCompleted(String(itemId), false);
                 }
             } else {
-                // Add to watched
-                watchedStorage.add(String(itemId), mediaType);
-                setIsWatched(true);
-                setTimesWatched(1);
-                
-                // If it's a series, automatically mark all episodes as watched
+                // Check if item is released before marking as watched
+                if (mediaType === 'movie') {
+                    if (itemData && !isMovieReleased(itemData)) {
+                        setSkippedItems([{
+                            type: 'movie',
+                            name: itemData.title,
+                            releaseDate: formatDate(itemData.release_date)
+                        }]);
+                        setShowNotification(true);
+                        setLoading(false);
+                        return;
+                    }
+                } else if (mediaType === 'tv') {
+                    if (itemData && !isSeriesReleased(itemData)) {
+                        setSkippedItems([{
+                            type: 'series',
+                            name: itemData.name,
+                            releaseDate: formatDate(itemData.first_air_date)
+                        }]);
+                        setShowNotification(true);
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                // If it's a series, check all seasons first before marking as watched
                 if (mediaType === 'tv' && seasons && seasons.length > 0) {
-                    // Fetch all seasons data and mark all episodes as watched
+                    // Fetch all seasons data and check for unreleased content
                     const allSeasonsData = {};
+                    const skipped = [];
                     
                     const seasonPromises = seasons.map(async (season) => {
                         try {
-                            // Try to fetch season details to get episodes
-                            const response = await fetch(`/api/tv/${itemId}/season/${season.season_number}`);
-                            if (response.ok) {
-                                const data = await response.json();
-                                return {
-                                    seasonNumber: season.season_number,
-                                    data: data
-                                };
+                            // Check if season is released
+                            if (isSeasonReleased(season)) {
+                                // Try to fetch season details to get episodes
+                                const response = await fetch(`/api/tv/${itemId}/season/${season.season_number}`);
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    return {
+                                        seasonNumber: season.season_number,
+                                        data: data,
+                                        season: season
+                                    };
+                                }
+                            } else {
+                                skipped.push({
+                                    type: 'season',
+                                    seriesName: itemData?.name || 'Series',
+                                    seasonName: season.name || `Season ${season.season_number}`,
+                                    releaseDate: formatDate(season.air_date)
+                                });
                             }
                         } catch (error) {
                             console.error(`Error fetching season ${season.season_number}:`, error);
@@ -60,17 +97,80 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     const seasonResults = await Promise.all(seasonPromises);
                     seasonResults.forEach(result => {
                         if (result && result.data) {
-                            allSeasonsData[result.seasonNumber] = result.data;
+                            // Filter out unreleased episodes
+                            const releasedEpisodes = result.data.episodes?.filter(ep => isEpisodeReleased(ep)) || [];
+                            const unreleasedEpisodes = result.data.episodes?.filter(ep => !isEpisodeReleased(ep)) || [];
+                            
+                            // Add unreleased episodes to skipped list
+                            unreleasedEpisodes.forEach(ep => {
+                                skipped.push({
+                                    type: 'episode',
+                                    seriesName: itemData?.name || 'Series',
+                                    seasonName: result.season.name || `Season ${result.seasonNumber}`,
+                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                    releaseDate: formatDate(ep.air_date)
+                                });
+                            });
+                            
+                            // Only include released episodes in the data
+                            if (releasedEpisodes.length > 0) {
+                                allSeasonsData[result.seasonNumber] = {
+                                    ...result.data,
+                                    episodes: releasedEpisodes
+                                };
+                            }
                         }
                     });
                     
-                    // Mark series as completed with all episodes
-                    if (Object.keys(allSeasonsData).length > 0) {
+                    // Check if there are any released seasons/episodes to mark
+                    const hasReleasedContent = Object.keys(allSeasonsData).length > 0;
+                    
+                    // Show notification if any items were skipped
+                    if (skipped.length > 0) {
+                        setSkippedItems(skipped);
+                        setShowNotification(true);
+                    }
+                    
+                    // If there are ANY unreleased items, don't mark the series as complete
+                    // Only mark individual released seasons/episodes
+                    if (skipped.length > 0) {
+                        // Don't mark series as watched if there's unreleased content
+                        // Only mark the released seasons/episodes individually (without marking series complete)
+                        if (hasReleasedContent) {
+                            // Mark individual released episodes/seasons, but NOT the series itself as complete
+                            Object.entries(allSeasonsData).forEach(([seasonNum, seasonData]) => {
+                                if (seasonData.episodes && seasonData.episodes.length > 0) {
+                                    seasonData.episodes.forEach(ep => {
+                                        seriesProgressStorage.markEpisodeWatched(String(itemId), parseInt(seasonNum), ep.episode_number);
+                                    });
+                                }
+                            });
+                        }
+                        setLoading(false);
+                        return;
+                    }
+                    
+                    // Only mark as watched if ALL content is released (no skipped items)
+                    if (hasReleasedContent) {
+                        // Add to watched
+                        watchedStorage.add(String(itemId), mediaType);
+                        setIsWatched(true);
+                        setTimesWatched(1);
+                        
+                        // Mark series as completed with all episodes
                         seriesProgressStorage.markSeriesCompleted(String(itemId), true, allSeasonsData);
                     } else {
-                        // Fallback: just mark as completed even if we couldn't fetch episodes
+                        // Fallback: mark as watched if no seasons data but no skipped items
+                        watchedStorage.add(String(itemId), mediaType);
+                        setIsWatched(true);
+                        setTimesWatched(1);
                         seriesProgressStorage.markSeriesCompleted(String(itemId), true);
                     }
+                } else {
+                    // For movies or series without seasons, just mark as watched
+                    watchedStorage.add(String(itemId), mediaType);
+                    setIsWatched(true);
+                    setTimesWatched(1);
                 }
             }
             if (onUpdate) onUpdate();
@@ -100,44 +200,51 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
     };
 
     return (
-        <div className="flex items-center gap-2">
-            <button
-                onClick={handleToggle}
-                disabled={loading}
-                className={`futuristic-button flex items-center gap-2 ${
-                    isWatched 
-                        ? 'bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black' 
-                        : ''
-                }`}
-            >
-                {isWatched ? (
-                    <>
-                        <span>✓</span>
-                        <span>Watched</span>
-                    </>
-                ) : (
-                    <>
-                        <span>+</span>
-                        <span>Mark as Watched</span>
-                    </>
+        <>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={handleToggle}
+                    disabled={loading}
+                    className={`futuristic-button flex items-center gap-2 ${
+                        isWatched 
+                            ? 'bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black' 
+                            : ''
+                    }`}
+                >
+                    {isWatched ? (
+                        <>
+                            <span>✓</span>
+                            <span>Watched</span>
+                        </>
+                    ) : (
+                        <>
+                            <span>+</span>
+                            <span>Mark as Watched</span>
+                        </>
+                    )}
+                </button>
+                {isWatched && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-futuristic-yellow-400 font-semibold">
+                            {timesWatched}x
+                        </span>
+                        <button
+                            onClick={handleIncrement}
+                            disabled={loading}
+                            className="futuristic-button-yellow text-sm px-3 py-1"
+                            title="Increment watch count"
+                        >
+                            +1
+                        </button>
+                    </div>
                 )}
-            </button>
-            {isWatched && (
-                <div className="flex items-center gap-2">
-                    <span className="text-futuristic-yellow-400 font-semibold">
-                        {timesWatched}x
-                    </span>
-                    <button
-                        onClick={handleIncrement}
-                        disabled={loading}
-                        className="futuristic-button-yellow text-sm px-3 py-1"
-                        title="Increment watch count"
-                    >
-                        +1
-                    </button>
-                </div>
-            )}
-        </div>
+            </div>
+            <UnreleasedNotification 
+                isOpen={showNotification}
+                onClose={() => setShowNotification(false)}
+                skippedItems={skippedItems}
+            />
+        </>
     );
 }
 

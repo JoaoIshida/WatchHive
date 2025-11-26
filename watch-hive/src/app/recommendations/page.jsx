@@ -192,7 +192,7 @@ const RecommendationsPage = () => {
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-start gap-3 flex-1">
                                             <ImageWithFallback
-                                                src={selectedItems[index].poster_path ? `https://image.tmdb.org/t/p/w92${selectedItems[index].poster_path}` : 'https://via.placeholder.com/64x96?text=No+Image'}
+                                                src={selectedItems[index].poster_path ? `https://image.tmdb.org/t/p/w92${selectedItems[index].poster_path}` : null}
                                                 alt={selectedItems[index].title || selectedItems[index].name}
                                                 className="w-16 h-24 object-cover rounded"
                                             />
@@ -237,7 +237,7 @@ const RecommendationsPage = () => {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <ImageWithFallback
-                                                        src={suggestion.poster_path ? `https://image.tmdb.org/t/p/w92${suggestion.poster_path}` : 'https://via.placeholder.com/48x64?text=No+Image'}
+                                                        src={suggestion.poster_path ? `https://image.tmdb.org/t/p/w92${suggestion.poster_path}` : null}
                                                         alt={suggestion.title || suggestion.name}
                                                         className="w-12 h-16 object-cover rounded"
                                                     />

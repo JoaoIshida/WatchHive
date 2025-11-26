@@ -146,7 +146,7 @@ const QuickSearch = ({ onClose, isNavbar = false }) => {
                                     <ImageWithFallback
                                         src={item.poster_path 
                                             ? `https://image.tmdb.org/t/p/w200${item.poster_path}` 
-                                            : 'https://via.placeholder.com/200x300?text=No+Image'}
+                                            : null}
                                         alt={title}
                                         className="object-cover w-full h-full rounded"
                                     />
@@ -165,10 +165,12 @@ const QuickSearch = ({ onClose, isNavbar = false }) => {
                                     )}
                                     <div className="flex items-center gap-3 text-xs text-futuristic-yellow-400/80">
                                         {releaseDate && <span>{releaseDate}</span>}
-                                        {item.vote_average && (
+                                        {item.vote_average && item.vote_average > 0 ? (
                                             <span className="flex items-center gap-1">
                                                 ⭐ {item.vote_average.toFixed(1)}
                                             </span>
+                                        ) : (
+                                            <span className="text-white/60">No ratings</span>
                                         )}
                                     </div>
                                 </div>

@@ -1,5 +1,5 @@
 /**
- * Format date string to readable format (e.g., "Nov 11, 2025")
+ * Format date string to readable format (e.g., "November 11, 2025")
  */
 export function formatDate(dateString) {
     if (!dateString) return 'N/A';
@@ -12,7 +12,7 @@ export function formatDate(dateString) {
         
         return date.toLocaleDateString('en-US', {
             year: 'numeric',
-            month: 'short',
+            month: 'long',
             day: 'numeric'
         });
     } catch (error) {

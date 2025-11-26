@@ -1,7 +1,7 @@
 import { fetchTMDB } from '../../../../utils';
 
 export async function GET(req, { params }) {
-    const { id, seasonNumber } = params;
+    const { id, seasonNumber } = await params;
 
     if (!id || !seasonNumber) {
         return new Response(JSON.stringify({ error: 'Series ID and season number are required' }), {

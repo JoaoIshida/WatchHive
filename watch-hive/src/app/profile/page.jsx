@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { watchedStorage, wishlistStorage, seriesProgressStorage } from '../lib/localStorage';
+import { watchedStorage, wishlistStorage, seriesProgressStorage, customListsStorage } from '../lib/localStorage';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatDate } from '../utils/dateFormatter';
 
 const ProfilePage = () => {
     const [watched, setWatched] = useState([]);
@@ -13,9 +14,22 @@ const ProfilePage = () => {
     const [watchedDetails, setWatchedDetails] = useState([]);
     const [wishlistDetails, setWishlistDetails] = useState([]);
     const [seriesDetails, setSeriesDetails] = useState({});
+    const [customLists, setCustomLists] = useState([]);
+    const [listDetails, setListDetails] = useState({});
+    const [upcomingSeasons, setUpcomingSeasons] = useState([]);
 
     useEffect(() => {
         loadUserData();
+        
+        // Listen for data updates
+        const handleDataUpdate = () => {
+            loadUserData();
+        };
+        
+        window.addEventListener('watchhive-data-updated', handleDataUpdate);
+        return () => {
+            window.removeEventListener('watchhive-data-updated', handleDataUpdate);
+        };
     }, []);
 
     const loadUserData = async () => {
@@ -25,10 +39,12 @@ const ProfilePage = () => {
             const watchedItems = watchedStorage.getAll();
             const wishlistItems = wishlistStorage.getAll();
             const progress = seriesProgressStorage.getAll();
+            const lists = customListsStorage.getAll();
 
             setWatched(watchedItems);
             setWishlist(wishlistItems);
             setSeriesProgress(progress);
+            setCustomLists(lists);
 
             // Fetch details for watched items
             if (watchedItems.length > 0) {
@@ -88,6 +104,82 @@ const ProfilePage = () => {
                 });
                 setSeriesDetails(seriesMap);
             }
+
+            // Load list details
+            if (lists.length > 0) {
+                const listDetailsMap = {};
+                const upcomingSeasonsList = [];
+
+                for (const list of lists) {
+                    if (list.items.length > 0) {
+                        const itemDetailsPromises = list.items.map(async (item) => {
+                            try {
+                                const response = await fetch(`/api/content/${item.mediaType}/${item.id}`);
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    return { ...data, media_type: item.mediaType, dateAdded: item.dateAdded };
+                                }
+                            } catch (error) {
+                                console.error(`Error fetching ${item.mediaType} ${item.id}:`, error);
+                            }
+                            return null;
+                        });
+                        const details = await Promise.all(itemDetailsPromises);
+                        listDetailsMap[list.id] = details.filter(item => item !== null);
+                    } else {
+                        listDetailsMap[list.id] = [];
+                    }
+                }
+                setListDetails(listDetailsMap);
+
+                // Check for upcoming seasons in series progress
+                const seriesIds = Object.keys(progress);
+                for (const seriesId of seriesIds) {
+                    try {
+                        const response = await fetch(`/api/content/tv/${seriesId}`);
+                        if (response.ok) {
+                            const seriesData = await response.json();
+                            const progressData = seriesProgressStorage.getSeriesProgress(seriesId);
+                            
+                            // Check for upcoming seasons
+                            if (seriesData.seasons) {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                
+                                seriesData.seasons.forEach(season => {
+                                    if (season.air_date) {
+                                        const airDate = new Date(season.air_date);
+                                        airDate.setHours(0, 0, 0, 0);
+                                        
+                                        // Check if season is upcoming (future date) and not watched
+                                        if (airDate > today) {
+                                            const watchedSeasons = Object.keys(progressData.seasons || {});
+                                            const isWatched = watchedSeasons.includes(String(season.season_number));
+                                            
+                                            if (!isWatched) {
+                                                upcomingSeasonsList.push({
+                                                    seriesId,
+                                                    seriesName: seriesData.name,
+                                                    seasonNumber: season.season_number,
+                                                    seasonName: season.name,
+                                                    airDate: season.air_date,
+                                                    episodeCount: season.episode_count,
+                                                });
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error checking upcoming seasons for series ${seriesId}:`, error);
+                    }
+                }
+                
+                // Sort upcoming seasons by air date
+                upcomingSeasonsList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
+                setUpcomingSeasons(upcomingSeasonsList);
+            }
         } catch (error) {
             console.error('Error loading user data:', error);
         } finally {
@@ -116,6 +208,9 @@ const ProfilePage = () => {
             }, 0);
         }, 0);
 
+        const totalLists = customLists.length;
+        const totalListItems = customLists.reduce((total, list) => total + list.items.length, 0);
+
         return {
             totalWatched: watched.length,
             watchedMovies,
@@ -126,6 +221,8 @@ const ProfilePage = () => {
             seriesInProgress,
             completedSeries,
             totalEpisodesWatched,
+            totalLists,
+            totalListItems,
         };
     };
 
@@ -210,6 +307,16 @@ const ProfilePage = () => {
                 >
                     Series Progress
                 </button>
+                <button
+                    onClick={() => setActiveTab('lists')}
+                    className={`px-4 py-2 font-semibold transition-colors ${
+                        activeTab === 'lists'
+                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
+                            : 'text-white hover:text-futuristic-yellow-400'
+                    }`}
+                >
+                    Lists ({stats.totalLists})
+                </button>
             </div>
 
             {/* Stats Tab */}
@@ -256,6 +363,39 @@ const ProfilePage = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Upcoming Seasons Alert */}
+                    {upcomingSeasons.length > 0 && (
+                        <div className="futuristic-card p-6 border-2 border-futuristic-yellow-500/50">
+                            <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Upcoming Seasons ({upcomingSeasons.length})
+                            </h2>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {upcomingSeasons.slice(0, 10).map((upcoming, index) => (
+                                    <a
+                                        key={index}
+                                        href={`/series/${upcoming.seriesId}`}
+                                        className="flex items-center justify-between p-3 bg-futuristic-blue-800/50 rounded hover:bg-futuristic-blue-700/50 transition-colors"
+                                    >
+                                        <div className="flex-1">
+                                            <div className="text-white font-semibold">
+                                                {upcoming.seriesName}
+                                            </div>
+                                            <div className="text-sm text-futuristic-yellow-400/80">
+                                                {upcoming.seasonName || `Season ${upcoming.seasonNumber}`} • {upcoming.episodeCount} episodes
+                                            </div>
+                                        </div>
+                                        <div className="text-futuristic-yellow-400 font-semibold text-sm">
+                                            {formatDate(upcoming.airDate)}
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Series Progress Summary */}
                     {Object.keys(seriesProgress).length > 0 && (
@@ -459,6 +599,70 @@ const ProfilePage = () => {
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Lists Tab */}
+            {activeTab === 'lists' && (
+                <div>
+                    {customLists.length === 0 ? (
+                        <div className="text-center py-12 futuristic-card">
+                            <p className="text-xl text-white mb-2">No custom lists yet</p>
+                            <p className="text-futuristic-yellow-400/80">Create lists and add movies/series to organize your content!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {customLists.map((list) => {
+                                const items = listDetails[list.id] || [];
+                                return (
+                                    <div key={list.id} className="futuristic-card p-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                                                    {list.name}
+                                                </h3>
+                                                <p className="text-sm text-white/70 mt-1">
+                                                    {items.length} {items.length === 1 ? 'item' : 'items'} • Created {formatDate(list.createdAt)}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    if (confirm(`Delete "${list.name}"?`)) {
+                                                        customListsStorage.delete(list.id);
+                                                        loadUserData();
+                                                    }
+                                                }}
+                                                className="futuristic-button text-sm bg-red-600 hover:bg-red-500"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                        {items.length === 0 ? (
+                                            <p className="text-white/60 text-center py-4">This list is empty</p>
+                                        ) : (
+                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                                {items.map((item) => {
+                                                    const href = item.media_type === 'movie' 
+                                                        ? `/movies/${item.id}` 
+                                                        : `/series/${item.id}`;
+                                                    
+                                                    return (
+                                                        <div key={`${item.media_type}-${item.id}`} className="relative">
+                                                            <ContentCard
+                                                                item={item}
+                                                                mediaType={item.media_type}
+                                                                href={href}
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

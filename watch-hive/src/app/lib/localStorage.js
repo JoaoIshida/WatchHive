@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
     WISHLIST: 'watchhive_wishlist',
     SERIES_PROGRESS: 'watchhive_series_progress',
     USER_PREFERENCES: 'watchhive_preferences',
+    CUSTOM_LISTS: 'watchhive_custom_lists',
 };
 
 // Watched Movies/Series
@@ -259,6 +260,79 @@ export const preferencesStorage = {
     get: (key) => {
         const prefs = preferencesStorage.getAll();
         return prefs[key];
+    },
+};
+
+// Custom Lists
+export const customListsStorage = {
+    getAll: () => {
+        if (typeof window === 'undefined') return [];
+        const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_LISTS);
+        return data ? JSON.parse(data) : [];
+    },
+
+    save: (lists) => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_LISTS, JSON.stringify(lists));
+    },
+
+    getList: (listId) => {
+        const lists = customListsStorage.getAll();
+        return lists.find(list => list.id === listId);
+    },
+
+    create: (name) => {
+        if (typeof window === 'undefined') return null;
+        const lists = customListsStorage.getAll();
+        const newList = {
+            id: Date.now().toString(),
+            name: name.trim(),
+            items: [],
+            createdAt: new Date().toISOString(),
+        };
+        lists.push(newList);
+        customListsStorage.save(lists);
+        return newList;
+    },
+
+    delete: (listId) => {
+        if (typeof window === 'undefined') return;
+        const lists = customListsStorage.getAll();
+        const filtered = lists.filter(list => list.id !== listId);
+        customListsStorage.save(filtered);
+        return filtered;
+    },
+
+    addItem: (listId, itemId, mediaType, itemTitle) => {
+        if (typeof window === 'undefined') return;
+        const lists = customListsStorage.getAll();
+        const list = lists.find(l => l.id === listId);
+        if (list) {
+            const exists = list.items.some(item => item.id === String(itemId) && item.mediaType === mediaType);
+            if (!exists) {
+                list.items.push({
+                    id: String(itemId),
+                    mediaType,
+                    title: itemTitle,
+                    dateAdded: new Date().toISOString(),
+                });
+                customListsStorage.save(lists);
+            }
+        }
+        return list;
+    },
+
+    removeItem: (listId, itemId, mediaType) => {
+        if (typeof window === 'undefined') return;
+        const lists = customListsStorage.getAll();
+        const list = lists.find(l => l.id === listId);
+        if (list) {
+            list.items = list.items.filter(
+                item => !(item.id === String(itemId) && item.mediaType === mediaType)
+            );
+            customListsStorage.save(lists);
+        }
+        return list;
     },
 };
 

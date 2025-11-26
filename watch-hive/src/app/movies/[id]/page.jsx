@@ -89,6 +89,7 @@ import WishlistButton from '../../components/WishlistButton';
 import AddToListButton from '../../components/AddToListButton';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
+import WatchProvidersSection from '../../components/WatchProvidersSection';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -106,125 +107,116 @@ const MovieDetailPage = async ({ params }) => {
             {/* Top Section: Title, Image, Overview, and Video */}
             <div className="mb-8">
                 <div className="mb-4">
-                    <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
-                    
-                    {/* User Actions - Moved to top */}
-                    <div className="flex flex-wrap gap-3 mb-6">
-                        <WatchedButton itemId={movie.id} mediaType="movie" />
-                        <WishlistButton itemId={movie.id} mediaType="movie" />
-                        <AddToListButton itemId={movie.id} mediaType="movie" itemTitle={movie.title} />
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                        <div className="flex-1">
+                            <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
+                            
+                            {/* User Actions */}
+                            <div className="flex flex-wrap gap-3">
+                                <WatchedButton itemId={movie.id} mediaType="movie" itemData={movie} />
+                                <WishlistButton itemId={movie.id} mediaType="movie" />
+                                <AddToListButton itemId={movie.id} mediaType="movie" itemTitle={movie.title} />
+                            </div>
+                        </div>
+                        
+                        {/* Rating - Top Right */}
+                        <div className="flex-shrink-0">
+                            {movie.vote_average && movie.vote_average > 0 ? (
+                                <div className="flex items-center gap-2 bg-futuristic-blue-800/60 border border-futuristic-yellow-500/30 rounded-lg px-4 py-3">
+                                    <div className="flex items-center">
+                                        <span className="text-2xl font-bold text-futuristic-yellow-400">{movie.vote_average.toFixed(1)}</span>
+                                        <span className="text-white/60 text-sm ml-1">/ 10</span>
+                                    </div>
+                                    <div className="flex items-center gap-0.5">
+                                        {[...Array(5)].map((_, i) => (
+                                            <svg
+                                                key={i}
+                                                className={`w-4 h-4 ${i < Math.round(movie.vote_average / 2) ? 'text-futuristic-yellow-400 fill-current' : 'text-white/20'}`}
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-futuristic-blue-800/60 border border-futuristic-yellow-500/30 rounded-lg px-4 py-3">
+                                    <p className="text-white/60 font-medium">No ratings</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 
-                <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Movie Image - Smaller */}
+                <div className="flex flex-col lg:flex-row gap-8">
+                    {/* Movie Image */}
                     <div className="flex-shrink-0">
                         <ImageWithFallback
-                            src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image'}
+                            src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null}
                             alt={movie.title}
-                            className="w-full max-w-[280px] rounded-lg shadow-lg"
+                            className="w-full max-w-[320px] rounded-xl shadow-2xl shadow-futuristic-blue-900/50"
                         />
                     </div>
 
                     {/* Overview and Details */}
-                    <div className="flex-1">
-                        <div className="mb-6 futuristic-card p-6">
-                            <h2 className="font-bold mb-2 text-xl text-futuristic-yellow-400 futuristic-text-glow-yellow">Overview:</h2>
-                            <p className="text-white leading-relaxed">{movie.overview}</p>
+                    <div className="flex-1 space-y-6">
+                        {/* Overview */}
+                        <div className="futuristic-card p-6">
+                            <h2 className="font-bold mb-3 text-xl text-futuristic-yellow-400 futuristic-text-glow-yellow">Overview</h2>
+                            <p className="text-white leading-relaxed text-base">{movie.overview}</p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {/* Key Information */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Release Date:</p>
-                                <p className="text-white font-medium">{formatDate(movie.release_date)}</p>
-                            </div>
-                            <div className="futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Rating:</p>
-                                <p className="text-white font-medium">{movie.vote_average} / 10</p>
-                            </div>
-                            <div className="md:col-span-2 futuristic-card p-4">
-                                <p className="font-bold text-lg text-futuristic-yellow-400">Genres:</p>
-                                <p className="text-white font-medium">{movie.genres.map((genre) => genre.name).join(", ")}</p>
+                                <p className="text-sm text-futuristic-yellow-400/80 mb-1">Release Date</p>
+                                <p className="text-white font-semibold text-lg">{formatDate(movie.release_date)}</p>
                             </div>
                         </div>
 
-                        {/* Watch Providers */}
-                        {movie_more.results.CA?.flatrate?.length > 0 && (
-                            <div className="mb-4">
-                                <p className="font-bold text-lg mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Available On:</p>
-                                <div className="flex flex-wrap gap-3">
-                                    {movie_more.results.CA.flatrate.map(provider => (
-                                        <div key={provider.provider_id} className="flex items-center gap-2 bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 px-4 py-2.5 rounded-lg shadow-glow-yellow hover:border-futuristic-yellow-400 hover:shadow-glow-yellow-lg transition-all">
-                                            {provider.logo_path && (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                                                    alt={provider.provider_name}
-                                                    width={40}
-                                                    height={40}
-                                                    className="rounded"
-                                                />
-                                            )}
-                                            <p className="text-base font-semibold text-futuristic-yellow-400">{provider.provider_name}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {movie_more.results.CA?.rent?.length > 0 && (
-                            <div className="mb-4">
-                                <p className="font-bold text-lg mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Rent On:</p>
-                                <div className="flex flex-wrap gap-3">
-                                    {movie_more.results.CA.rent.map(provider => (
-                                        <div key={provider.provider_id} className="flex items-center gap-2 bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 px-4 py-2.5 rounded-lg shadow-glow-yellow hover:border-futuristic-yellow-400 hover:shadow-glow-yellow-lg transition-all">
-                                            {provider.logo_path && (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                                                    alt={provider.provider_name}
-                                                    width={40}
-                                                    height={40}
-                                                    className="rounded"
-                                                />
-                                            )}
-                                            <p className="text-base font-semibold text-futuristic-yellow-400">{provider.provider_name}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {movie_more.results.CA?.buy?.length > 0 && (
-                            <div className="mb-4">
-                                <p className="font-bold text-lg mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">Buy On:</p>
-                                <div className="flex flex-wrap gap-3">
-                                    {movie_more.results.CA.buy.map(provider => (
-                                        <div key={provider.provider_id} className="flex items-center gap-2 bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 px-4 py-2.5 rounded-lg shadow-glow-yellow hover:border-futuristic-yellow-400 hover:shadow-glow-yellow-lg transition-all">
-                                            {provider.logo_path && (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
-                                                    alt={provider.provider_name}
-                                                    width={40}
-                                                    height={40}
-                                                    className="rounded"
-                                                />
-                                            )}
-                                            <p className="text-base font-semibold text-futuristic-yellow-400">{provider.provider_name}</p>
-                                        </div>
+                        {/* Genres */}
+                        {movie.genres && movie.genres.length > 0 && (
+                            <div>
+                                <p className="text-sm text-futuristic-yellow-400/80 mb-3">Genres</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {movie.genres.map((genre) => (
+                                        <a
+                                            key={genre.id}
+                                            href={`/movies?genres=${genre.id}`}
+                                            className="inline-flex items-center px-4 py-2 bg-futuristic-blue-800/60 hover:bg-futuristic-blue-700 border border-futuristic-yellow-500/30 hover:border-futuristic-yellow-400 rounded-lg text-white font-medium text-sm transition-all duration-200 hover:shadow-glow-yellow hover:scale-105"
+                                        >
+                                            {genre.name}
+                                        </a>
                                     ))}
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Video Trailer */}
-                    {bestTrailer && (
-                        <div className="flex-shrink-0 lg:w-80">
+                    {/* Video Trailer and Watch Providers */}
+                    <div className="flex-shrink-0 lg:w-80 mt-6 lg:mt-0 space-y-6">
+                        {/* Video Trailer */}
+                        <div>
                             <h2 className="text-xl font-bold mb-3 text-futuristic-yellow-400 futuristic-text-glow-yellow">
-                                {bestTrailer.name.includes('Official') ? 'Official Trailer' : 
-                                 bestTrailer.type === 'Trailer' ? 'Trailer' : 
-                                 bestTrailer.type || 'Video'}
+                                {bestTrailer 
+                                    ? (bestTrailer.name.includes('Official') ? 'Official Trailer' : 
+                                       bestTrailer.type === 'Trailer' ? 'Trailer' : 
+                                       bestTrailer.type || 'Video')
+                                    : 'Trailer'}
                             </h2>
-                            <TrailerPlayer trailerKey={bestTrailer.key} title={movie.title} />
+                            <TrailerPlayer trailerKey={bestTrailer?.key} title={movie.title} />
                         </div>
-                    )}
+
+                        {/* Watch Providers */}
+                        <WatchProvidersSection
+                            flatrate={movie_more.results.CA?.flatrate}
+                            rent={movie_more.results.CA?.rent}
+                            buy={movie_more.results.CA?.buy}
+                            title={movie.title}
+                            mediaType="movie"
+                        />
+                    </div>
                 </div>
             </div>
 

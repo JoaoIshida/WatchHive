@@ -1,23 +1,40 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatDate } from '../utils/dateFormatter';
 
 const SearchPage = () => {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [initialLoad, setInitialLoad] = useState(true);
 
     // Function to handle the search
-    const handleSearch = async (searchQuery) => {
+    const handleSearch = useCallback(async (searchQuery, updateURL = true) => {
         if (!searchQuery) {
             setResults([]); // Clear results if input is empty
+            // Update URL to remove query parameter
+            if (updateURL) {
+                router.replace(pathname);
+            }
             return;
         }
 
         setLoading(true); // Set loading to true while fetching results
 
         try {
+            // Update URL with search query
+            if (updateURL) {
+                const params = new URLSearchParams();
+                params.set('q', searchQuery);
+                router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+            }
+
             const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
             if (!response.ok) {
                 throw new Error('Failed to fetch search results');
@@ -30,16 +47,33 @@ const SearchPage = () => {
         } finally {
             setLoading(false); // Set loading to false after fetching
         }
-    };
+    }, [router, pathname]);
 
-    // Effect to call handleSearch on query change
+    // Initialize from URL parameter on mount
     useEffect(() => {
+        const urlQuery = searchParams.get('q');
+        if (urlQuery) {
+            const decodedQuery = decodeURIComponent(urlQuery);
+            setQuery(decodedQuery);
+            // Perform immediate search for URL parameter without updating URL again
+            handleSearch(decodedQuery, false);
+        }
+        setInitialLoad(false);
+    }, []); // Only run on mount
+
+    // Effect to call handleSearch on query change (debounced, except for initial load)
+    useEffect(() => {
+        // Skip debounce on initial load if query came from URL
+        if (initialLoad) {
+            return;
+        }
+
         const delayDebounceFn = setTimeout(() => {
-            handleSearch(query);
+            handleSearch(query, true);
         }, 300); // Debounce search for 300ms
 
         return () => clearTimeout(delayDebounceFn); // Cleanup on component unmount
-    }, [query]); // Dependency array to trigger when query changes
+    }, [query, initialLoad, handleSearch]); // Dependency array to trigger when query changes
 
     return (
         <div className="container mx-auto p-4 py-8">
@@ -69,7 +103,7 @@ const SearchPage = () => {
                                 <a href={link} key={item.id} className="block">
                                     <div className="futuristic-card p-4 flex flex-row gap-4 cursor-pointer">
                                         <ImageWithFallback
-                                            src={item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : 'https://via.placeholder.com/64x96?text=No+Image'}
+                                            src={item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null}
                                             className="w-16 h-24 object-cover rounded"
                                             alt={title}
                                         />
@@ -81,9 +115,9 @@ const SearchPage = () => {
                                                 </span>
                                             </div>
                                             <p className="text-sm text-gray-300 mt-1 line-clamp-2">{item.overview}</p>
-                                            {item.release_date && (
+                                            {(item.release_date || item.first_air_date) && (
                                                 <p className="text-xs text-futuristic-yellow-400/80 mt-1">
-                                                    {item.release_date || item.first_air_date}
+                                                    {formatDate(item.release_date || item.first_air_date)}
                                                 </p>
                                             )}
                                         </div>
