@@ -1,12 +1,12 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
 import SortFilter from '../components/SortFilter';
 import ContentCard from '../components/ContentCard';
 
-const TrendingSeriesPage = () => {
+const TrendingSeriesContent = () => {
     const [series, setSeries] = useState([]);
     const [allSeries, setAllSeries] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -168,6 +168,21 @@ const TrendingSeriesPage = () => {
                 )
             }
         </div >
+    );
+};
+
+const TrendingSeriesPage = () => {
+    return (
+        <Suspense fallback={
+            <div className="container mx-auto px-4 py-8">
+                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <LoadingCard count={12} />
+                </div>
+            </div>
+        }>
+            <TrendingSeriesContent />
+        </Suspense>
     );
 };
 

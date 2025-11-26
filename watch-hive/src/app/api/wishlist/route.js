@@ -1,4 +1,4 @@
-import { wishlistStorage } from '../../../lib/localStorage';
+import { wishlistStorage } from '../../lib/localStorage';
 
 export async function GET(req) {
     try {

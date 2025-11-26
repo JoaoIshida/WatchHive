@@ -1,11 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/dateFormatter';
 
-const SearchPage = () => {
+const SearchPageContent = () => {
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
@@ -129,6 +129,20 @@ const SearchPage = () => {
                 </div>
             )}
         </div>
+    );
+};
+
+const SearchPage = () => {
+    return (
+        <Suspense fallback={
+            <div className="container mx-auto p-4 py-8">
+                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Search</h1>
+                <div className="bg-futuristic-blue-900/80 border-2 border-futuristic-blue-500/50 rounded-lg p-4 w-full h-12 animate-pulse"></div>
+                <LoadingSpinner text="Loading..." />
+            </div>
+        }>
+            <SearchPageContent />
+        </Suspense>
     );
 };
 

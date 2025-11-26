@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
@@ -8,7 +8,7 @@ import FilterSidebar from '../components/FilterSidebar';
 import ActiveFilters from '../components/ActiveFilters';
 import ContentCard from '../components/ContentCard';
 
-const PopularSeriesPage = () => {
+const PopularSeriesContent = () => {
     const [series, setSeries] = useState([]);
     const [allSeries, setAllSeries] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -325,6 +325,30 @@ const PopularSeriesPage = () => {
                 </div>
             </div>
         </div>
+    );
+};
+
+const PopularSeriesPage = () => {
+    return (
+        <Suspense fallback={
+            <div className="container mx-auto px-4 py-8">
+                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Series</h1>
+                <div className="flex gap-6">
+                    <div className="hidden sm:block w-64 flex-shrink-0">
+                        <div className="futuristic-card p-4">
+                            <div className="h-96 bg-futuristic-blue-900/40 rounded-lg animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            <LoadingCard count={12} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }>
+            <PopularSeriesContent />
+        </Suspense>
     );
 };
 

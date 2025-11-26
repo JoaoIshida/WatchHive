@@ -1,4 +1,4 @@
-import { watchedStorage } from '../../../lib/localStorage';
+import { watchedStorage } from '../../lib/localStorage';
 
 export async function GET(req) {
     try {
