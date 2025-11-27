@@ -1,7 +1,8 @@
 "use client";
 import { useMemo } from 'react';
+import { formatRuntime } from '../utils/runtimeFormatter';
 
-const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConfig }) => {
+const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConfig, watchProviders = [] }) => {
     const getSelectedGenreNames = () => {
         if (!filters.genres || !Array.isArray(filters.genres)) return [];
         return filters.genres.map(id => {
@@ -10,14 +11,29 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
         }).filter(Boolean);
     };
 
+    const getSelectedProviderInfo = (providerId) => {
+        const provider = watchProviders.find(p => p.provider_id === parseInt(providerId, 10));
+        return provider ? { id: provider.provider_id, name: provider.provider_name, logo_path: provider.logo_path } : null;
+    };
+
     const activeFiltersCount = useMemo(() => {
         let count = 0;
         if (filters.genres && filters.genres.length > 0) count += filters.genres.length;
-        if (filters.year) count++;
+        if (filters.certification) {
+            count += Array.isArray(filters.certification) ? filters.certification.length : 1;
+        }
+        if (filters.year) {
+            count += Array.isArray(filters.year) ? filters.year.length : 1;
+        }
         if (filters.minRating || filters.maxRating) count++;
+        if (filters.runtimeMin || filters.runtimeMax) count++;
         if (filters.dateRange) count++;
         if (filters.daysPast) count++;
-        if (filters.includeUpcoming) count++;
+        if (filters.seasonsMin || filters.seasonsMax) count++;
+        if (filters.watchProviders) {
+            count += Array.isArray(filters.watchProviders) ? filters.watchProviders.length : 1;
+        }
+        if (filters.keywords && filters.keywords.length > 0) count += filters.keywords.length;
         return count;
     }, [filters]);
 
@@ -30,11 +46,30 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                 if (newFilters.genres.length === 0) delete newFilters.genres;
                 break;
             case 'year':
-                delete newFilters.year;
+                // Handle both array and string
+                if (Array.isArray(newFilters.year)) {
+                    newFilters.year = newFilters.year.filter(y => y !== value);
+                    if (newFilters.year.length === 0) delete newFilters.year;
+                } else {
+                    delete newFilters.year;
+                }
                 break;
             case 'rating':
                 delete newFilters.minRating;
                 delete newFilters.maxRating;
+                break;
+            case 'runtime':
+                delete newFilters.runtimeMin;
+                delete newFilters.runtimeMax;
+                break;
+            case 'certification':
+                // Handle both array and string
+                if (Array.isArray(newFilters.certification)) {
+                    newFilters.certification = newFilters.certification.filter(c => c !== value);
+                    if (newFilters.certification.length === 0) delete newFilters.certification;
+                } else {
+                    delete newFilters.certification;
+                }
                 break;
             case 'dateRange':
                 delete newFilters.dateRange;
@@ -44,6 +79,26 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                 break;
             case 'includeUpcoming':
                 delete newFilters.includeUpcoming;
+                break;
+            case 'seasons':
+                delete newFilters.seasonsMin;
+                delete newFilters.seasonsMax;
+                break;
+            case 'watchProviders':
+                // Handle both array and string
+                if (Array.isArray(newFilters.watchProviders)) {
+                    newFilters.watchProviders = newFilters.watchProviders.filter(p => p !== value);
+                    if (newFilters.watchProviders.length === 0) delete newFilters.watchProviders;
+                } else {
+                    delete newFilters.watchProviders;
+                }
+                break;
+            case 'keyword':
+                // Keywords are stored as array of objects with id and name
+                if (Array.isArray(newFilters.keywords)) {
+                    newFilters.keywords = newFilters.keywords.filter(k => k.id !== value);
+                    if (newFilters.keywords.length === 0) delete newFilters.keywords;
+                }
                 break;
         }
         onFilterChange(newFilters);
@@ -79,13 +134,18 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                     </button>
                 ))}
                 {filters.year && (
-                    <button
-                        onClick={() => removeFilter('year')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
-                    >
-                        <span>Year: {filters.year}</span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
-                    </button>
+                    <>
+                        {(Array.isArray(filters.year) ? filters.year : [filters.year]).map((year) => (
+                            <button
+                                key={year}
+                                onClick={() => removeFilter('year', year)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                            >
+                                <span>Year: {year}</span>
+                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                            </button>
+                        ))}
+                    </>
                 )}
                 {(filters.minRating || filters.maxRating) && (
                     <button
@@ -97,6 +157,36 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                         </span>
                         <span className="text-futuristic-yellow-500 font-bold">×</span>
                     </button>
+                )}
+                {(filters.runtimeMin || filters.runtimeMax) && (
+                    <button
+                        onClick={() => removeFilter('runtime')}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                    >
+                        <span>
+                            Runtime: {filters.runtimeMin && filters.runtimeMax 
+                                ? `${formatRuntime(parseInt(filters.runtimeMin))} - ${formatRuntime(parseInt(filters.runtimeMax))}`
+                                : filters.runtimeMin 
+                                    ? `${formatRuntime(parseInt(filters.runtimeMin))}+`
+                                    : `Up to ${formatRuntime(parseInt(filters.runtimeMax))}`
+                            }
+                        </span>
+                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                    </button>
+                )}
+                {filters.certification && (
+                    <>
+                        {(Array.isArray(filters.certification) ? filters.certification : [filters.certification]).map((cert) => (
+                            <button
+                                key={cert}
+                                onClick={() => removeFilter('certification', cert)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                            >
+                                <span>Certification: {cert}</span>
+                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                            </button>
+                        ))}
+                    </>
                 )}
                 {filters.dateRange && (
                     <button
@@ -136,6 +226,65 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                         <span>Include Upcoming</span>
                         <span className="text-futuristic-yellow-500 font-bold">×</span>
                     </button>
+                )}
+                {(filters.seasonsMin || filters.seasonsMax) && (
+                    <button
+                        onClick={() => removeFilter('seasons')}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                    >
+                        <span>
+                            Seasons: {filters.seasonsMin && filters.seasonsMax 
+                                ? `${filters.seasonsMin} - ${filters.seasonsMax}`
+                                : filters.seasonsMin 
+                                    ? `${filters.seasonsMin}+`
+                                    : `Up to ${filters.seasonsMax}`
+                            }
+                        </span>
+                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                    </button>
+                )}
+                {filters.watchProviders && (
+                    <>
+                        {(Array.isArray(filters.watchProviders) ? filters.watchProviders : [filters.watchProviders]).map((providerId) => {
+                            const providerInfo = getSelectedProviderInfo(providerId);
+                            return (
+                                <button
+                                    key={providerId}
+                                    onClick={() => removeFilter('watchProviders', providerId)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                >
+                                    {providerInfo && providerInfo.logo_path ? (
+                                        <>
+                                            <img
+                                                src={`https://image.tmdb.org/t/p/w45${providerInfo.logo_path}`}
+                                                alt={providerInfo.name}
+                                                className="w-5 h-5 object-contain"
+                                                loading="lazy"
+                                            />
+                                            <span>{providerInfo.name}</span>
+                                        </>
+                                    ) : (
+                                        <span>Provider: {providerInfo?.name || providerId}</span>
+                                    )}
+                                    <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                </button>
+                            );
+                        })}
+                    </>
+                )}
+                {filters.keywords && filters.keywords.length > 0 && (
+                    <>
+                        {filters.keywords.map((keyword) => (
+                            <button
+                                key={keyword.id}
+                                onClick={() => removeFilter('keyword', keyword.id)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                            >
+                                <span>Keyword: {keyword.name}</span>
+                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                            </button>
+                        ))}
+                    </>
                 )}
             </div>
         </div>

@@ -20,10 +20,17 @@ export async function GET(req) {
         const year = searchParams.get('year');
         const minRating = searchParams.get('minRating');
         const maxRating = searchParams.get('maxRating');
+        const certification = searchParams.get('certification');
+        const runtimeMin = searchParams.get('runtimeMin');
+        const runtimeMax = searchParams.get('runtimeMax');
+        const watchProviders = searchParams.get('watchProviders');
+        const keywords = searchParams.get('keywords');
         const sortBy = searchParams.get('sortBy') || 'popularity.desc';
         const dateRange = searchParams.get('dateRange');
         const daysPast = searchParams.get('daysPast');
-        const includeUpcoming = searchParams.get('includeUpcoming') === 'true';
+        // Default to true (include upcoming), only exclude if explicitly set to false
+        const includeUpcomingParam = searchParams.get('includeUpcoming');
+        const includeUpcoming = includeUpcomingParam === null || includeUpcomingParam === 'true';
         
         const params = {
             language: 'en-US',
@@ -38,9 +45,10 @@ export async function GET(req) {
             params.with_genres = genreIds;
         }
 
-        // Year filter
+        // Year filter - TMDB only supports single year, so use first year if array
         if (year) {
-            params.primary_release_year = year;
+            const yearValue = Array.isArray(year) ? year[0] : year;
+            params.primary_release_year = yearValue;
         }
 
         // Rating filter
@@ -49,6 +57,44 @@ export async function GET(req) {
         }
         if (maxRating) {
             params['vote_average.lte'] = maxRating;
+        }
+
+        // Certification filter (Brazilian certifications for movies)
+        // Can be single value or comma-separated
+        if (certification) {
+            // TMDB API supports pipe-separated certifications
+            const certs = certification.split(',').map(c => c.trim()).filter(Boolean);
+            if (certs.length > 0) {
+                params.certification = certs.join('|');
+                params.certification_country = 'BR'; // Brazilian certifications
+            }
+        }
+
+        // Runtime filter
+        if (runtimeMin) {
+            params['with_runtime.gte'] = parseInt(runtimeMin, 10);
+        }
+        if (runtimeMax) {
+            params['with_runtime.lte'] = parseInt(runtimeMax, 10);
+        }
+
+        // Watch providers filter
+        if (watchProviders) {
+            // Can be single value or comma-separated
+            const providerIds = watchProviders.split(',').map(p => p.trim()).filter(Boolean);
+            if (providerIds.length > 0) {
+                params.with_watch_providers = providerIds.join('|');
+                params.watch_region = 'CA'; // Canada
+            }
+        }
+
+        // Keywords filter
+        if (keywords) {
+            // Can be single value or comma-separated keyword IDs
+            const keywordIds = keywords.split(',').map(k => k.trim()).filter(Boolean);
+            if (keywordIds.length > 0) {
+                params.with_keywords = keywordIds.join('|');
+            }
         }
 
         // Date range filters
@@ -86,8 +132,8 @@ export async function GET(req) {
             params['primary_release_date.lte'] = now.toISOString().split('T')[0];
         }
 
-        // Exclude upcoming movies by default (unless includeUpcoming is true)
-        if (!includeUpcoming && !dateRange && !daysPast) {
+        // Include upcoming movies by default (unless includeUpcoming is explicitly false)
+        if (includeUpcoming === false && !dateRange && !daysPast) {
             params['primary_release_date.lte'] = now.toISOString().split('T')[0];
         }
 

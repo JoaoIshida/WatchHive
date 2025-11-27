@@ -6,11 +6,13 @@ import SeriesSeasons from '../../components/SeriesSeasons';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import WatchProvidersSection from '../../components/WatchProvidersSection';
+import ContentRatingBadge from '../../components/ContentRatingBadge';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
+import { getSeriesInfo } from '../../utils/runtimeFormatter';
 
 async function getSerieDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-US&append_to_response=content_ratings`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },
@@ -100,7 +102,7 @@ async function getSerieRecommendations(id, name) {
 }
 
 const SerieDetailPage = async ({ params }) => {
-    const { id } = params;
+    const { id } = await params;
     const tv = await getSerieDetails(id);
     const tv_more = await getSerieMoreDetails(id);
     const tv_trailer = await getSerieTrailer(id);
@@ -115,7 +117,10 @@ const SerieDetailPage = async ({ params }) => {
                 <div className="mb-4">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                         <div className="flex-1">
-                            <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{tv.name}</h1>
+                            <div className="flex items-center gap-3 mb-4">
+                                <h1 className="text-4xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">{tv.name}</h1>
+                                <ContentRatingBadge item={tv} mediaType="tv" size="xl" />
+                            </div>
                             
                             {/* User Actions */}
                             <div className="flex flex-wrap gap-3">
@@ -183,6 +188,12 @@ const SerieDetailPage = async ({ params }) => {
                                 <p className="text-sm text-futuristic-yellow-400/80 mb-1">Last Air Date</p>
                                 <p className="text-white font-semibold text-lg">{tv.last_air_date ? formatDate(tv.last_air_date) : 'Ongoing'}</p>
                             </div>
+                            {getSeriesInfo(tv) && (
+                                <div className="futuristic-card p-4">
+                                    <p className="text-sm text-futuristic-yellow-400/80 mb-1">Series Info</p>
+                                    <p className="text-white font-semibold text-lg">{getSeriesInfo(tv)}</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Genres */}

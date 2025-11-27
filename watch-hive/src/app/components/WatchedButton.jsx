@@ -131,39 +131,17 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                         setShowNotification(true);
                     }
                     
-                    // If there are ANY unreleased items, don't mark the series as complete
-                    // Only mark individual released seasons/episodes
-                    if (skipped.length > 0) {
-                        // Don't mark series as watched if there's unreleased content
-                        // Only mark the released seasons/episodes individually (without marking series complete)
-                        if (hasReleasedContent) {
-                            // Mark individual released episodes/seasons, but NOT the series itself as complete
-                            Object.entries(allSeasonsData).forEach(([seasonNum, seasonData]) => {
-                                if (seasonData.episodes && seasonData.episodes.length > 0) {
-                                    seasonData.episodes.forEach(ep => {
-                                        seriesProgressStorage.markEpisodeWatched(String(itemId), parseInt(seasonNum), ep.episode_number);
-                                    });
-                                }
-                            });
-                        }
-                        setLoading(false);
-                        return;
-                    }
+                    // Mark the series as watched (if it's released, which we already checked above)
+                    watchedStorage.add(String(itemId), mediaType);
+                    setIsWatched(true);
+                    setTimesWatched(1);
                     
-                    // Only mark as watched if ALL content is released (no skipped items)
+                    // Mark all released episodes and seasons as watched
                     if (hasReleasedContent) {
-                        // Add to watched
-                        watchedStorage.add(String(itemId), mediaType);
-                        setIsWatched(true);
-                        setTimesWatched(1);
-                        
-                        // Mark series as completed with all episodes
+                        // Mark series as completed with all released episodes
                         seriesProgressStorage.markSeriesCompleted(String(itemId), true, allSeasonsData);
                     } else {
-                        // Fallback: mark as watched if no seasons data but no skipped items
-                        watchedStorage.add(String(itemId), mediaType);
-                        setIsWatched(true);
-                        setTimesWatched(1);
+                        // Fallback: mark as watched even if no seasons data
                         seriesProgressStorage.markSeriesCompleted(String(itemId), true);
                     }
                 } else {

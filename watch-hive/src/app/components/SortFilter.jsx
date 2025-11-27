@@ -1,15 +1,16 @@
 "use client";
 import { useState, useMemo, useEffect } from 'react';
+import YearSearch from './YearSearch';
 
 const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter = true, sortConfig = { sortBy: 'popularity', sortOrder: 'desc' }, filters = {} }) => {
     const [sortBy, setSortBy] = useState(sortConfig.sortBy || 'popularity');
     const [sortOrder, setSortOrder] = useState(sortConfig.sortOrder || 'desc');
     const [selectedGenres, setSelectedGenres] = useState([]);
-    const [yearFilter, setYearFilter] = useState('');
+    const [selectedYears, setSelectedYears] = useState([]);
     const [ratingFilter, setRatingFilter] = useState('');
     const [dateRangeFilter, setDateRangeFilter] = useState('');
     const [daysPastFilter, setDaysPastFilter] = useState('');
-    const [includeUpcoming, setIncludeUpcoming] = useState(false);
+    const [includeUpcoming, setIncludeUpcoming] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Sync internal state with prop changes
@@ -27,8 +28,17 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
         // Sync genres
         setSelectedGenres(filters.genres && Array.isArray(filters.genres) ? filters.genres : []);
         
-        // Sync year
-        setYearFilter(filters.year || '');
+        // Sync years - can be string (single year) or array (multiple years)
+        if (filters.year) {
+            if (Array.isArray(filters.year)) {
+                setSelectedYears(filters.year.map(y => parseInt(y, 10)).filter(y => !isNaN(y)));
+            } else {
+                const year = parseInt(filters.year, 10);
+                setSelectedYears(isNaN(year) ? [] : [year]);
+            }
+        } else {
+            setSelectedYears([]);
+        }
         
         // Sync rating: convert minRating/maxRating back to ratingFilter format
         if (filters.minRating) {
@@ -46,7 +56,7 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
         setDaysPastFilter(filters.daysPast || '');
         
         // Sync includeUpcoming
-        setIncludeUpcoming(filters.includeUpcoming || false);
+        setIncludeUpcoming(filters.includeUpcoming !== undefined ? filters.includeUpcoming : true);
     }, [JSON.stringify(filters)]);
 
     // Generate year options (from 1900 to current year + 1)
@@ -60,11 +70,7 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
     }, [currentYear]);
 
 
-    const handleSortChange = (newSortBy) => {
-        // Use current sortConfig to determine toggle behavior
-        const currentSortBy = sortConfig.sortBy || sortBy;
-        const currentSortOrder = sortConfig.sortOrder || sortOrder;
-        const newSortOrder = currentSortBy === newSortBy && currentSortOrder === 'desc' ? 'asc' : 'desc';
+    const handleSortChange = (newSortBy, newSortOrder) => {
         setSortBy(newSortBy);
         setSortOrder(newSortOrder);
         onSortChange({ sortBy: newSortBy, sortOrder: newSortOrder });
@@ -73,14 +79,17 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
     const buildFilterObject = (updates = {}) => {
         const filterObj = {};
         const genres = updates.genres !== undefined ? updates.genres : selectedGenres;
-        const year = updates.year !== undefined ? updates.year : yearFilter;
+        const years = updates.years !== undefined ? updates.years : selectedYears;
         const rating = updates.rating !== undefined ? updates.rating : ratingFilter;
         const dateRange = updates.dateRange !== undefined ? updates.dateRange : dateRangeFilter;
         const daysPast = updates.daysPast !== undefined ? updates.daysPast : daysPastFilter;
         const includeUpcomingValue = updates.includeUpcoming !== undefined ? updates.includeUpcoming : includeUpcoming;
         
         if (genres.length > 0) filterObj.genres = genres;
-        if (year) filterObj.year = year;
+        // Years - store as array if multiple, string if single for backward compatibility
+        if (years.length > 0) {
+            filterObj.year = years.length === 1 ? years[0].toString() : years.map(y => y.toString());
+        }
         if (rating) {
             if (rating === 'lt5') {
                 filterObj.maxRating = '5';
@@ -102,9 +111,9 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
         onFilterChange(buildFilterObject({ genres: newGenres }));
     };
 
-    const handleYearChange = (year) => {
-        setYearFilter(year);
-        onFilterChange(buildFilterObject({ year }));
+    const handleYearsChange = (newYears) => {
+        setSelectedYears(newYears);
+        onFilterChange(buildFilterObject({ years: newYears }));
     };
 
     const handleRatingChange = (rating) => {
@@ -129,7 +138,7 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
 
     const clearFilters = () => {
         setSelectedGenres([]);
-        setYearFilter('');
+        setSelectedYears([]);
         setRatingFilter('');
         setDateRangeFilter('');
         setDaysPastFilter('');
@@ -152,13 +161,13 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
     const activeFiltersCount = useMemo(() => {
         let count = 0;
         if (selectedGenres.length > 0) count += selectedGenres.length;
-        if (yearFilter) count++;
+        if (selectedYears.length > 0) count += selectedYears.length;
         if (ratingFilter) count++;
         if (dateRangeFilter) count++;
         if (daysPastFilter) count++;
         if (includeUpcoming) count++;
         return count;
-    }, [selectedGenres.length, yearFilter, ratingFilter, dateRangeFilter, daysPastFilter, includeUpcoming]);
+    }, [selectedGenres.length, selectedYears.length, ratingFilter, dateRangeFilter, daysPastFilter, includeUpcoming]);
 
     const removeFilter = (type, value = null) => {
         switch (type) {
@@ -166,7 +175,8 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
                 handleGenreToggle(value);
                 break;
             case 'year':
-                handleYearChange('');
+                const newYears = selectedYears.filter(y => y !== value);
+                handleYearsChange(newYears);
                 break;
             case 'rating':
                 handleRatingChange('');
@@ -198,22 +208,29 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
                     {/* Sort Options - Always Visible */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-futuristic-yellow-400/80">Sort:</span>
-                        {['popularity', 'rating', 'release_date', 'title'].map((option) => (
-                            <button
-                                key={option}
-                                onClick={() => handleSortChange(option)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                    sortBy === option
-                                        ? 'bg-futuristic-yellow-500 text-black shadow-glow-yellow'
-                                        : 'bg-futuristic-blue-800/60 text-white/90 hover:bg-futuristic-blue-700/60 border border-futuristic-blue-500/30'
-                                }`}
-                            >
-                                {getSortLabel(option)}
-                                {sortBy === option && (
-                                    <span className="ml-1.5">{sortOrder === 'desc' ? '↓' : '↑'}</span>
-                                )}
-                            </button>
-                        ))}
+                        <select
+                            value={`${sortBy}.${sortOrder}`}
+                            onChange={(e) => {
+                                const [newSortBy, newSortOrder] = e.target.value.split('.');
+                                handleSortChange(newSortBy, newSortOrder);
+                            }}
+                            className="appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-xs px-3 py-1.5 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
+                            style={{ 
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'right 0.5rem center',
+                                backgroundSize: '1rem'
+                            }}
+                        >
+                            <option value="popularity.desc" className="bg-futuristic-blue-900 text-white">Trending ↓</option>
+                            <option value="popularity.asc" className="bg-futuristic-blue-900 text-white">Trending ↑</option>
+                            <option value="rating.desc" className="bg-futuristic-blue-900 text-white">Rating ↓</option>
+                            <option value="rating.asc" className="bg-futuristic-blue-900 text-white">Rating ↑</option>
+                            <option value="release_date.desc" className="bg-futuristic-blue-900 text-white">Release Date ↓</option>
+                            <option value="release_date.asc" className="bg-futuristic-blue-900 text-white">Release Date ↑</option>
+                            <option value="title.asc" className="bg-futuristic-blue-900 text-white">Title A-Z</option>
+                            <option value="title.desc" className="bg-futuristic-blue-900 text-white">Title Z-A</option>
+                        </select>
                     </div>
 
                     {/* Quick Filters - Compact */}
@@ -232,26 +249,12 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
                             </label>
                         </div>
 
-                        {/* Year Quick Select */}
-                        <div className="relative">
-                            <select
-                                value={yearFilter}
-                                onChange={(e) => handleYearChange(e.target.value)}
-                                className="appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-xs px-3 py-1.5 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
-                                style={{ 
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.5rem center',
-                                    backgroundSize: '1rem'
-                                }}
-                            >
-                                <option value="" className="bg-futuristic-blue-900 text-white">Year</option>
-                                {yearOptions.slice(0, 20).map((year) => (
-                                    <option key={year} value={year} className="bg-futuristic-blue-900 text-white">
-                                        {year}
-                                    </option>
-                                ))}
-                            </select>
+                        {/* Year Search - Compact for mobile */}
+                        <div className="w-full">
+                            <YearSearch
+                                selectedYears={selectedYears}
+                                onYearsChange={handleYearsChange}
+                            />
                         </div>
 
                         {/* Rating Quick Select */}
@@ -391,14 +394,19 @@ const SortFilter = ({ onSortChange, onFilterChange, genres = [], showDateFilter 
                                 <span className="text-futuristic-yellow-500 font-bold">×</span>
                             </button>
                         ))}
-                        {yearFilter && (
-                            <button
-                                onClick={() => removeFilter('year')}
-                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
-                            >
-                                <span>Year: {yearFilter}</span>
-                                <span className="text-futuristic-yellow-500 font-bold">×</span>
-                            </button>
+                        {filters.year && (
+                            <>
+                                {(Array.isArray(filters.year) ? filters.year : [filters.year]).map((year) => (
+                                    <button
+                                        key={year}
+                                        onClick={() => removeFilter('year', year)}
+                                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                    >
+                                        <span>Year: {year}</span>
+                                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                    </button>
+                                ))}
+                            </>
                         )}
                         {ratingFilter && (
                             <button

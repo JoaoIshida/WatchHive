@@ -4,6 +4,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/dateFormatter';
+import { getContentType } from '../utils/contentTypeHelper';
 
 const SearchPageContent = () => {
     const searchParams = useSearchParams();
@@ -97,7 +98,7 @@ const SearchPageContent = () => {
                             const link = item.media_type === 'movie' 
                                 ? `/movies/${item.id}` 
                                 : `/series/${item.id}`;
-                            const typeLabel = item.media_type === 'movie' ? 'Movie' : 'TV Series';
+                            const typeLabel = getContentType(item, item.media_type);
                             
                             return (
                                 <a href={link} key={item.id} className="block">

@@ -1,5 +1,5 @@
 async function getMovieDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?language=en-US`, {
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?language=en-US&append_to_response=release_dates`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },
@@ -90,11 +90,13 @@ import AddToListButton from '../../components/AddToListButton';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import WatchProvidersSection from '../../components/WatchProvidersSection';
+import ContentRatingBadge from '../../components/ContentRatingBadge';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
+import { formatRuntime } from '../../utils/runtimeFormatter';
 
 const MovieDetailPage = async ({ params }) => {
-    const { id } = params;
+    const { id } = await params;
     const movie = await getMovieDetails(id);
     const movie_more = await getMovieMoreDetails(id);
     const movie_trailer = await getMovieTrailer(id);
@@ -109,7 +111,10 @@ const MovieDetailPage = async ({ params }) => {
                 <div className="mb-4">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                         <div className="flex-1">
-                            <h1 className="text-4xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
+                            <div className="flex items-center gap-3 mb-4">
+                                <h1 className="text-4xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">{movie.title}</h1>
+                                <ContentRatingBadge item={movie} mediaType="movie" size="xl" />
+                            </div>
                             
                             {/* User Actions */}
                             <div className="flex flex-wrap gap-3">
@@ -173,6 +178,12 @@ const MovieDetailPage = async ({ params }) => {
                                 <p className="text-sm text-futuristic-yellow-400/80 mb-1">Release Date</p>
                                 <p className="text-white font-semibold text-lg">{formatDate(movie.release_date)}</p>
                             </div>
+                            {movie.runtime && (
+                                <div className="futuristic-card p-4">
+                                    <p className="text-sm text-futuristic-yellow-400/80 mb-1">Runtime</p>
+                                    <p className="text-white font-semibold text-lg">{formatRuntime(movie.runtime)}</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Genres */}

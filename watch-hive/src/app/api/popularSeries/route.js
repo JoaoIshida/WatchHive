@@ -20,10 +20,15 @@ export async function GET(req) {
         const year = searchParams.get('year');
         const minRating = searchParams.get('minRating');
         const maxRating = searchParams.get('maxRating');
+        const certification = searchParams.get('certification');
+        const watchProviders = searchParams.get('watchProviders');
+        const keywords = searchParams.get('keywords');
         const sortBy = searchParams.get('sortBy') || 'popularity.desc';
         const dateRange = searchParams.get('dateRange');
         const daysPast = searchParams.get('daysPast');
-        const includeUpcoming = searchParams.get('includeUpcoming') === 'true';
+        // Default to true (include upcoming), only exclude if explicitly set to false
+        const includeUpcomingParam = searchParams.get('includeUpcoming');
+        const includeUpcoming = includeUpcomingParam === null || includeUpcomingParam === 'true';
         
         const params = {
             language: 'en-US',
@@ -37,9 +42,10 @@ export async function GET(req) {
             params.with_genres = genreIds;
         }
 
-        // Year filter
+        // Year filter - TMDB only supports single year, so use first year if array
         if (year) {
-            params.first_air_date_year = year;
+            const yearValue = Array.isArray(year) ? year[0] : year;
+            params.first_air_date_year = yearValue;
         }
 
         // Rating filter
@@ -48,6 +54,34 @@ export async function GET(req) {
         }
         if (maxRating) {
             params['vote_average.lte'] = maxRating;
+        }
+
+        // Note: TV content ratings filtering may need to be done client-side
+        // as TMDB discover API for TV doesn't support content_ratings parameter
+        // We'll store it for potential client-side filtering
+        if (certification) {
+            // For TV, we might need to filter client-side
+            // Store in a custom param that we can use later
+            params._certification = certification;
+        }
+
+        // Watch providers filter
+        if (watchProviders) {
+            // Can be single value or comma-separated
+            const providerIds = watchProviders.split(',').map(p => p.trim()).filter(Boolean);
+            if (providerIds.length > 0) {
+                params.with_watch_providers = providerIds.join('|');
+                params.watch_region = 'CA'; // Canada
+            }
+        }
+
+        // Keywords filter
+        if (keywords) {
+            // Can be single value or comma-separated keyword IDs
+            const keywordIds = keywords.split(',').map(k => k.trim()).filter(Boolean);
+            if (keywordIds.length > 0) {
+                params.with_keywords = keywordIds.join('|');
+            }
         }
 
         // Date range filters
@@ -85,8 +119,8 @@ export async function GET(req) {
             params['first_air_date.lte'] = now.toISOString().split('T')[0];
         }
 
-        // Exclude upcoming series by default (unless includeUpcoming is true)
-        if (!includeUpcoming && !dateRange && !daysPast) {
+        // Include upcoming series by default (unless includeUpcoming is explicitly false)
+        if (includeUpcoming === false && !dateRange && !daysPast) {
             params['first_air_date.lte'] = now.toISOString().split('T')[0];
         }
 

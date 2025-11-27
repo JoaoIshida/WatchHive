@@ -1,20 +1,16 @@
 "use client";
 import React, { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
 import SortFilter from '../components/SortFilter';
 import FilterSidebar from '../components/FilterSidebar';
 import ActiveFilters from '../components/ActiveFilters';
-import ContentCard from '../components/ContentCard';
+import MoviesList from '../components/MoviesList';
 
 const PopularMoviesContent = () => {
-    const [movies, setMovies] = useState([]);
-    const [allMovies, setAllMovies] = useState([]); // Store original unfiltered movies
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [page, setPage] = useState(1);
     const [genres, setGenres] = useState([]);
+    const [watchProviders, setWatchProviders] = useState([]);
     const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
     const [filters, setFilters] = useState({});
     const searchParams = useSearchParams();
@@ -22,6 +18,8 @@ const PopularMoviesContent = () => {
     const pathname = usePathname();
     const queryPage = searchParams.get('page');
     const isInitialMount = useRef(true);
+    const hasInitializedFromURL = useRef(false);
+    const previousFiltersRef = useRef({});
 
     // Initialize state from URL params
     useEffect(() => {
@@ -48,9 +46,11 @@ const PopularMoviesContent = () => {
         if (urlGenres) {
             urlFilters.genres = urlGenres.split(',').map(Number).filter(Boolean);
         }
+        // Years can be single value or comma-separated
         const urlYear = searchParams.get('year');
         if (urlYear) {
-            urlFilters.year = urlYear;
+            const years = urlYear.split(',').map(y => y.trim()).filter(Boolean);
+            urlFilters.year = years.length === 1 ? years[0] : years;
         }
         const urlMinRating = searchParams.get('minRating');
         if (urlMinRating) {
@@ -59,6 +59,40 @@ const PopularMoviesContent = () => {
         const urlMaxRating = searchParams.get('maxRating');
         if (urlMaxRating) {
             urlFilters.maxRating = urlMaxRating;
+        }
+        const urlCertification = searchParams.get('certification');
+        if (urlCertification) {
+            // Handle both single value and comma-separated values
+            const certs = urlCertification.split(',').map(c => c.trim()).filter(Boolean);
+            urlFilters.certification = certs.length === 1 ? certs[0] : certs;
+        }
+        const urlRuntimeMin = searchParams.get('runtimeMin');
+        if (urlRuntimeMin) {
+            urlFilters.runtimeMin = urlRuntimeMin; // Keep as string for URL, will be parsed in FilterSidebar
+        }
+        const urlRuntimeMax = searchParams.get('runtimeMax');
+        if (urlRuntimeMax) {
+            urlFilters.runtimeMax = urlRuntimeMax; // Keep as string for URL, will be parsed in FilterSidebar
+        }
+        const urlWatchProviders = searchParams.get('watchProviders');
+        if (urlWatchProviders) {
+            // Handle both single value and comma-separated values
+            const providers = urlWatchProviders.split(',').map(p => p.trim()).filter(Boolean);
+            urlFilters.watchProviders = providers.length === 1 ? providers[0] : providers;
+        }
+        // Keywords are stored as JSON string with id:name pairs
+        const urlKeywords = searchParams.get('keywords');
+        if (urlKeywords) {
+            try {
+                // Keywords in URL are stored as id:name pairs separated by comma
+                const keywordPairs = urlKeywords.split(',').filter(Boolean);
+                urlFilters.keywords = keywordPairs.map(pair => {
+                    const [id, ...nameParts] = pair.split(':');
+                    return { id: parseInt(id, 10), name: nameParts.join(':') };
+                }).filter(k => k.id && k.name);
+            } catch (e) {
+                console.error('Error parsing keywords from URL:', e);
+            }
         }
         const urlDateRange = searchParams.get('dateRange');
         if (urlDateRange) {
@@ -69,12 +103,19 @@ const PopularMoviesContent = () => {
             urlFilters.daysPast = urlDaysPast;
         }
         const urlIncludeUpcoming = searchParams.get('includeUpcoming');
-        if (urlIncludeUpcoming === 'true') {
+        if (urlIncludeUpcoming !== null) {
+            urlFilters.includeUpcoming = urlIncludeUpcoming === 'true';
+        } else {
+            // Default to true if not specified
             urlFilters.includeUpcoming = true;
         }
         if (Object.keys(urlFilters).length > 0) {
             setFilters(urlFilters);
+            previousFiltersRef.current = urlFilters; // Set previous filters to prevent reset on initial load
         }
+        
+        // Mark URL initialization as complete
+        hasInitializedFromURL.current = true;
     }, []); // Only run on mount
 
     // Update URL when filters, sort, or page changes
@@ -89,8 +130,14 @@ const PopularMoviesContent = () => {
         if (newFilters.genres && newFilters.genres.length > 0) {
             params.set('genres', newFilters.genres.join(','));
         }
+        // Years - can be string or array
         if (newFilters.year) {
-            params.set('year', newFilters.year);
+            const years = Array.isArray(newFilters.year) 
+                ? newFilters.year 
+                : [newFilters.year];
+            if (years.length > 0) {
+                params.set('year', years.join(','));
+            }
         }
         if (newFilters.minRating) {
             params.set('minRating', newFilters.minRating);
@@ -98,14 +145,44 @@ const PopularMoviesContent = () => {
         if (newFilters.maxRating) {
             params.set('maxRating', newFilters.maxRating);
         }
+        if (newFilters.certification) {
+            // Handle both array and string
+            const certs = Array.isArray(newFilters.certification) 
+                ? newFilters.certification 
+                : [newFilters.certification];
+            if (certs.length > 0) {
+                params.set('certification', certs.join(','));
+            }
+        }
+        if (newFilters.runtimeMin) {
+            params.set('runtimeMin', newFilters.runtimeMin);
+        }
+        if (newFilters.runtimeMax) {
+            params.set('runtimeMax', newFilters.runtimeMax);
+        }
+        if (newFilters.watchProviders) {
+            // Handle both array and string
+            const providers = Array.isArray(newFilters.watchProviders) 
+                ? newFilters.watchProviders 
+                : [newFilters.watchProviders];
+            if (providers.length > 0) {
+                params.set('watchProviders', providers.join(','));
+            }
+        }
+        // Keywords are stored as id:name pairs
+        if (newFilters.keywords && newFilters.keywords.length > 0) {
+            const keywordStr = newFilters.keywords.map(k => `${k.id}:${k.name}`).join(',');
+            params.set('keywords', keywordStr);
+        }
         if (newFilters.dateRange) {
             params.set('dateRange', newFilters.dateRange);
         }
         if (newFilters.daysPast) {
             params.set('daysPast', newFilters.daysPast);
         }
-        if (newFilters.includeUpcoming) {
-            params.set('includeUpcoming', 'true');
+        // Only add includeUpcoming to URL if it's explicitly false (default is true)
+        if (newFilters.includeUpcoming === false) {
+            params.set('includeUpcoming', 'false');
         }
         
         // Add sorting to URL
@@ -139,6 +216,31 @@ const PopularMoviesContent = () => {
         fetchGenres();
     }, []);
 
+    // Fetch watch providers
+    useEffect(() => {
+        const fetchProviders = async () => {
+            try {
+                const response = await fetch('/api/watchProviders?mediaType=movie');
+                if (response.ok) {
+                    const data = await response.json();
+                    setWatchProviders(data.providers || []);
+                }
+            } catch (error) {
+                console.error('Error fetching watch providers:', error);
+            }
+        };
+        fetchProviders();
+    }, []);
+
+    // Memoize callbacks to prevent unnecessary re-renders
+    const handleSortChange = useCallback((newSortConfig) => {
+        setSortConfig(newSortConfig);
+    }, []);
+
+    const handleFilterChange = useCallback((newFilters) => {
+        setFilters(newFilters);
+    }, []);
+
     // Update URL when filters change (but not on initial mount)
     useEffect(() => {
         if (isInitialMount.current) {
@@ -150,88 +252,21 @@ const PopularMoviesContent = () => {
 
     // Reset page to 1 when filters change (but not on initial load)
     useEffect(() => {
-        if (Object.keys(filters).length > 0 && page > 1) {
+        if (!hasInitializedFromURL.current) {
+            previousFiltersRef.current = filters;
+            return; // Skip until URL initialization is complete
+        }
+        // Only reset if filters actually changed (not just initialized)
+        const filtersChanged = JSON.stringify(previousFiltersRef.current) !== JSON.stringify(filters);
+        if (filtersChanged && Object.keys(filters).length > 0 && page > 1) {
             setPage(1);
         }
-    }, [filters]);
+        previousFiltersRef.current = filters;
+    }, [filters, page]);
 
-    useEffect(() => {
-        const fetchPopularMovies = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // Build query string with filters and sorting
-                const queryParams = new URLSearchParams();
-                queryParams.set('page', page.toString());
-                
-                // Add filters
-                if (filters.genres && filters.genres.length > 0) {
-                    queryParams.set('genres', filters.genres.join(','));
-                }
-                if (filters.year) {
-                    queryParams.set('year', filters.year);
-                }
-                if (filters.minRating) {
-                    queryParams.set('minRating', filters.minRating);
-                }
-                if (filters.maxRating) {
-                    queryParams.set('maxRating', filters.maxRating);
-                }
-                if (filters.dateRange) {
-                    queryParams.set('dateRange', filters.dateRange);
-                }
-                if (filters.daysPast) {
-                    queryParams.set('daysPast', filters.daysPast);
-                }
-                if (filters.includeUpcoming) {
-                    queryParams.set('includeUpcoming', 'true');
-                }
-                
-                // Add sorting
-                const sortByValue = sortConfig.sortBy === 'popularity' ? 'popularity' :
-                                   sortConfig.sortBy === 'rating' ? 'vote_average' :
-                                   sortConfig.sortBy === 'release_date' ? 'primary_release_date' :
-                                   'title';
-                const sortOrder = sortConfig.sortOrder === 'asc' ? 'asc' : 'desc';
-                queryParams.set('sortBy', `${sortByValue}.${sortOrder}`);
-
-                const response = await fetch(`/api/popularMovies?${queryParams.toString()}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch popular movies');
-                }
-                const data = await response.json();
-                setMovies(data.results);
-                setAllMovies(data.results); // Keep for reference, but filtering is done server-side
-            } catch (error) {
-                setError(error.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchPopularMovies();
-    }, [page, filters, sortConfig]);
-
-    if (loading) {
-        return (
-            <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
-                <div className="flex gap-6">
-                    <div className="hidden sm:block w-64 flex-shrink-0">
-                        <div className="futuristic-card p-4">
-                            <div className="h-96 bg-futuristic-blue-900/40 rounded-lg animate-pulse"></div>
-                        </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            <LoadingCard count={12} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-    if (error) return <div className="text-center py-6 text-red-400">{`Error: ${error}`}</div>;
+    const handlePageChange = useCallback((newPage) => {
+        setPage(newPage);
+    }, []);
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -240,8 +275,8 @@ const PopularMoviesContent = () => {
             {/* Mobile Filter - Hidden on sm and above */}
             <div className="sm:hidden mb-4">
                 <SortFilter
-                    onSortChange={setSortConfig}
-                    onFilterChange={setFilters}
+                    onSortChange={handleSortChange}
+                    onFilterChange={handleFilterChange}
                     genres={genres}
                     showDateFilter={true}
                     sortConfig={sortConfig}
@@ -253,10 +288,11 @@ const PopularMoviesContent = () => {
             <div className="flex gap-6">
                 {/* Desktop Sidebar Filter - Hidden on mobile */}
                 <FilterSidebar
-                    onSortChange={setSortConfig}
-                    onFilterChange={setFilters}
+                    onSortChange={handleSortChange}
+                    onFilterChange={handleFilterChange}
                     genres={genres}
                     showDateFilter={true}
+                    mediaType="movie"
                     sortConfig={sortConfig}
                     filters={filters}
                 />
@@ -268,59 +304,18 @@ const PopularMoviesContent = () => {
                         <ActiveFilters
                             filters={filters}
                             genres={genres}
-                            onFilterChange={setFilters}
-                            onSortChange={setSortConfig}
+                            watchProviders={watchProviders}
+                            onFilterChange={handleFilterChange}
+                            onSortChange={handleSortChange}
                             sortConfig={sortConfig}
                         />
                     </div>
-                    <div className="flex items-center justify-center my-6 gap-2">
-                        <button
-                            onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
-                            className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={page === 1}
-                        >
-                            Prev
-                        </button>
-                        <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
-                        <button
-                            onClick={() => setPage((prevPage) => prevPage + 1)}
-                            className="futuristic-button"
-                        >
-                            Next
-                        </button>
-                    </div>
-                    {
-                        movies.length === 0 ? (
-                            <div className="text-center py-6 text-white">No popular movies available</div>
-                        ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                {movies.map((movie) => (
-                                    <ContentCard
-                                        key={movie.id}
-                                        item={movie}
-                                        mediaType="movie"
-                                        href={`/movies/${movie.id}`}
-                                    />
-                                ))}
-                            </div>
-                        )
-                    }
-                    <div className="flex items-center justify-center my-6 gap-2">
-                        <button
-                            onClick={() => setPage((prevPage) => Math.max(prevPage - 1, 1))}
-                            className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={page === 1}
-                        >
-                            Prev
-                        </button>
-                        <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
-                        <button
-                            onClick={() => setPage((prevPage) => prevPage + 1)}
-                            className="futuristic-button"
-                        >
-                            Next
-                        </button>
-                    </div>
+                    <MoviesList
+                        page={page}
+                        filters={filters}
+                        sortConfig={sortConfig}
+                        onPageChange={handlePageChange}
+                    />
                 </div>
             </div>
         </div>

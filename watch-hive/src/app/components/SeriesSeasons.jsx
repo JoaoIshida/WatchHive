@@ -46,10 +46,20 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     };
 
     const toggleEpisodeWatched = (seasonNumber, episodeNumber) => {
-        const isWatched = seriesProgressStorage.isEpisodeWatched(seriesId, seasonNumber, episodeNumber);
+        const progress = seriesProgressStorage.getSeriesProgress(seriesId);
+        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
+        const isEpisodeInList = progress.seasons[seasonNumber]?.episodes?.includes(episodeNumber) || false;
+        const isWatched = isSeasonCompleted || isEpisodeInList;
         
         if (isWatched) {
-            seriesProgressStorage.markEpisodeUnwatched(seriesId, seasonNumber, episodeNumber);
+            // If season is completed, unmark season completion first
+            if (isSeasonCompleted) {
+                seriesProgressStorage.markSeasonCompleted(seriesId, seasonNumber, false);
+            }
+            // Then remove the episode from the watched list (if it exists)
+            if (isEpisodeInList) {
+                seriesProgressStorage.markEpisodeUnwatched(seriesId, seasonNumber, episodeNumber);
+            }
         } else {
             // Check if episode is released
             const seasonData = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);

@@ -117,6 +117,37 @@ body {
     }
   }
 
+  @keyframes wave {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes honeyWave {
+    0%, 100% {
+      clip-path: polygon(0 0, 5% 100%, 12% 0, 20% 100%, 28% 0, 36% 100%, 44% 0, 52% 100%, 60% 0, 68% 100%, 76% 0, 84% 100%, 92% 0, 100% 100%);
+      transform: translateX(0);
+    }
+    25% {
+      clip-path: polygon(0 0, 8% 100%, 15% 0, 23% 100%, 31% 0, 39% 100%, 47% 0, 55% 100%, 63% 0, 71% 100%, 79% 0, 87% 100%, 95% 0, 100% 100%);
+      transform: translateX(2px);
+    }
+    50% {
+      clip-path: polygon(0 0, 6% 100%, 13% 0, 21% 100%, 29% 0, 37% 100%, 45% 0, 53% 100%, 61% 0, 69% 100%, 77% 0, 85% 100%, 93% 0, 100% 100%);
+      transform: translateX(0);
+    }
+    75% {
+      clip-path: polygon(0 0, 7% 100%, 14% 0, 22% 100%, 30% 0, 38% 100%, 46% 0, 54% 100%, 62% 0, 70% 100%, 78% 0, 86% 100%, 94% 0, 100% 100%);
+      transform: translateX(-2px);
+    }
+  }
+
   .loading-shimmer {
     animation: shimmer 2s infinite linear;
     background: linear-gradient(
@@ -152,4 +183,15 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Nice-waves styling for honey effect */
+.wave-container svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wave-container path {
+  mix-blend-mode: screen;
 }
