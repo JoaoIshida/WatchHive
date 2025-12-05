@@ -2,13 +2,14 @@ import { fetchTMDB } from '../utils';
 
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
     const page = parseInt(searchParams.get('page')) || 1;
 
     try {
         const data = await fetchTMDB('/movie/now_playing', {
             language: language,
             page: page,
+            region: 'CA',
         });
 
         return new Response(JSON.stringify(data), {

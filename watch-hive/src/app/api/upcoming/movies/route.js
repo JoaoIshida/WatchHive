@@ -3,7 +3,7 @@ import { fetchTMDB } from '../../utils';
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     try {
         // Get current date for filtering
@@ -15,7 +15,7 @@ export async function GET(req) {
         const data = await fetchTMDB('/movie/upcoming', {
             language: language,
             page: page,
-            region: 'US', // Can be made configurable
+            region: 'CA',
         });
 
         // Filter to only include movies with release date in the future

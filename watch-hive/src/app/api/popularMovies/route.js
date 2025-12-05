@@ -28,16 +28,18 @@ export async function GET(req) {
         const sortBy = searchParams.get('sortBy') || 'popularity.desc';
         const dateRange = searchParams.get('dateRange');
         const daysPast = searchParams.get('daysPast');
+        const inTheaters = searchParams.get('inTheaters') === 'true';
         // Default to true (include upcoming), only exclude if explicitly set to false
         const includeUpcomingParam = searchParams.get('includeUpcoming');
         const includeUpcoming = includeUpcomingParam === null || includeUpcomingParam === 'true';
         
         const params = {
-            language: 'en-US',
+            language: 'en-CA',
             page: page,
             sort_by: sortBy,
             include_adult: false,
             include_video: false,
+            region: 'CA',
         };
 
         // Genre filter
@@ -137,7 +139,47 @@ export async function GET(req) {
             params['primary_release_date.lte'] = now.toISOString().split('T')[0];
         }
 
-        const data = await fetchTMDB('/discover/movie', params);
+        let data = await fetchTMDB('/discover/movie', params);
+
+        // If inTheaters filter is enabled, filter results to only include movies currently in theaters
+        if (inTheaters && data.results) {
+            try {
+                // Fetch all now playing movies
+                let allNowPlaying = [];
+                let page = 1;
+                let hasMore = true;
+                const maxPages = 5; // Check up to 5 pages
+
+                while (hasMore && page <= maxPages) {
+                    const nowPlayingData = await fetchTMDB('/movie/now_playing', {
+                        language: 'en-CA',
+                        page: page,
+                        region: 'CA',
+                    });
+
+                    if (nowPlayingData.results && nowPlayingData.results.length > 0) {
+                        allNowPlaying = [...allNowPlaying, ...nowPlayingData.results];
+                        hasMore = page < (nowPlayingData.total_pages || 1);
+                        page++;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                // Create a set of now playing movie IDs for fast lookup
+                const nowPlayingIds = new Set(allNowPlaying.map(movie => movie.id));
+
+                // Filter results to only include movies in theaters
+                data.results = data.results.filter(movie => nowPlayingIds.has(movie.id));
+                
+                // Update total results count
+                data.total_results = data.results.length;
+                data.total_pages = Math.ceil(data.total_results / 20);
+            } catch (error) {
+                console.error('Error filtering by theaters:', error);
+                // If error, return original data
+            }
+        }
 
         return new Response(JSON.stringify(data), {
             status: 200,

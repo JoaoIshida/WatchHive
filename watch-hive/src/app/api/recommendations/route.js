@@ -48,7 +48,7 @@ export async function POST(req) {
             const movieRecs = await Promise.all(
                 movieIds.map(id =>
                     fetchTMDB(`/movie/${id}/recommendations`, {
-                        language: 'en-US',
+                        language: 'en-CA',
                         page: 1,
                     }).catch(() => null)
                 )
@@ -75,7 +75,7 @@ export async function POST(req) {
             const seriesRecs = await Promise.all(
                 seriesIds.map(id =>
                     fetchTMDB(`/tv/${id}/recommendations`, {
-                        language: 'en-US',
+                        language: 'en-CA',
                         page: 1,
                     }).catch(() => null)
                 )

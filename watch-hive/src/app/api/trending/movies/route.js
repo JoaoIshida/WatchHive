@@ -2,7 +2,7 @@ import { fetchTMDB } from '../../utils';
 
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     try {
         const data = await fetchTMDB('/trending/movie/week', {

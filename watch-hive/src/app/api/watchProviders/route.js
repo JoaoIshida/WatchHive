@@ -5,7 +5,7 @@ export async function GET(request) {
         const { searchParams } = new URL(request.url);
         const mediaType = searchParams.get('mediaType') || 'movie';
         
-        const url = `https://api.themoviedb.org/3/watch/providers/${mediaType}?watch_region=CA&language=en-US`;
+        const url = `https://api.themoviedb.org/3/watch/providers/${mediaType}?watch_region=CA&language=en-CA`;
         
         const res = await fetch(url, {
             headers: {

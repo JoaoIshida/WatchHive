@@ -3,7 +3,7 @@ import { fetchTMDB } from '../../utils';
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     try {
         // Get current date for filtering

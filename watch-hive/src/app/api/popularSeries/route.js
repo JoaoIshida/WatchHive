@@ -31,7 +31,7 @@ export async function GET(req) {
         const includeUpcoming = includeUpcomingParam === null || includeUpcomingParam === 'true';
         
         const params = {
-            language: 'en-US',
+            language: 'en-CA',
             page: page,
             sort_by: sortBy,
             include_adult: false,

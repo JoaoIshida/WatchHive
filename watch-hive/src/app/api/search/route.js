@@ -3,7 +3,7 @@ import { fetchTMDB } from '../utils';
 export async function GET(req) {
     const { searchParams } = new URL(req.url, 'http://localhost');
     const query = searchParams.get('query');
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     if (!query) {
         return new Response(JSON.stringify({ error: 'Query parameter is required' }), {

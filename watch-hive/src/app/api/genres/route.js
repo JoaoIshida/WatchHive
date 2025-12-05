@@ -6,7 +6,7 @@ export async function GET(req) {
 
     try {
         const data = await fetchTMDB(`/genre/${type}/list`, {
-            language: 'en-US',
+            language: 'en-CA',
         });
 
         return new Response(JSON.stringify(data.genres || []), {

@@ -14,7 +14,7 @@ export async function GET(req, { params }) {
 
     try {
         const data = await fetchTMDB(`/tv/${id}/season/${seasonNumber}`, {
-            language: 'en-US',
+            language: 'en-CA',
         });
 
         return new Response(JSON.stringify(data), {

@@ -23,7 +23,7 @@ export async function GET(req, { params }) {
 
     try {
         const data = await fetchTMDB(`/${type}/${id}`, {
-            language: 'en-US',
+            language: 'en-CA',
         });
 
         return new Response(JSON.stringify(data), {
