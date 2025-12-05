@@ -117,7 +117,7 @@ const UpcomingSeriesContent = () => {
                         return (
                             <div key={weekKey}>
                                 <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
-                                    Week of {week.weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    Week of {week.weekStart.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })} - {weekEnd.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}
                                 </h2>
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                                     {week.series.map((serie) => (

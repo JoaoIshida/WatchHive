@@ -1,65 +1,68 @@
 /**
  * Supabase Server Client Helper
  * Creates a Supabase client for server-side use (API routes, Server Components)
- * Uses the anon key but can be used with user's session token
+ * Uses JWT token authentication with service role key for database operations
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { verifyToken, isTokenExpired } from '../utils/jwt';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
 }
 
 /**
- * Get Supabase client for server-side use with user's session
- * Use this in API routes and Server Components
+ * Get Supabase admin client for server-side database operations
+ * Uses service role key for full database access
+ * Use this in API routes for database queries
  */
 export async function createServerClient() {
-  const cookieStore = await cookies();
-  
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name, value, options) {
-        try {
-          cookieStore.set({ name, value, ...options });
-        } catch (error) {
-          // The `set` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
-        }
-      },
-      remove(name, options) {
-        try {
-          cookieStore.set({ name, value: '', ...options });
-        } catch (error) {
-          // The `delete` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
-        }
-      },
-    },
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   });
 }
 
 /**
- * Get authenticated user from server-side
- * Returns null if not authenticated
+ * Get authenticated user from cookies (validates JWT token)
+ * Returns user object with id, email, role if valid, null otherwise
+ * Use this in API routes to get the authenticated user
  */
 export async function getServerUser() {
-  const supabase = await createServerClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  
-  if (error || !user) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('watchhive-token')?.value;
+
+    if (!token) {
+      return null;
+    }
+
+    // Validate JWT token
+    const userPayload = verifyToken(token);
+
+    if (!userPayload) {
+      return null;
+    }
+
+    // Check if token is expired
+    if (isTokenExpired(userPayload)) {
+      return null;
+    }
+
+    // Return user object with consistent structure
+    return {
+      id: userPayload.userId || userPayload.id,
+      email: userPayload.email,
+      role: userPayload.role || 'user',
+    };
+  } catch (error) {
+    console.error('Error getting server user:', error);
     return null;
   }
-  
-  return user;
 }
-

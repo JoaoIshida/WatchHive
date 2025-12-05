@@ -15,7 +15,7 @@ const TrendingSeriesContent = () => {
     const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
     const [filters, setFilters] = useState({});
     const searchParams = useSearchParams();
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     // Fetch genres
     useEffect(() => {

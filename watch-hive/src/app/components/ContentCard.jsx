@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import ImageWithFallback from './ImageWithFallback';
 import NewReleaseBadge from './NewReleaseBadge';
 import UpcomingBadge from './UpcomingBadge';
@@ -12,6 +13,7 @@ import { formatRuntime, getSeriesInfo } from '../utils/runtimeFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
 
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
+    const { user } = useAuth();
     const title = item.title || item.name;
     const releaseDate = item.release_date || item.first_air_date;
     const posterPath = item.poster_path || item.backdrop_path;
@@ -20,11 +22,36 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const [watchStatus, setWatchStatus] = useState(null);
     
     useEffect(() => {
-        const updateWatchStatus = () => {
-            if (isSeries) {
-                setWatchStatus(getSeriesWatchProgress(item.id, item));
-            } else {
-                setWatchStatus(getMovieWatchStatus(item.id));
+        const updateWatchStatus = async () => {
+            if (!user) {
+                setWatchStatus(null);
+                return;
+            }
+
+            try {
+                if (isSeries) {
+                    // Fetch series progress
+                    const [watchedRes, progressRes] = await Promise.all([
+                        fetch('/api/watched'),
+                        fetch(`/api/series-progress/${item.id}`),
+                    ]);
+
+                    const watched = watchedRes.ok ? (await watchedRes.json()).watched : [];
+                    const isWatched = watched.some(w => w.content_id === item.id && w.media_type === 'tv');
+                    const progress = progressRes.ok ? await progressRes.json() : null;
+
+                    setWatchStatus(getSeriesWatchProgress(item.id, item, progress, isWatched));
+                } else {
+                    // Fetch watched status
+                    const watchedRes = await fetch('/api/watched');
+                    if (watchedRes.ok) {
+                        const { watched } = await watchedRes.json();
+                        const watchedItem = watched.find(w => w.content_id === item.id && w.media_type === 'movie');
+                        setWatchStatus(getMovieWatchStatus(item.id, watchedItem));
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading watch status:', error);
             }
         };
         
@@ -37,7 +64,7 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
         return () => {
             window.removeEventListener('watchhive-data-updated', handleUpdate);
         };
-    }, [item.id, item, isSeries]);
+    }, [item.id, item, isSeries, user]);
 
     return (
         <div className="block relative group">

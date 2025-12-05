@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { watchedStorage, seriesProgressStorage } from '../lib/localStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { isMovieReleased, isSeriesReleased, isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
 import UnreleasedNotification from './UnreleasedNotification';
 
 export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = null, itemData = null }) {
+    const { user } = useAuth();
     const [isWatched, setIsWatched] = useState(false);
     const [timesWatched, setTimesWatched] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -13,26 +14,51 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
     const [skippedItems, setSkippedItems] = useState([]);
 
     useEffect(() => {
-        // Check if item is watched
-        const watched = watchedStorage.isWatched(String(itemId), mediaType);
-        setIsWatched(watched);
-        if (watched) {
-            setTimesWatched(watchedStorage.getTimesWatched(String(itemId), mediaType));
-        }
-    }, [itemId, mediaType]);
-
-    const handleToggle = async () => {
-        setLoading(true);
-        try {
-            if (isWatched) {
-                // Remove from watched
-                watchedStorage.remove(String(itemId), mediaType);
+        // Check if item is watched via API
+        const checkWatched = async () => {
+            if (!user) {
                 setIsWatched(false);
                 setTimesWatched(0);
-                
-                // If it's a series, also unmark series completion (but keep episode progress)
-                if (mediaType === 'tv') {
-                    seriesProgressStorage.markSeriesCompleted(String(itemId), false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/watched`);
+                if (response.ok) {
+                    const { watched } = await response.json();
+                    const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                    if (item) {
+                        setIsWatched(true);
+                        setTimesWatched(item.times_watched || 1);
+                    } else {
+                        setIsWatched(false);
+                        setTimesWatched(0);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking watched status:', error);
+            }
+        };
+        checkWatched();
+    }, [itemId, mediaType, user]);
+
+    const handleToggle = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
+        setLoading(true);
+        try {
+
+            if (isWatched) {
+                // Remove from watched via API
+                const response = await fetch(`/api/watched?itemId=${itemId}&mediaType=${mediaType}`, {
+                    method: 'DELETE',
+                });
+                if (response.ok) {
+                    setIsWatched(false);
+                    setTimesWatched(0);
                 }
             } else {
                 // Check if item is released before marking as watched
@@ -131,24 +157,39 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                         setShowNotification(true);
                     }
                     
-                    // Mark the series as watched (if it's released, which we already checked above)
-                    watchedStorage.add(String(itemId), mediaType);
-                    setIsWatched(true);
-                    setTimesWatched(1);
+                    // Mark the series as watched via API
+                    const watchedResponse = await fetch('/api/watched', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemId, mediaType }),
+                    });
+                    if (watchedResponse.ok) {
+                        setIsWatched(true);
+                        setTimesWatched(1);
+                    }
                     
-                    // Mark all released episodes and seasons as watched
+                    // Mark series progress (episodes/seasons) if there's released content
                     if (hasReleasedContent) {
-                        // Mark series as completed with all released episodes
-                        seriesProgressStorage.markSeriesCompleted(String(itemId), true, allSeasonsData);
-                    } else {
-                        // Fallback: mark as watched even if no seasons data
-                        seriesProgressStorage.markSeriesCompleted(String(itemId), true);
+                        await fetch(`/api/series-progress/${itemId}/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                completed: true,
+                                seasonsData: allSeasonsData,
+                            }),
+                        });
                     }
                 } else {
-                    // For movies or series without seasons, just mark as watched
-                    watchedStorage.add(String(itemId), mediaType);
-                    setIsWatched(true);
-                    setTimesWatched(1);
+                    // For movies or series without seasons, just mark as watched via API
+                    const response = await fetch('/api/watched', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemId, mediaType }),
+                    });
+                    if (response.ok) {
+                        setIsWatched(true);
+                        setTimesWatched(1);
+                    }
                 }
             }
             if (onUpdate) onUpdate();
@@ -161,12 +202,19 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
         }
     };
 
-    const handleIncrement = () => {
+    const handleIncrement = async () => {
         setLoading(true);
         try {
-            watchedStorage.add(String(itemId), mediaType);
-            setTimesWatched(prev => prev + 1);
-            setIsWatched(true);
+            const response = await fetch('/api/watched', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemId, mediaType }),
+            });
+            if (response.ok) {
+                const { watched } = await response.json();
+                setTimesWatched(watched.times_watched);
+                setIsWatched(true);
+            }
             if (onUpdate) onUpdate();
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
@@ -217,7 +265,7 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     </div>
                 )}
             </div>
-            <UnreleasedNotification 
+            <UnreleasedNotification
                 isOpen={showNotification}
                 onClose={() => setShowNotification(false)}
                 skippedItems={skippedItems}

@@ -10,7 +10,7 @@ export function formatDate(dateString) {
             return dateString; // Return original if invalid
         }
         
-        return date.toLocaleDateString('en-US', {
+        return date.toLocaleDateString('en-CA', {
             year: 'numeric',
             month: 'long',
             day: 'numeric'

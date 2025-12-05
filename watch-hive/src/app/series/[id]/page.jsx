@@ -12,7 +12,7 @@ import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
 
 async function getSerieDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-US&append_to_response=content_ratings`, {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-CA&append_to_response=content_ratings`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },

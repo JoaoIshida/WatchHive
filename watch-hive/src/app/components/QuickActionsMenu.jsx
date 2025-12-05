@@ -1,42 +1,70 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { watchedStorage } from '../lib/localStorage';
-import { wishlistStorage } from '../lib/localStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
 
-// Simple list storage helper
-const getLists = () => {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('watchhive_custom_lists');
-    return data ? JSON.parse(data) : [];
-};
-
-const saveLists = (lists) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('watchhive_custom_lists', JSON.stringify(lists));
-};
-
 export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isWatched, setIsWatched] = useState(false);
     const [isInWishlist, setIsInWishlist] = useState(false);
     const [itemLists, setItemLists] = useState([]);
+    const [loading, setLoading] = useState(false);
     const menuRef = useRef(null);
 
     useEffect(() => {
-        // Check initial states
-        const watched = watchedStorage.isWatched(String(itemId), mediaType);
-        const inWishlist = wishlistStorage.isInWishlist(String(itemId), mediaType);
-        const lists = getLists();
-        const itemListIds = lists.filter(list => 
-            list.items.some(item => item.id === String(itemId) && item.mediaType === mediaType)
-        ).map(list => list.id);
+        // Check initial states from API
+        const checkStates = async () => {
+            if (!user) {
+                setIsWatched(false);
+                setIsInWishlist(false);
+                setItemLists([]);
+                return;
+            }
 
-        setIsWatched(watched);
-        setIsInWishlist(inWishlist);
-        setItemLists(itemListIds);
-    }, [itemId, mediaType]);
+            try {
+                const [watchedRes, wishlistRes, listsRes] = await Promise.all([
+                    fetch('/api/watched'),
+                    fetch('/api/wishlist'),
+                    fetch('/api/custom-lists'),
+                ]);
+
+                if (watchedRes.ok) {
+                    const { watched } = await watchedRes.json();
+                    const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                    setIsWatched(!!watchedItem);
+                }
+
+                if (wishlistRes.ok) {
+                    const { wishlist } = await wishlistRes.json();
+                    const wishlistItem = wishlist.find(w => w.content_id === itemId && w.media_type === mediaType);
+                    setIsInWishlist(!!wishlistItem);
+                }
+
+                if (listsRes.ok) {
+                    const { lists } = await listsRes.json();
+                    const listIds = [];
+                    for (const list of lists || []) {
+                        const listRes = await fetch(`/api/custom-lists/${list.id}`);
+                        if (listRes.ok) {
+                            const { list: listWithItems } = await listRes.json();
+                            const hasItem = (listWithItems.items || []).some(item => 
+                                item.content_id === itemId && item.media_type === mediaType
+                            );
+                            if (hasItem) {
+                                listIds.push(list.id);
+                            }
+                        }
+                    }
+                    setItemLists(listIds);
+                }
+            } catch (error) {
+                console.error('Error checking states:', error);
+            }
+        };
+        checkStates();
+    }, [itemId, mediaType, user]);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -56,82 +84,140 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     }, [isOpen]);
 
     const handleToggleWatched = async () => {
-        if (isWatched) {
-            watchedStorage.remove(String(itemId), mediaType);
-            setIsWatched(false);
-        } else {
-            // Check if item is released before marking as watched
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            setIsOpen(false);
+            return;
+        }
+
+        // Check if item is released before marking as watched
+        if (!isWatched) {
             if (mediaType === 'movie' && itemData && !isMovieReleased(itemData)) {
                 alert(`This movie is not yet released. Release date: ${formatDate(itemData.release_date)}`);
+                setIsOpen(false);
                 return;
             } else if (mediaType === 'tv' && itemData && !isSeriesReleased(itemData)) {
                 alert(`This series is not yet released. Release date: ${formatDate(itemData.first_air_date)}`);
+                setIsOpen(false);
                 return;
             }
-            
-            watchedStorage.add(String(itemId), mediaType);
-            setIsWatched(true);
         }
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-        if (onUpdate) onUpdate();
-        setIsOpen(false);
-    };
 
-    const handleToggleWishlist = () => {
-        if (isInWishlist) {
-            wishlistStorage.remove(String(itemId), mediaType);
-            setIsInWishlist(false);
-        } else {
-            wishlistStorage.add(String(itemId), mediaType);
-            setIsInWishlist(true);
-        }
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-        if (onUpdate) onUpdate();
-        setIsOpen(false);
-    };
-
-    const handleAddToList = () => {
-        const lists = getLists();
-        const defaultList = lists.find(l => l.name === 'My List');
-        
-        if (!defaultList) {
-            // Create default list
-            const newList = {
-                id: Date.now().toString(),
-                name: 'My List',
-                items: [{
-                    id: String(itemId),
-                    mediaType,
-                    title: itemData?.title || itemData?.name || 'Untitled',
-                    dateAdded: new Date().toISOString(),
-                }],
-                createdAt: new Date().toISOString(),
-            };
-            lists.push(newList);
-        } else {
-            // Add to existing list if not already there
-            const isInList = defaultList.items.some(
-                item => item.id === String(itemId) && item.mediaType === mediaType
-            );
-            if (!isInList) {
-                defaultList.items.push({
-                    id: String(itemId),
-                    mediaType,
-                    title: itemData?.title || itemData?.name || 'Untitled',
-                    dateAdded: new Date().toISOString(),
+        setLoading(true);
+        try {
+            if (isWatched) {
+                const response = await fetch(`/api/watched?itemId=${itemId}&mediaType=${mediaType}`, {
+                    method: 'DELETE',
                 });
+                if (response.ok) {
+                    setIsWatched(false);
+                }
+            } else {
+                const response = await fetch('/api/watched', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId, mediaType }),
+                });
+                if (response.ok) {
+                    setIsWatched(true);
+                }
             }
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error('Error toggling watched:', error);
+        } finally {
+            setLoading(false);
+            setIsOpen(false);
         }
-        
-        saveLists(lists);
-        const updatedLists = getLists();
-        const updatedItemListIds = updatedLists.filter(list => 
-            list.items.some(item => item.id === String(itemId) && item.mediaType === mediaType)
-        ).map(list => list.id);
-        setItemLists(updatedItemListIds);
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-        if (onUpdate) onUpdate();
-        setIsOpen(false);
+    };
+
+    const handleToggleWishlist = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            setIsOpen(false);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            if (isInWishlist) {
+                const response = await fetch(`/api/wishlist?itemId=${itemId}&mediaType=${mediaType}`, {
+                    method: 'DELETE',
+                });
+                if (response.ok) {
+                    setIsInWishlist(false);
+                }
+            } else {
+                const response = await fetch('/api/wishlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId, mediaType }),
+                });
+                if (response.ok) {
+                    setIsInWishlist(true);
+                }
+            }
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error('Error toggling wishlist:', error);
+        } finally {
+            setLoading(false);
+            setIsOpen(false);
+        }
+    };
+
+    const handleAddToList = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            setIsOpen(false);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // Get or create "My List"
+            const listsRes = await fetch('/api/custom-lists');
+            if (!listsRes.ok) throw new Error('Failed to fetch lists');
+            
+            const { lists } = await listsRes.json();
+            let defaultList = lists.find(l => l.name === 'My List');
+            
+            if (!defaultList) {
+                // Create default list
+                const createRes = await fetch('/api/custom-lists', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: 'My List' }),
+                });
+                if (!createRes.ok) throw new Error('Failed to create list');
+                const { list } = await createRes.json();
+                defaultList = list;
+            }
+
+            // Add item to list
+            const addRes = await fetch(`/api/custom-lists/${defaultList.id}/items`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contentId: itemId,
+                    mediaType,
+                    title: itemData?.title || itemData?.name || 'Untitled',
+                }),
+            });
+
+            if (addRes.ok) {
+                setItemLists(prev => [...prev, defaultList.id]);
+                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                if (onUpdate) onUpdate();
+            }
+        } catch (error) {
+            console.error('Error adding to list:', error);
+        } finally {
+            setLoading(false);
+            setIsOpen(false);
+        }
     };
 
     return (
@@ -144,6 +230,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 }}
                 className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center bg-futuristic-blue-950/90 backdrop-blur-sm rounded-full border border-futuristic-yellow-500/50 hover:bg-futuristic-blue-900 hover:border-futuristic-yellow-400 transition-all"
                 aria-label="Quick actions"
+                style={{ zIndex: 20 }}
             >
                 <svg 
                     className="w-4 h-4 text-futuristic-yellow-400" 
@@ -155,7 +242,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             </button>
 
             {isOpen && (
-                <div className="absolute top-10 right-0 z-30 bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow py-2 min-w-[180px]">
+                <div className="absolute top-10 right-0 z-30 bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow py-2 min-w-[180px]" style={{ zIndex: 30 }}>
                     <button
                         onClick={(e) => {
                             e.preventDefault();

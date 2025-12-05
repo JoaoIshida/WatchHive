@@ -1,5 +1,5 @@
 async function getMovieDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?language=en-US&append_to_response=release_dates`, {
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?language=en-CA&append_to_response=release_dates`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },
@@ -226,6 +226,7 @@ const MovieDetailPage = async ({ params }) => {
                             buy={movie_more.results.CA?.buy}
                             title={movie.title}
                             mediaType="movie"
+                            movieId={movie.id}
                         />
                     </div>
                 </div>

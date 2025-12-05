@@ -29,6 +29,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
         if (filters.runtimeMin || filters.runtimeMax) count++;
         if (filters.dateRange) count++;
         if (filters.daysPast) count++;
+        if (filters.inTheaters) count++;
         if (filters.seasonsMin || filters.seasonsMax) count++;
         if (filters.watchProviders) {
             count += Array.isArray(filters.watchProviders) ? filters.watchProviders.length : 1;
@@ -76,6 +77,9 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                 break;
             case 'daysPast':
                 delete newFilters.daysPast;
+                break;
+            case 'inTheaters':
+                delete newFilters.inTheaters;
                 break;
             case 'includeUpcoming':
                 delete newFilters.includeUpcoming;
@@ -215,6 +219,15 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                              filters.daysPast === '180' ? 'Last 6 Months' :
                              filters.daysPast === '365' ? 'Last Year' : `Last ${filters.daysPast} Days`}
                         </span>
+                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                    </button>
+                )}
+                {filters.inTheaters && (
+                    <button
+                        onClick={() => removeFilter('inTheaters')}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                    >
+                        <span>In Theaters</span>
                         <span className="text-futuristic-yellow-500 font-bold">×</span>
                     </button>
                 )}

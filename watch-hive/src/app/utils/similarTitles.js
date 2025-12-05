@@ -70,7 +70,7 @@ export async function findSimilarTitles(title, mediaType = 'both', limit = 10) {
                 
                 const searchData = await fetchTMDB(`/search/${searchType}`, {
                     query: query,
-                    language: 'en-US',
+                    language: 'en-CA',
                     page: 1,
                 });
                 

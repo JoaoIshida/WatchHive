@@ -17,6 +17,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [dateRangeFilter, setDateRangeFilter] = useState('');
     const [daysPastFilter, setDaysPastFilter] = useState('');
     const [includeUpcoming, setIncludeUpcoming] = useState(true);
+    const [inTheaters, setInTheaters] = useState(false);
     const [seasonsMinFilter, setSeasonsMinFilter] = useState(1);
     const [seasonsMaxFilter, setSeasonsMaxFilter] = useState(20);
     const [selectedProviders, setSelectedProviders] = useState([]);
@@ -104,6 +105,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         setDateRangeFilter(filters.dateRange || '');
         setDaysPastFilter(filters.daysPast || '');
         setIncludeUpcoming(filters.includeUpcoming !== undefined ? filters.includeUpcoming : true);
+        setInTheaters(filters.inTheaters === true);
         setSeasonsMinFilter(filters.seasonsMin ? parseInt(filters.seasonsMin, 10) : 1);
         setSeasonsMaxFilter(filters.seasonsMax ? parseInt(filters.seasonsMax, 10) : 20);
         // Handle watch providers - can be string or array
@@ -167,6 +169,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         const dateRange = updates.dateRange !== undefined ? updates.dateRange : dateRangeFilter;
         const daysPast = updates.daysPast !== undefined ? updates.daysPast : daysPastFilter;
         const includeUpcomingValue = updates.includeUpcoming !== undefined ? updates.includeUpcoming : includeUpcoming;
+        const inTheatersValue = updates.inTheaters !== undefined ? updates.inTheaters : inTheaters;
         const seasonsMin = updates.seasonsMin !== undefined ? updates.seasonsMin : seasonsMinFilter;
         const seasonsMax = updates.seasonsMax !== undefined ? updates.seasonsMax : seasonsMaxFilter;
         const providers = updates.providers !== undefined ? updates.providers : selectedProviders;
@@ -195,6 +198,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         if (daysPast) filterObj.daysPast = daysPast;
         // Include upcoming is true by default, always set it
         filterObj.includeUpcoming = includeUpcomingValue;
+        if (inTheatersValue) filterObj.inTheaters = true;
         // Only add season filters if they're not at default values
         if (seasonsMin > 1) filterObj.seasonsMin = seasonsMin.toString();
         if (seasonsMax < 20) filterObj.seasonsMax = seasonsMax.toString();
@@ -255,6 +259,11 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         onFilterChange(buildFilterObject({ includeUpcoming: checked }));
     };
 
+    const handleInTheatersChange = (checked) => {
+        setInTheaters(checked);
+        onFilterChange(buildFilterObject({ inTheaters: checked }));
+    };
+
     const handleSeasonsChange = ({ min, max }) => {
         setSeasonsMinFilter(min);
         setSeasonsMaxFilter(max);
@@ -284,6 +293,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         setDateRangeFilter('');
         setDaysPastFilter('');
         setIncludeUpcoming(true);
+        setInTheaters(false);
         setSeasonsMinFilter(1);
         setSeasonsMaxFilter(20);
         setSelectedProviders([]);
@@ -615,6 +625,33 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                 <option value="180" className="bg-futuristic-blue-900 text-white">Last 6 Months</option>
                                 <option value="365" className="bg-futuristic-blue-900 text-white">Last Year</option>
                             </select>
+                        </div>
+
+                        {/* In Theaters Filter - Only for movies */}
+                        {mediaType === 'movie' && (
+                            <div className="mb-6">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={inTheaters}
+                                        onChange={(e) => handleInTheatersChange(e.target.checked)}
+                                        className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
+                                    />
+                                    <span className="text-sm text-white/90">In Theaters</span>
+                                </label>
+                            </div>
+                        )}
+
+                        <div className="mb-6">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={includeUpcoming}
+                                    onChange={(e) => handleIncludeUpcomingChange(e.target.checked)}
+                                    className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
+                                />
+                                <span className="text-sm text-white/90">Include Upcoming</span>
+                            </label>
                         </div>
                     </CollapsibleSection>
                 )}

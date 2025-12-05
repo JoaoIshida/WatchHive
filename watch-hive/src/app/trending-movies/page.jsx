@@ -15,7 +15,7 @@ const TrendingMoviesContent = () => {
     const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
     const [filters, setFilters] = useState({});
     const searchParams = useSearchParams();
-    const language = searchParams.get('language') || 'en-US';
+    const language = searchParams.get('language') || 'en-CA';
 
     // Fetch genres
     useEffect(() => {
@@ -141,8 +141,8 @@ const TrendingMoviesContent = () => {
     if (error) return <div className="text-center py-6 text-red-400">{`Error: ${error}`}</div>;
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Movies of the Week</h1>
+        <div className="page-container">
+            <h1 className="page-title">Trending Movies of the Week</h1>
             
             <SortFilter
                 onSortChange={setSortConfig}
@@ -174,8 +174,8 @@ const TrendingMoviesContent = () => {
 const TrendingMoviesPage = () => {
     return (
         <Suspense fallback={
-            <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Movies of the Week</h1>
+            <div className="page-container">
+                <h1 className="page-title">Trending Movies of the Week</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <LoadingCard count={12} />
                 </div>

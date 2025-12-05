@@ -88,6 +88,89 @@ body {
     text-shadow: 0 0 8px rgba(255, 236, 102, 0.6), 0 0 15px rgba(255, 236, 102, 0.3);
   }
 
+  /* Hero Section - Stands out from rest of page */
+  .hero-section {
+    @apply relative py-16 md:py-24 mb-12 rounded-2xl overflow-hidden;
+    background: linear-gradient(135deg, rgba(15, 26, 51, 0.95) 0%, rgba(31, 53, 105, 0.95) 50%, rgba(43, 79, 144, 0.95) 100%);
+    border: 2px solid rgba(255, 236, 102, 0.3);
+    box-shadow: 
+      0 0 40px rgba(255, 236, 102, 0.2),
+      0 0 80px rgba(64, 129, 210, 0.15),
+      inset 0 0 60px rgba(64, 129, 210, 0.1);
+    backdrop-filter: blur(10px);
+  }
+
+  .hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 50%, rgba(255, 236, 102, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 50%, rgba(64, 129, 210, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .hero-section > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Section Titles */
+  .section-title {
+    @apply text-2xl md:text-3xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2;
+  }
+
+  .section-title-icon {
+    @apply text-futuristic-yellow-400;
+  }
+
+  /* Content Section Container */
+  .content-section {
+    @apply mb-12 scroll-mt-24;
+  }
+
+  /* View All Link */
+  .view-all-link {
+    @apply text-futuristic-yellow-400 hover:text-futuristic-yellow-300 text-sm md:text-base transition-colors;
+  }
+
+  /* Navigation Button (Quick Nav Menu) */
+  .nav-button {
+    @apply px-4 py-2 rounded-lg bg-futuristic-blue-800/90 hover:bg-futuristic-blue-700 text-white text-sm font-medium transition-all border border-futuristic-blue-500/50 hover:border-futuristic-yellow-500/70 whitespace-nowrap flex items-center gap-2 shadow-md;
+  }
+
+  /* Page Container */
+  .page-container {
+    @apply container mx-auto px-4 py-8;
+  }
+
+  /* Sticky Navigation Container */
+  .sticky-nav {
+    @apply sticky top-24 z-40 mb-8 pt-4;
+  }
+
+  /* Horizontal Scroll Container */
+  .horizontal-scroll {
+    @apply overflow-x-auto pb-4 scrollbar-hide;
+  }
+
+  .horizontal-scroll-content {
+    @apply flex gap-4 min-w-max;
+  }
+
+  /* Content Card Wrapper */
+  .content-card-wrapper {
+    @apply flex-shrink-0 w-32 md:w-40 lg:w-48;
+  }
+
+  /* Page Title */
+  .page-title {
+    @apply text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow;
+  }
+
   @keyframes pulse-glow {
     0%, 100% {
       opacity: 1;

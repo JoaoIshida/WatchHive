@@ -67,6 +67,9 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
                 if (filters.daysPast) {
                     queryParams.set('daysPast', filters.daysPast);
                 }
+                if (filters.inTheaters === true) {
+                    queryParams.set('inTheaters', 'true');
+                }
                 if (filters.includeUpcoming) {
                     queryParams.set('includeUpcoming', 'true');
                 }

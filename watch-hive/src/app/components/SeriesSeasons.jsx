@@ -1,23 +1,43 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { seriesProgressStorage } from '../lib/localStorage';
+import { useAuth } from '../contexts/AuthContext';
 import { isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
 import ImageWithFallback from './ImageWithFallback';
 import UnreleasedNotification from './UnreleasedNotification';
 
 const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
+    const { user } = useAuth();
     const [expandedSeasons, setExpandedSeasons] = useState({});
     const [seasonDetails, setSeasonDetails] = useState({});
-    const [progress, setProgress] = useState({});
+    const [progress, setProgress] = useState({ seasons: {}, completed: false, last_watched: null });
     const [showNotification, setShowNotification] = useState(false);
     const [skippedItems, setSkippedItems] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Load progress from localStorage
-        const seriesProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-        setProgress(seriesProgress);
-    }, [seriesId]);
+        // Load progress from API
+        const loadProgress = async () => {
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+
+                const response = await fetch(`/api/series-progress/${seriesId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setProgress(data);
+                }
+            } catch (error) {
+                console.error('Error loading series progress:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadProgress();
+    }, [seriesId, user]);
 
     const toggleSeason = async (seasonNumber) => {
         if (expandedSeasons[seasonNumber]) {
@@ -45,23 +65,18 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         }
     };
 
-    const toggleEpisodeWatched = (seasonNumber, episodeNumber) => {
-        const progress = seriesProgressStorage.getSeriesProgress(seriesId);
+    const toggleEpisodeWatched = async (seasonNumber, episodeNumber) => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
         const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
         const isEpisodeInList = progress.seasons[seasonNumber]?.episodes?.includes(episodeNumber) || false;
         const isWatched = isSeasonCompleted || isEpisodeInList;
         
-        if (isWatched) {
-            // If season is completed, unmark season completion first
-            if (isSeasonCompleted) {
-                seriesProgressStorage.markSeasonCompleted(seriesId, seasonNumber, false);
-            }
-            // Then remove the episode from the watched list (if it exists)
-            if (isEpisodeInList) {
-                seriesProgressStorage.markEpisodeUnwatched(seriesId, seasonNumber, episodeNumber);
-            }
-        } else {
-            // Check if episode is released
+        // Check if episode is released (only when marking as watched)
+        if (!isWatched) {
             const seasonData = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
             const episode = seasonData?.episodes?.find(ep => ep.episode_number === episodeNumber);
             
@@ -76,19 +91,47 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                 setShowNotification(true);
                 return;
             }
-            
-            seriesProgressStorage.markEpisodeWatched(seriesId, seasonNumber, episodeNumber);
         }
-        
-        // Reload progress
-        const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-        setProgress(updatedProgress);
-        // Dispatch custom event to notify profile page
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+
+        // If season is completed and we're unmarking an episode, unmark season first
+        if (isWatched && isSeasonCompleted) {
+            await fetch(`/api/series-progress/${seriesId}/seasons`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seasonNumber, completed: false }),
+            });
+        }
+
+        // Update episode via API
+        const response = await fetch(`/api/series-progress/${seriesId}/episodes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seasonNumber,
+                episodeNumber,
+                watched: !isWatched,
+            }),
+        });
+
+        if (response.ok) {
+            // Reload progress
+            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+            if (progressResponse.ok) {
+                const data = await progressResponse.json();
+                setProgress(data);
+            }
+            // Dispatch custom event to notify profile page
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+        }
     };
 
     const toggleSeasonCompleted = async (seasonNumber) => {
-        const isCompleted = seriesProgressStorage.isSeasonCompleted(seriesId, seasonNumber);
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
+        const isCompleted = progress.seasons[seasonNumber]?.completed || false;
         
         // Check if season is released
         const season = seasons.find(s => s.season_number === seasonNumber);
@@ -156,30 +199,60 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             // Don't mark season as complete if there are unreleased episodes
             // Only mark released episodes individually
             if (allEpisodes.length > 0) {
-                // Mark only released episodes individually, but NOT the season itself as complete
-                allEpisodes.forEach(ep => {
-                    seriesProgressStorage.markEpisodeWatched(seriesId, seasonNumber, ep.episode_number);
-                });
+                // Mark only released episodes individually via API
+                for (const ep of allEpisodes) {
+                    await fetch(`/api/series-progress/${seriesId}/episodes`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            seasonNumber,
+                            episodeNumber: ep.episode_number,
+                            watched: true,
+                        }),
+                    });
+                }
             }
             // Reload progress
-            const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-            setProgress(updatedProgress);
+            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+            if (progressResponse.ok) {
+                const data = await progressResponse.json();
+                setProgress(data);
+            }
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
             return;
         }
         
         // Only mark as complete if ALL episodes are released (no skipped items)
-        seriesProgressStorage.markSeasonCompleted(seriesId, seasonNumber, !isCompleted, allEpisodes);
-        
-        // Reload progress
-        const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-        setProgress(updatedProgress);
-        // Dispatch custom event to notify profile page
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+        const episodeNumbers = allEpisodes.map(ep => ep.episode_number || ep);
+        const response = await fetch(`/api/series-progress/${seriesId}/seasons`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seasonNumber,
+                completed: !isCompleted,
+                episodes: episodeNumbers,
+            }),
+        });
+
+        if (response.ok) {
+            // Reload progress
+            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+            if (progressResponse.ok) {
+                const data = await progressResponse.json();
+                setProgress(data);
+            }
+            // Dispatch custom event to notify profile page
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+        }
     };
 
     const toggleSeriesCompleted = async () => {
-        const isCompleted = seriesProgressStorage.isSeriesCompleted(seriesId);
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
+        const isCompleted = progress.completed || false;
         
         // If marking as completed, fetch all seasons and episodes to mark them as watched
         let allSeasonsData = {};
@@ -271,71 +344,91 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             // Don't mark series as complete if there's unreleased content
             // Only mark individual released seasons/episodes
             if (hasReleasedContent) {
-                // Mark only released episodes individually, but NOT the series/season itself as complete
-                Object.entries(allSeasonsData).forEach(([seasonNum, seasonData]) => {
+                // Mark only released episodes individually via API
+                for (const [seasonNum, seasonData] of Object.entries(allSeasonsData)) {
                     if (seasonData.episodes && seasonData.episodes.length > 0) {
-                        seasonData.episodes.forEach(ep => {
-                            seriesProgressStorage.markEpisodeWatched(seriesId, parseInt(seasonNum), ep.episode_number);
-                        });
+                        for (const ep of seasonData.episodes) {
+                            await fetch(`/api/series-progress/${seriesId}/episodes`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    seasonNumber: parseInt(seasonNum),
+                                    episodeNumber: ep.episode_number,
+                                    watched: true,
+                                }),
+                            });
+                        }
                     }
-                });
+                }
             }
             // Reload progress
-            const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-            setProgress(updatedProgress);
+            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+            if (progressResponse.ok) {
+                const data = await progressResponse.json();
+                setProgress(data);
+            }
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
             return;
         }
         
         // Only mark as complete if ALL content is released (no skipped items) or if unmarking
-        if (isCompleted || hasReleasedContent || skipped.length === 0) {
-            seriesProgressStorage.markSeriesCompleted(seriesId, !isCompleted, allSeasonsData);
+        const response = await fetch(`/api/series-progress/${seriesId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                completed: !isCompleted,
+                seasonsData: allSeasonsData,
+            }),
+        });
+
+        if (response.ok) {
+            // Reload progress
+            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+            if (progressResponse.ok) {
+                const data = await progressResponse.json();
+                setProgress(data);
+            }
+            // Dispatch custom event to notify profile page
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
         }
-        
-        // Reload progress
-        const updatedProgress = seriesProgressStorage.getSeriesProgress(seriesId);
-        setProgress(updatedProgress);
-        // Dispatch custom event to notify profile page
-        window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
     };
 
     const getSeasonProgress = (seasonNumber) => {
         const season = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
         
         // If season is marked as completed, all episodes are considered watched
-        const isSeasonCompleted = seriesProgressStorage.isSeasonCompleted(seriesId, seasonNumber);
+        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
+        const watchedEpisodes = progress.seasons[seasonNumber]?.episodes || [];
         
         if (!season) {
             // For upcoming seasons, use episode_count if available
             const seasonFromList = seasons.find(s => s.season_number === seasonNumber);
             if (seasonFromList && seasonFromList.episode_count) {
                 return { 
-                    watched: isSeasonCompleted ? seasonFromList.episode_count : 0, 
+                    watched: isSeasonCompleted ? seasonFromList.episode_count : watchedEpisodes.length, 
                     total: seasonFromList.episode_count 
                 };
             }
-            return { watched: 0, total: 0 };
+            return { watched: watchedEpisodes.length, total: 0 };
         }
         
         // If season has episodes data
         if (season.episodes && season.episodes.length > 0) {
             const total = season.episodes.length;
             // If season is completed, all episodes are watched
-            const watched = isSeasonCompleted ? total : season.episodes.filter(ep => 
-                seriesProgressStorage.isEpisodeWatched(seriesId, seasonNumber, ep.episode_number)
-            ).length;
+            const watched = isSeasonCompleted ? total : watchedEpisodes.length;
             return { watched, total };
         }
         
         // Fallback: use episode_count if available
         if (season.episode_count) {
             return { 
-                watched: isSeasonCompleted ? season.episode_count : 0, 
+                watched: isSeasonCompleted ? season.episode_count : watchedEpisodes.length, 
                 total: season.episode_count 
             };
         }
         
-        return { watched: 0, total: 0 };
+        return { watched: watchedEpisodes.length, total: 0 };
     };
 
     const getOverallProgress = () => {
@@ -343,7 +436,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         let watchedEpisodes = 0;
         
         // Check if series is completed - if so, all episodes are watched
-        const isSeriesCompleted = seriesProgressStorage.isSeriesCompleted(seriesId);
+        const isSeriesCompleted = progress.completed || false;
         
         seasons.forEach(season => {
             const seasonProgress = getSeasonProgress(season.season_number);
@@ -360,7 +453,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     };
 
     const overallProgress = getOverallProgress();
-    const isSeriesCompleted = seriesProgressStorage.isSeriesCompleted(seriesId);
+    const isSeriesCompleted = progress.completed || false;
 
     return (
         <div className="futuristic-card p-6">
@@ -385,7 +478,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                 {seasons.map((season) => {
                     const seasonProgress = getSeasonProgress(season.season_number);
                     const isExpanded = expandedSeasons[season.season_number];
-                    const isSeasonCompleted = seriesProgressStorage.isSeasonCompleted(seriesId, season.season_number);
+                    const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
                     const seasonData = seasonDetails[season.season_number] || season;
                     
                     return (
@@ -456,12 +549,9 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                 <div className="mt-4 space-y-2">
                                     {seasonData.episodes.map((episode) => {
                                         // If season is completed, all episodes are watched
-                                        const isSeasonCompleted = seriesProgressStorage.isSeasonCompleted(seriesId, season.season_number);
-                                        const isWatched = isSeasonCompleted || seriesProgressStorage.isEpisodeWatched(
-                                            seriesId, 
-                                            season.season_number, 
-                                            episode.episode_number
-                                        );
+                                        const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
+                                        const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
+                                        const isWatched = isSeasonCompleted || watchedEpisodes.includes(episode.episode_number);
                                         
                                         return (
                                             <div
@@ -514,7 +604,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     );
                 })}
             </div>
-            <UnreleasedNotification 
+            <UnreleasedNotification
                 isOpen={showNotification}
                 onClose={() => setShowNotification(false)}
                 skippedItems={skippedItems}

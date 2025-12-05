@@ -1,12 +1,9 @@
-import { watchedStorage, seriesProgressStorage } from '../lib/localStorage';
-
 /**
  * Get watch progress for a series
  * Returns { isWatched, percentage, watchedEpisodes, totalEpisodes }
+ * Note: This function now requires progress data to be passed in since it's fetched from API
  */
-export function getSeriesWatchProgress(seriesId, seriesData = null) {
-    const isWatched = watchedStorage.isWatched(String(seriesId), 'tv');
-    const progress = seriesProgressStorage.getSeriesProgress(String(seriesId));
+export function getSeriesWatchProgress(seriesId, seriesData = null, progress = null, isWatched = false) {
     
     // If series is marked as completed, it's 100%
     if (progress.completed || isWatched) {
@@ -68,11 +65,12 @@ export function getSeriesWatchProgress(seriesId, seriesData = null) {
 
 /**
  * Get watch status for a movie
+ * Note: This function now requires watched data to be passed in since it's fetched from API
  */
-export function getMovieWatchStatus(movieId) {
+export function getMovieWatchStatus(movieId, watchedItem = null) {
     return {
-        isWatched: watchedStorage.isWatched(String(movieId), 'movie'),
-        timesWatched: watchedStorage.getTimesWatched(String(movieId), 'movie')
+        isWatched: !!watchedItem,
+        timesWatched: watchedItem?.times_watched || 0
     };
 }
 

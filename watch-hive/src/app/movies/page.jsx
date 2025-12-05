@@ -109,6 +109,10 @@ const PopularMoviesContent = () => {
             // Default to true if not specified
             urlFilters.includeUpcoming = true;
         }
+        const urlInTheaters = searchParams.get('inTheaters');
+        if (urlInTheaters === 'true') {
+            urlFilters.inTheaters = true;
+        }
         if (Object.keys(urlFilters).length > 0) {
             setFilters(urlFilters);
             previousFiltersRef.current = urlFilters; // Set previous filters to prevent reset on initial load
@@ -183,6 +187,9 @@ const PopularMoviesContent = () => {
         // Only add includeUpcoming to URL if it's explicitly false (default is true)
         if (newFilters.includeUpcoming === false) {
             params.set('includeUpcoming', 'false');
+        }
+        if (newFilters.inTheaters === true) {
+            params.set('inTheaters', 'true');
         }
         
         // Add sorting to URL
@@ -269,8 +276,8 @@ const PopularMoviesContent = () => {
     }, []);
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
+        <div className="page-container">
+            <h1 className="page-title">Popular Movies</h1>
             
             {/* Mobile Filter - Hidden on sm and above */}
             <div className="sm:hidden mb-4">
@@ -325,8 +332,8 @@ const PopularMoviesContent = () => {
 const PopularMoviesPage = () => {
     return (
         <Suspense fallback={
-            <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Popular Movies</h1>
+            <div className="page-container">
+                <h1 className="page-title">Popular Movies</h1>
                 <div className="flex gap-6">
                     <div className="hidden sm:block w-64 flex-shrink-0">
                         <div className="futuristic-card p-4">

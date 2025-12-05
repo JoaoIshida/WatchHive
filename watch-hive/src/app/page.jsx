@@ -120,23 +120,23 @@ const Home = () => {
     const ContentSection = ({ id, title, titleIcon, items, mediaType, href, loading: sectionLoading }) => {
         if (sectionLoading) {
             return (
-                <div id={id} className="mb-12 scroll-mt-24">
+                <div id={id} className="content-section">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl md:text-3xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2">
-                            {titleIcon && <span className="text-futuristic-yellow-400">{renderIcon(titleIcon, "w-6 h-6 md:w-7 md:h-7")}</span>}
+                        <h2 className="section-title">
+                            {titleIcon && <span className="section-title-icon">{renderIcon(titleIcon, "w-6 h-6 md:w-7 md:h-7")}</span>}
                             <span>{title}</span>
                         </h2>
                         {href && (
                             <a 
                                 href={href}
-                                className="text-futuristic-yellow-400 hover:text-futuristic-yellow-300 text-sm md:text-base transition-colors"
+                                className="view-all-link"
                             >
                                 View all →
                             </a>
                         )}
                     </div>
-                    <div className="overflow-x-auto pb-4 scrollbar-hide">
-                        <div className="flex gap-4 min-w-max">
+                    <div className="horizontal-scroll">
+                        <div className="horizontal-scroll-content">
                             <LoadingCard count={6} />
                         </div>
                     </div>
@@ -149,25 +149,25 @@ const Home = () => {
         }
 
         return (
-            <div id={id} className="mb-12 scroll-mt-24">
+            <div id={id} className="content-section">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl md:text-3xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2">
-                        {titleIcon && <span className="text-futuristic-yellow-400">{renderIcon(titleIcon, "w-6 h-6 md:w-7 md:h-7")}</span>}
+                    <h2 className="section-title">
+                        {titleIcon && <span className="section-title-icon">{renderIcon(titleIcon, "w-6 h-6 md:w-7 md:h-7")}</span>}
                         <span>{title}</span>
                     </h2>
                     {href && (
                         <a 
                             href={href}
-                            className="text-futuristic-yellow-400 hover:text-futuristic-yellow-300 text-sm md:text-base transition-colors"
+                            className="view-all-link"
                         >
                             View all →
                         </a>
                     )}
                 </div>
-                <div className="overflow-x-auto pb-4 scrollbar-hide">
-                    <div className="flex gap-4 min-w-max">
+                <div className="horizontal-scroll">
+                    <div className="horizontal-scroll-content">
                         {items.map((item) => (
-                            <div key={item.id} className="flex-shrink-0 w-32 md:w-40 lg:w-48">
+                            <div key={item.id} className="content-card-wrapper">
                                 <ContentCard
                                     item={item}
                                     mediaType={mediaType}
@@ -182,9 +182,9 @@ const Home = () => {
     };
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="page-container">
             {/* Hero Section with Search */}
-            <div className="text-center mb-12">
+            <div className="hero-section text-center">
                 <h1 className="text-4xl md:text-6xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
                     Welcome to WatchHive
                 </h1>
@@ -199,14 +199,14 @@ const Home = () => {
             </div>
 
             {/* Quick Navigation Menu */}
-            <div className="sticky top-24 z-40 mb-8 pt-4">
-                <div className="overflow-x-auto scrollbar-hide pb-2">
+            <div className="sticky-nav">
+                <div className="horizontal-scroll pb-2">
                     <div className="flex gap-2 min-w-max">
                         {sections.map((section) => (
                             <button
                                 key={section.id}
                                 onClick={() => scrollToSection(section.id)}
-                                className="px-4 py-2 rounded-lg bg-futuristic-blue-800/90 hover:bg-futuristic-blue-700 text-white text-sm font-medium transition-all border border-futuristic-blue-500/50 hover:border-futuristic-yellow-500/70 whitespace-nowrap flex items-center gap-2 shadow-md"
+                                className="nav-button"
                             >
                                 <span className="text-futuristic-yellow-400">{renderIcon(section.icon, "w-4 h-4")}</span>
                                 <span>{section.label}</span>

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
 import QuickSearch from './QuickSearch';
 
 const FilterDropdownMenu = ({ label, basePath, items }) => {
@@ -82,6 +83,13 @@ const FilterDropdownMenu = ({ label, basePath, items }) => {
 const Navbar = () => {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { user, loading, signOut } = useAuth();
+
+    const handleSignOut = async () => {
+        await signOut();
+        router.push('/');
+        router.refresh();
+    };
 
     const movieQuickFilters = [
         { href: '/movies', label: 'All Movies' },
@@ -131,10 +139,38 @@ const Navbar = () => {
                     </div>
                 </div>
                 
-                {/* Desktop Profile Link */}
-                <a href="/profile" className="hidden md:block text-white font-semibold hover:text-futuristic-yellow-400 transition-colors flex-shrink-0">
-                    Profile
-                </a>
+                {/* Desktop Auth Links */}
+                <div className="hidden md:flex items-center gap-4 flex-shrink-0">
+                    {loading ? null : (user && user.id) ? (
+                        <>
+                            <a 
+                                href="/profile" 
+                                className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors"
+                                title="Profile"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span>Profile</span>
+                            </a>
+                            <button
+                                onClick={handleSignOut}
+                                className="text-white/70 hover:text-white transition-colors text-sm"
+                            >
+                                Sign Out
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+                            }}
+                            className="futuristic-button-yellow text-sm px-4 py-2"
+                        >
+                            Sign In
+                        </button>
+                    )}
+                </div>
 
                 {/* Mobile Menu Button */}
                 <button
@@ -203,13 +239,39 @@ const Navbar = () => {
                             ))}
                         </div>
                         
-                        <a 
-                            href="/profile" 
-                            className="text-white font-semibold hover:text-futuristic-yellow-400 transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                            Profile
-                        </a>
+                        {loading ? null : (user && user.id) ? (
+                            <>
+                                <a 
+                                    href="/profile" 
+                                    className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span>Profile</span>
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        handleSignOut();
+                                        setIsMobileMenuOpen(false);
+                                    }}
+                                    className="text-white/70 hover:text-white transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4 text-left"
+                                >
+                                    Sign Out
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className="futuristic-button-yellow text-sm px-4 py-2 w-full text-left"
+                            >
+                                Sign In
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

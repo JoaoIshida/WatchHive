@@ -1,11 +1,14 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { watchedStorage, wishlistStorage, seriesProgressStorage, customListsStorage } from '../lib/localStorage';
+import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/dateFormatter';
 
 const ProfilePage = () => {
+    const { user, loading: authLoading } = useAuth();
+    const router = useRouter();
     const [watched, setWatched] = useState([]);
     const [wishlist, setWishlist] = useState([]);
     const [seriesProgress, setSeriesProgress] = useState({});
@@ -17,46 +20,102 @@ const ProfilePage = () => {
     const [customLists, setCustomLists] = useState([]);
     const [listDetails, setListDetails] = useState({});
     const [upcomingSeasons, setUpcomingSeasons] = useState([]);
+    const [dbStats, setDbStats] = useState(null);
 
     useEffect(() => {
+        // Wait for auth to load, then check if user is authenticated
+        if (authLoading) return;
+        
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        // User is authenticated, load data
         loadUserData();
         
         // Listen for data updates
         const handleDataUpdate = () => {
-            loadUserData();
+            if (user) {
+                loadUserData();
+            }
         };
         
         window.addEventListener('watchhive-data-updated', handleDataUpdate);
         return () => {
             window.removeEventListener('watchhive-data-updated', handleDataUpdate);
         };
-    }, []);
+    }, [user, authLoading]);
 
     const loadUserData = async () => {
         setLoading(true);
         try {
-            // Load from localStorage
-            const watchedItems = watchedStorage.getAll();
-            const wishlistItems = wishlistStorage.getAll();
-            const progress = seriesProgressStorage.getAll();
-            const lists = customListsStorage.getAll();
+            // User is already checked via useAuth hook, no need to check again
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+
+            // Load from Supabase via API
+            const [watchedRes, wishlistRes, seriesProgressRes, statsRes, customListsRes] = await Promise.all([
+                fetch('/api/watched'),
+                fetch('/api/wishlist'),
+                fetch('/api/series-progress'),
+                fetch('/api/user/stats'),
+                fetch('/api/custom-lists'),
+            ]);
+
+            const watchedItems = watchedRes.ok ? (await watchedRes.json()).watched : [];
+            const wishlistItems = wishlistRes.ok ? (await wishlistRes.json()).wishlist : [];
+            const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
+            const statsData = statsRes.ok ? (await statsRes.json()).stats : null;
+            const customListsData = customListsRes.ok ? (await customListsRes.json()).lists : [];
 
             setWatched(watchedItems);
             setWishlist(wishlistItems);
-            setSeriesProgress(progress);
-            setCustomLists(lists);
+            setSeriesProgress(seriesProgressData);
+            setDbStats(statsData);
+            setCustomLists(customListsData || []);
+
+            // Load list details (items for each list)
+            if (customListsData && customListsData.length > 0) {
+                const listDetailsPromises = customListsData.map(async (list) => {
+                    try {
+                        const response = await fetch(`/api/custom-lists/${list.id}`);
+                        if (response.ok) {
+                            const { list: listWithItems } = await response.json();
+                            return { listId: list.id, items: listWithItems.items || [] };
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching list ${list.id} details:`, error);
+                    }
+                    return { listId: list.id, items: [] };
+                });
+                const details = await Promise.all(listDetailsPromises);
+                const detailsMap = {};
+                details.forEach(d => {
+                    detailsMap[d.listId] = d.items;
+                });
+                setListDetails(detailsMap);
+            }
 
             // Fetch details for watched items
             if (watchedItems.length > 0) {
                 const watchedDetailsPromises = watchedItems.map(async (item) => {
                     try {
-                        const response = await fetch(`/api/content/${item.mediaType}/${item.id}`);
+                        const response = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
                         if (response.ok) {
                             const data = await response.json();
-                            return { ...data, media_type: item.mediaType, timesWatched: item.timesWatched, dateWatched: item.dateWatched };
+                            return { 
+                                ...data, 
+                                media_type: item.media_type, 
+                                timesWatched: item.times_watched, 
+                                dateWatched: item.date_watched,
+                                id: item.content_id 
+                            };
                         }
                     } catch (error) {
-                        console.error(`Error fetching ${item.mediaType} ${item.id}:`, error);
+                        console.error(`Error fetching ${item.media_type} ${item.content_id}:`, error);
                     }
                     return null;
                 });
@@ -68,13 +127,18 @@ const ProfilePage = () => {
             if (wishlistItems.length > 0) {
                 const wishlistDetailsPromises = wishlistItems.map(async (item) => {
                     try {
-                        const response = await fetch(`/api/content/${item.mediaType}/${item.id}`);
+                        const response = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
                         if (response.ok) {
                             const data = await response.json();
-                            return { ...data, media_type: item.mediaType, dateAdded: item.dateAdded };
+                            return { 
+                                ...data, 
+                                media_type: item.media_type, 
+                                dateAdded: item.date_added,
+                                id: item.content_id 
+                            };
                         }
                     } catch (error) {
-                        console.error(`Error fetching ${item.mediaType} ${item.id}:`, error);
+                        console.error(`Error fetching ${item.media_type} ${item.content_id}:`, error);
                     }
                     return null;
                 });
@@ -83,7 +147,7 @@ const ProfilePage = () => {
             }
 
             // Fetch series details for progress display
-            const seriesIds = Object.keys(progress);
+            const seriesIds = Object.keys(seriesProgressData);
             if (seriesIds.length > 0) {
                 const seriesDetailsPromises = seriesIds.map(async (seriesId) => {
                     try {
@@ -103,43 +167,15 @@ const ProfilePage = () => {
                     seriesMap[item.id] = item;
                 });
                 setSeriesDetails(seriesMap);
-            }
 
-            // Load list details
-            if (lists.length > 0) {
-                const listDetailsMap = {};
+                // Check for upcoming seasons
                 const upcomingSeasonsList = [];
-
-                for (const list of lists) {
-                    if (list.items.length > 0) {
-                        const itemDetailsPromises = list.items.map(async (item) => {
-                            try {
-                                const response = await fetch(`/api/content/${item.mediaType}/${item.id}`);
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    return { ...data, media_type: item.mediaType, dateAdded: item.dateAdded };
-                                }
-                            } catch (error) {
-                                console.error(`Error fetching ${item.mediaType} ${item.id}:`, error);
-                            }
-                            return null;
-                        });
-                        const details = await Promise.all(itemDetailsPromises);
-                        listDetailsMap[list.id] = details.filter(item => item !== null);
-                    } else {
-                        listDetailsMap[list.id] = [];
-                    }
-                }
-                setListDetails(listDetailsMap);
-
-                // Check for upcoming seasons in series progress
-                const seriesIds = Object.keys(progress);
                 for (const seriesId of seriesIds) {
                     try {
                         const response = await fetch(`/api/content/tv/${seriesId}`);
                         if (response.ok) {
                             const seriesData = await response.json();
-                            const progressData = seriesProgressStorage.getSeriesProgress(seriesId);
+                            const progressData = seriesProgressData[seriesId];
                             
                             // Check for upcoming seasons
                             if (seriesData.seasons) {
@@ -153,7 +189,7 @@ const ProfilePage = () => {
                                         
                                         // Check if season is upcoming (future date) and not watched
                                         if (airDate > today) {
-                                            const watchedSeasons = Object.keys(progressData.seasons || {});
+                                            const watchedSeasons = Object.keys(progressData?.seasons || {});
                                             const isWatched = watchedSeasons.includes(String(season.season_number));
                                             
                                             if (!isWatched) {
@@ -180,6 +216,8 @@ const ProfilePage = () => {
                 upcomingSeasonsList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
                 setUpcomingSeasons(upcomingSeasonsList);
             }
+            
+            // TODO: Load custom lists details from Supabase
         } catch (error) {
             console.error('Error loading user data:', error);
         } finally {
@@ -188,34 +226,39 @@ const ProfilePage = () => {
     };
 
     const getStats = () => {
-        const watchedMovies = watched.filter(w => w.mediaType === 'movie').length;
-        const watchedSeries = watched.filter(w => w.mediaType === 'tv').length;
-        const wishlistMovies = wishlist.filter(w => w.mediaType === 'movie').length;
-        const wishlistSeries = wishlist.filter(w => w.mediaType === 'tv').length;
-        
-        const seriesInProgress = Object.keys(seriesProgress).filter(seriesId => {
-            const progress = seriesProgressStorage.getSeriesProgress(seriesId);
-            return !progress.completed && Object.keys(progress.seasons).length > 0;
-        }).length;
-        
-        const completedSeries = Object.keys(seriesProgress).filter(seriesId => {
-            return seriesProgressStorage.isSeriesCompleted(seriesId);
-        }).length;
+        // Use database stats if available, otherwise calculate from local state
+        const watchedMovies = watched.filter(w => w.media_type === 'movie').length;
+        const watchedSeries = watched.filter(w => w.media_type === 'tv').length;
+        const wishlistMovies = wishlist.filter(w => w.media_type === 'movie').length;
+        const wishlistSeries = wishlist.filter(w => w.media_type === 'tv').length;
 
-        const totalEpisodesWatched = Object.values(seriesProgress).reduce((total, progress) => {
-            return total + Object.values(progress.seasons || {}).reduce((seasonTotal, season) => {
-                return seasonTotal + (season.episodes?.length || 0);
+        // Use database function stats when available
+        const seriesInProgress = dbStats?.series_in_progress ?? 
+            Object.keys(seriesProgress).filter(seriesId => {
+                const progress = seriesProgress[seriesId];
+                return !progress.completed && Object.keys(progress.seasons || {}).length > 0;
+            }).length;
+        
+        const completedSeries = dbStats?.completed_series ?? 
+            Object.keys(seriesProgress).filter(seriesId => {
+                return seriesProgress[seriesId]?.completed || false;
+            }).length;
+
+        const totalEpisodesWatched = dbStats?.total_episodes_watched ?? 
+            Object.values(seriesProgress).reduce((total, progress) => {
+                return total + Object.values(progress.seasons || {}).reduce((seasonTotal, season) => {
+                    return seasonTotal + (season.episodes?.length || 0);
+                }, 0);
             }, 0);
-        }, 0);
 
-        const totalLists = customLists.length;
-        const totalListItems = customLists.reduce((total, list) => total + list.items.length, 0);
+        const totalLists = dbStats?.custom_lists_count ?? customLists.length;
+        const totalListItems = customLists.reduce((total, list) => total + (list.items?.length || 0), 0);
 
         return {
-            totalWatched: watched.length,
+            totalWatched: dbStats?.watched_count ?? watched.length,
             watchedMovies,
             watchedSeries,
-            totalWishlist: wishlist.length,
+            totalWishlist: dbStats?.wishlist_count ?? wishlist.length,
             wishlistMovies,
             wishlistSeries,
             seriesInProgress,
@@ -230,8 +273,8 @@ const ProfilePage = () => {
 
     if (loading) {
         return (
-            <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Profile</h1>
+            <div className="page-container">
+                <h1 className="page-title">Profile</h1>
                 <div className="flex justify-center py-12">
                     <LoadingSpinner size="lg" />
                 </div>
@@ -239,10 +282,40 @@ const ProfilePage = () => {
         );
     }
 
+    if (!user) {
+        return (
+            <div className="page-container max-w-7xl">
+                <h1 className="page-title">Profile</h1>
+                <div className="futuristic-card p-8 text-center">
+                    <p className="text-xl text-white mb-4">Please sign in to view your profile</p>
+                    <p className="text-futuristic-yellow-400/80 mb-6">Sign in to track your watched content, wishlist, and more!</p>
+                    <div className="flex items-center justify-center gap-4">
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+                            }}
+                            className="futuristic-button-yellow px-6 py-3"
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signup' } }));
+                            }}
+                            className="futuristic-button px-6 py-3"
+                        >
+                            Sign Up
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="page-container max-w-7xl">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-4xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">My Profile</h1>
+                <h1 className="page-title mb-0">My Profile</h1>
                 <button
                     onClick={loadUserData}
                     className="futuristic-button flex items-center gap-2"
@@ -633,7 +706,7 @@ const ProfilePage = () => {
                                             <button
                                                 onClick={() => {
                                                     if (confirm(`Delete "${list.name}"?`)) {
-                                                        customListsStorage.delete(list.id);
+                                                        // TODO: Delete list via API
                                                         loadUserData();
                                                     }
                                                 }}
