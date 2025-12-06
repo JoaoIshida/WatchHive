@@ -1,14 +1,16 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { formatDate } from '../utils/dateFormatter';
 
 const ProfilePage = () => {
-    const { user, loading: authLoading } = useAuth();
+    const { user, loading: authLoading, signOut, checkAuthStatus } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [watched, setWatched] = useState([]);
     const [wishlist, setWishlist] = useState([]);
     const [seriesProgress, setSeriesProgress] = useState({});
@@ -21,6 +23,19 @@ const ProfilePage = () => {
     const [listDetails, setListDetails] = useState({});
     const [upcomingSeasons, setUpcomingSeasons] = useState([]);
     const [dbStats, setDbStats] = useState(null);
+    const [displayName, setDisplayName] = useState('');
+    const [showSignOutModal, setShowSignOutModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    useEffect(() => {
+        // Check URL params for tab
+        const tab = searchParams.get('tab');
+        if (tab === 'settings') {
+            setActiveTab('settings');
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         // Wait for auth to load, then check if user is authenticated
@@ -30,6 +45,9 @@ const ProfilePage = () => {
             setLoading(false);
             return;
         }
+
+        // Set display name from user
+        setDisplayName(user.display_name || user.email || '');
 
         // User is authenticated, load data
         loadUserData();
@@ -390,12 +408,22 @@ const ProfilePage = () => {
                 >
                     Lists ({stats.totalLists})
                 </button>
+                <button
+                    onClick={() => setActiveTab('settings')}
+                    className={`px-4 py-2 font-semibold transition-colors ${
+                        activeTab === 'settings'
+                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
+                            : 'text-white hover:text-futuristic-yellow-400'
+                    }`}
+                >
+                    Settings
+                </button>
             </div>
 
             {/* Stats Tab */}
             {activeTab === 'stats' && (
                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="futuristic-card p-6 text-center">
                             <div className="text-4xl font-bold text-futuristic-yellow-400 mb-2">
                                 {stats.totalWatched}
@@ -743,6 +771,150 @@ const ProfilePage = () => {
                     )}
                 </div>
             )}
+
+            {/* Settings Tab */}
+            {activeTab === 'settings' && (
+                <div className="space-y-6">
+                    {/* Change Display Name */}
+                    <div className="futuristic-card p-6">
+                        <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                            Profile Settings
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-white font-semibold mb-2">
+                                    Display Name (Tag)
+                                </label>
+                                <div className="flex gap-4">
+                                    <input
+                                        type="text"
+                                        value={displayName}
+                                        onChange={(e) => setDisplayName(e.target.value)}
+                                        className="flex-1 px-4 py-2 bg-futuristic-blue-900/50 border border-futuristic-blue-500/50 rounded text-white focus:outline-none focus:border-futuristic-yellow-400 focus:ring-2 focus:ring-futuristic-yellow-400/50"
+                                        placeholder="Enter your display name"
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            if (!displayName.trim()) {
+                                                alert('Display name cannot be empty');
+                                                return;
+                                            }
+                                            setIsUpdating(true);
+                                            try {
+                                                const response = await fetch('/api/user/profile', {
+                                                    method: 'PUT',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                    },
+                                                    credentials: 'include',
+                                                    body: JSON.stringify({ display_name: displayName.trim() }),
+                                                });
+
+                                                if (response.ok) {
+                                                    await checkAuthStatus();
+                                                    alert('Display name updated successfully!');
+                                                } else {
+                                                    const error = await response.json();
+                                                    alert(error.error || 'Failed to update display name');
+                                                }
+                                            } catch (error) {
+                                                console.error('Error updating display name:', error);
+                                                alert('Error updating display name');
+                                            } finally {
+                                                setIsUpdating(false);
+                                            }
+                                        }}
+                                        disabled={isUpdating}
+                                        className="futuristic-button-yellow px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isUpdating ? 'Updating...' : 'Update'}
+                                    </button>
+                                </div>
+                                <p className="text-sm text-futuristic-yellow-400/80 mt-2">
+                                    This is how your name will appear on your profile
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Account Actions */}
+                    <div className="futuristic-card p-6">
+                        <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                            Account Actions
+                        </h2>
+                        <div className="space-y-4">
+                            <button
+                                onClick={() => setShowSignOutModal(true)}
+                                className="w-full futuristic-button px-4 py-3 text-left flex items-center gap-3"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                <span>Sign Out</span>
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteModal(true)}
+                                className="w-full px-4 py-3 text-left flex items-center gap-3 bg-red-600 hover:bg-red-500 text-white font-semibold rounded transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete Account</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modals */}
+            <ConfirmationModal
+                isOpen={showSignOutModal}
+                onClose={() => setShowSignOutModal(false)}
+                onConfirm={async () => {
+                    setShowSignOutModal(false);
+                    await signOut();
+                    router.push('/');
+                    router.refresh();
+                }}
+                title="Sign Out"
+                message="Are you sure you want to sign out?"
+                confirmText="Sign Out"
+                cancelText="Cancel"
+            />
+            <ConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={async () => {
+                    setShowDeleteModal(false);
+                    setIsDeleting(true);
+                    try {
+                        const response = await fetch('/api/user/delete', {
+                            method: 'DELETE',
+                            credentials: 'include',
+                        });
+
+                        if (response.ok) {
+                            await signOut();
+                            router.push('/');
+                            router.refresh();
+                            alert('Your account has been deleted successfully.');
+                        } else {
+                            const error = await response.json();
+                            alert(error.error || 'Failed to delete account');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting account:', error);
+                        alert('Error deleting account');
+                    } finally {
+                        setIsDeleting(false);
+                    }
+                }}
+                title="Delete Account"
+                message="Are you sure you want to delete your account? This action cannot be undone. All your data including watched content, wishlist, and lists will be permanently deleted."
+                confirmText="Delete Account"
+                cancelText="Cancel"
+                isDanger={true}
+            />
         </div>
     );
 };
