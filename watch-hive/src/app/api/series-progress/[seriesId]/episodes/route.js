@@ -1,4 +1,24 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
+import { fetchTMDB } from '../../../utils';
+
+/**
+ * Check if an episode is released (server-side validation)
+ */
+function isEpisodeReleased(episode) {
+    if (!episode || !episode.air_date) return false;
+    
+    try {
+        const releaseDate = new Date(episode.air_date);
+        releaseDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        return releaseDate <= today;
+    } catch (error) {
+        return false;
+    }
+}
 
 /**
  * POST /api/series-progress/[seriesId]/episodes
@@ -23,6 +43,41 @@ export async function POST(req, { params }) {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' },
             });
+        }
+
+        // If marking as watched, verify the episode is released (server-side validation)
+        if (watched) {
+            try {
+                const seasonData = await fetchTMDB(`/tv/${seriesId}/season/${seasonNumber}`, {
+                    language: 'en-CA',
+                });
+                
+                const episode = seasonData?.episodes?.find(ep => ep.episode_number === episodeNumber);
+                
+                if (!episode) {
+                    return new Response(JSON.stringify({ error: 'Episode not found' }), {
+                        status: 404,
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                }
+                
+                if (!isEpisodeReleased(episode)) {
+                    return new Response(JSON.stringify({ 
+                        error: 'Cannot mark unreleased episode as watched',
+                        episode: {
+                            name: episode.name,
+                            air_date: episode.air_date
+                        }
+                    }), {
+                        status: 400,
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                }
+            } catch (error) {
+                console.error('Error validating episode release date:', error);
+                // If we can't verify, allow it (fail open) but log the error
+                // This prevents blocking legitimate requests if TMDB API is down
+            }
         }
 
         const supabase = await createServerClient();

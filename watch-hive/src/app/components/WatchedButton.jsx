@@ -23,16 +23,46 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
             }
 
             try {
-                const response = await fetch(`/api/watched`);
-                if (response.ok) {
-                    const { watched } = await response.json();
-                    const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
-                    if (item) {
-                        setIsWatched(true);
-                        setTimesWatched(item.times_watched || 1);
-                    } else {
-                        setIsWatched(false);
-                        setTimesWatched(0);
+                // For series, also check series progress
+                if (mediaType === 'tv') {
+                    const [watchedResponse, progressResponse] = await Promise.all([
+                        fetch(`/api/watched`),
+                        fetch(`/api/series-progress/${itemId}`)
+                    ]);
+
+                    if (watchedResponse.ok) {
+                        const { watched } = await watchedResponse.json();
+                        const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                        
+                        // Also check if series is marked as complete in progress
+                        let isComplete = false;
+                        if (progressResponse.ok) {
+                            const progress = await progressResponse.json();
+                            isComplete = progress.completed || false;
+                        }
+
+                        // Series is watched if it's in watched_content OR marked as complete in progress
+                        if (item || isComplete) {
+                            setIsWatched(true);
+                            setTimesWatched(item?.times_watched || 1);
+                        } else {
+                            setIsWatched(false);
+                            setTimesWatched(0);
+                        }
+                    }
+                } else {
+                    // For movies, just check watched_content
+                    const response = await fetch(`/api/watched`);
+                    if (response.ok) {
+                        const { watched } = await response.json();
+                        const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                        if (item) {
+                            setIsWatched(true);
+                            setTimesWatched(item.times_watched || 1);
+                        } else {
+                            setIsWatched(false);
+                            setTimesWatched(0);
+                        }
                     }
                 }
             } catch (error) {
@@ -86,110 +116,16 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     }
                 }
 
-                // If it's a series, check all seasons first before marking as watched
-                if (mediaType === 'tv' && seasons && seasons.length > 0) {
-                    // Fetch all seasons data and check for unreleased content
-                    const allSeasonsData = {};
-                    const skipped = [];
-                    
-                    const seasonPromises = seasons.map(async (season) => {
-                        try {
-                            // Check if season is released
-                            if (isSeasonReleased(season)) {
-                                // Try to fetch season details to get episodes
-                                const response = await fetch(`/api/tv/${itemId}/season/${season.season_number}`);
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    return {
-                                        seasonNumber: season.season_number,
-                                        data: data,
-                                        season: season
-                                    };
-                                }
-                            } else {
-                                skipped.push({
-                                    type: 'season',
-                                    seriesName: itemData?.name || 'Series',
-                                    seasonName: season.name || `Season ${season.season_number}`,
-                                    releaseDate: formatDate(season.air_date)
-                                });
-                            }
-                        } catch (error) {
-                            console.error(`Error fetching season ${season.season_number}:`, error);
-                        }
-                        return null;
-                    });
-                    
-                    const seasonResults = await Promise.all(seasonPromises);
-                    seasonResults.forEach(result => {
-                        if (result && result.data) {
-                            // Filter out unreleased episodes
-                            const releasedEpisodes = result.data.episodes?.filter(ep => isEpisodeReleased(ep)) || [];
-                            const unreleasedEpisodes = result.data.episodes?.filter(ep => !isEpisodeReleased(ep)) || [];
-                            
-                            // Add unreleased episodes to skipped list
-                            unreleasedEpisodes.forEach(ep => {
-                                skipped.push({
-                                    type: 'episode',
-                                    seriesName: itemData?.name || 'Series',
-                                    seasonName: result.season.name || `Season ${result.seasonNumber}`,
-                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                    releaseDate: formatDate(ep.air_date)
-                                });
-                            });
-                            
-                            // Only include released episodes in the data
-                            if (releasedEpisodes.length > 0) {
-                                allSeasonsData[result.seasonNumber] = {
-                                    ...result.data,
-                                    episodes: releasedEpisodes
-                                };
-                            }
-                        }
-                    });
-                    
-                    // Check if there are any released seasons/episodes to mark
-                    const hasReleasedContent = Object.keys(allSeasonsData).length > 0;
-                    
-                    // Show notification if any items were skipped
-                    if (skipped.length > 0) {
-                        setSkippedItems(skipped);
-                        setShowNotification(true);
-                    }
-                    
-                    // Mark the series as watched via API
-                    const watchedResponse = await fetch('/api/watched', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ itemId, mediaType }),
-                    });
-                    if (watchedResponse.ok) {
-                        setIsWatched(true);
-                        setTimesWatched(1);
-                    }
-                    
-                    // Mark series progress (episodes/seasons) if there's released content
-                    if (hasReleasedContent) {
-                        await fetch(`/api/series-progress/${itemId}/complete`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                completed: true,
-                                seasonsData: allSeasonsData,
-                            }),
-                        });
-                    }
-                } else {
-                    // For movies or series without seasons, just mark as watched via API
-                    const response = await fetch('/api/watched', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ itemId, mediaType }),
-                    });
-                    if (response.ok) {
-                        setIsWatched(true);
-                        setTimesWatched(1);
-                    }
+                // Mark as watched via API (backend will handle series progress syncing)
+                const response = await fetch('/api/watched', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId, mediaType }),
+                });
+                if (response.ok) {
+                    const { watched } = await response.json();
+                    setIsWatched(true);
+                    setTimesWatched(watched?.times_watched || 1);
                 }
             }
             if (onUpdate) onUpdate();

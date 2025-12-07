@@ -171,6 +171,7 @@ const Navbar = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { user, loading, signOut } = useAuth();
 
+
     const handleSignOut = async () => {
         await signOut();
         router.push('/');
@@ -196,7 +197,7 @@ const Navbar = () => {
     ];
 
     return (
-        <nav className="bg-futuristic-blue-950/90 backdrop-blur-md border-b border-futuristic-blue-500/30 shadow-glow-blue p-4 sticky top-0 z-50">
+        <nav className="bg-futuristic-blue-950/90 backdrop-blur-md border-b border-futuristic-blue-500/30 shadow-glow-blue p-4 sticky top-0 z-50 max-h-screen overflow-visible">
             <div className="container mx-auto flex items-center justify-between gap-4">
                 {/* Logo */}
                 <a className="text-futuristic-yellow-400 text-3xl font-bold cursor-pointer futuristic-text-glow-yellow hover:text-futuristic-yellow-300 transition-colors flex-shrink-0" href="/">
@@ -267,7 +268,18 @@ const Navbar = () => {
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
                 <div className="md:hidden mt-4 border-t border-futuristic-blue-500/30 pt-4">
-                    <div className="flex flex-col gap-4 max-h-[calc(100vh-180px)] overflow-y-auto pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div 
+                        className="flex flex-col gap-4 pb-4 min-h-0" 
+                        style={{ 
+                            maxHeight: 'calc(100vh - 220px)',
+                            overflowY: 'scroll',
+                            WebkitOverflowScrolling: 'touch',
+                            overscrollBehavior: 'contain',
+                            touchAction: 'pan-y',
+                            WebkitTransform: 'translateZ(0)',
+                            transform: 'translateZ(0)'
+                        }}
+                    >
                         {/* Mobile Search */}
                         <div className="px-2">
                             <QuickSearch isNavbar={true} />
