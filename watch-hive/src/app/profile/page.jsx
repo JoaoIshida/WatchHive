@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ContentCard from '../components/ContentCard';
@@ -7,7 +7,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { formatDate } from '../utils/dateFormatter';
 
-const ProfilePage = () => {
+// Component that uses useSearchParams - must be wrapped in Suspense
+const ProfilePageContent = () => {
     const { user, loading: authLoading, signOut, checkAuthStatus } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -916,6 +917,22 @@ const ProfilePage = () => {
                 isDanger={true}
             />
         </div>
+    );
+};
+
+// Main component with Suspense boundary
+const ProfilePage = () => {
+    return (
+        <Suspense fallback={
+            <div className="page-container">
+                <h1 className="page-title">Profile</h1>
+                <div className="flex justify-center py-12">
+                    <LoadingSpinner size="lg" />
+                </div>
+            </div>
+        }>
+            <ProfilePageContent />
+        </Suspense>
     );
 };
 
