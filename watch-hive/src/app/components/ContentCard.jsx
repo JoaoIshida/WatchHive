@@ -43,7 +43,7 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                     // If there's progress with watched episodes, fetch full series details
                     // to get accurate episode counts for percentage calculation
                     let seriesDataForProgress = item;
-                    if (progress && Object.keys(progress.seasons || {}).length > 0) {
+                    if (progress && (Object.keys(progress.seasons || {}).length > 0 || progress.completed)) {
                         try {
                             const detailsRes = await fetch(`/api/tv/${item.id}`);
                             if (detailsRes.ok) {
@@ -120,7 +120,7 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                         )}
                         
                         {/* Water Fill Effect for Series - Fills from bottom based on percentage */}
-                        {isSeries && watchStatus?.isWatched && watchStatus.percentage > 0 && (
+                        {isSeries && watchStatus && watchStatus.percentage > 0 && (
                             <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
                                 <div 
                                     className="absolute bottom-0 left-0 right-0 transition-all duration-700 ease-out"
