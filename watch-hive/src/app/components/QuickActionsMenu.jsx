@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
+import UnreleasedNotification from './UnreleasedNotification';
 
 export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
     const { user } = useAuth();
@@ -11,6 +12,9 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [isInWishlist, setIsInWishlist] = useState(false);
     const [itemLists, setItemLists] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [skippedItems, setSkippedItems] = useState([]);
+    const [seriesSummary, setSeriesSummary] = useState(null);
     const menuRef = useRef(null);
 
     useEffect(() => {
@@ -24,16 +28,43 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             }
 
             try {
-                const [watchedRes, wishlistRes, listsRes] = await Promise.all([
-                    fetch('/api/watched'),
-                    fetch('/api/wishlist'),
-                    fetch('/api/custom-lists'),
-                ]);
+                // For series, also check series progress
+                let watchedRes, progressRes, wishlistRes, listsRes;
+                
+                if (mediaType === 'tv') {
+                    [watchedRes, progressRes, wishlistRes, listsRes] = await Promise.all([
+                        fetch('/api/watched'),
+                        fetch(`/api/series-progress/${itemId}`),
+                        fetch('/api/wishlist'),
+                        fetch('/api/custom-lists'),
+                    ]);
 
-                if (watchedRes.ok) {
-                    const { watched } = await watchedRes.json();
-                    const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
-                    setIsWatched(!!watchedItem);
+                    if (watchedRes.ok) {
+                        const { watched } = await watchedRes.json();
+                        const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                        
+                        // Also check if series is marked as complete in progress
+                        let isComplete = false;
+                        if (progressRes.ok) {
+                            const progress = await progressRes.json();
+                            isComplete = progress.completed || false;
+                        }
+                        
+                        // Series is watched if it's in watched_content OR marked as complete in progress
+                        setIsWatched(!!watchedItem || isComplete);
+                    }
+                } else {
+                    [watchedRes, wishlistRes, listsRes] = await Promise.all([
+                        fetch('/api/watched'),
+                        fetch('/api/wishlist'),
+                        fetch('/api/custom-lists'),
+                    ]);
+
+                    if (watchedRes.ok) {
+                        const { watched } = await watchedRes.json();
+                        const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                        setIsWatched(!!watchedItem);
+                    }
                 }
 
                 if (wishlistRes.ok) {
@@ -64,6 +95,14 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             }
         };
         checkStates();
+        
+        // Listen for data updates
+        const handleUpdate = () => checkStates();
+        window.addEventListener('watchhive-data-updated', handleUpdate);
+        
+        return () => {
+            window.removeEventListener('watchhive-data-updated', handleUpdate);
+        };
     }, [itemId, mediaType, user]);
 
     // Close menu when clicking outside
@@ -93,11 +132,23 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         // Check if item is released before marking as watched
         if (!isWatched) {
             if (mediaType === 'movie' && itemData && !isMovieReleased(itemData)) {
-                alert(`This movie is not yet released. Release date: ${formatDate(itemData.release_date)}`);
+                setSkippedItems([{
+                    type: 'movie',
+                    name: itemData.title || 'Movie',
+                    releaseDate: formatDate(itemData.release_date)
+                }]);
+                setSeriesSummary(null);
+                setShowNotification(true);
                 setIsOpen(false);
                 return;
             } else if (mediaType === 'tv' && itemData && !isSeriesReleased(itemData)) {
-                alert(`This series is not yet released. Release date: ${formatDate(itemData.first_air_date)}`);
+                setSkippedItems([{
+                    type: 'series',
+                    name: itemData.name || 'Series',
+                    releaseDate: formatDate(itemData.first_air_date)
+                }]);
+                setSeriesSummary(null);
+                setShowNotification(true);
                 setIsOpen(false);
                 return;
             }
@@ -119,7 +170,47 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     body: JSON.stringify({ itemId, mediaType }),
                 });
                 if (response.ok) {
+                    const data = await response.json();
                     setIsWatched(true);
+                    
+                    // For series, check if there were skipped items
+                    if (mediaType === 'tv' && data.seriesProgress) {
+                        const skipped = [];
+                        
+                        // Add skipped seasons
+                        if (data.seriesProgress.skippedSeasons) {
+                            data.seriesProgress.skippedSeasons.forEach(s => {
+                                skipped.push({
+                                    type: 'season',
+                                    seriesName: itemData?.name || 'Series',
+                                    seasonName: s.name || `Season ${s.season_number}`,
+                                    releaseDate: formatDate(s.air_date)
+                                });
+                            });
+                        }
+                        
+                        // Add skipped episodes
+                        if (data.seriesProgress.skippedEpisodes) {
+                            data.seriesProgress.skippedEpisodes.forEach(ep => {
+                                skipped.push({
+                                    type: 'episode',
+                                    seriesName: itemData?.name || 'Series',
+                                    seasonName: ep.seasonName || `Season ${ep.season_number}`,
+                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                    releaseDate: formatDate(ep.air_date)
+                                });
+                            });
+                        }
+                        
+                        if (skipped.length > 0) {
+                            setSkippedItems(skipped);
+                            setSeriesSummary({
+                                markedSeasons: data.seriesProgress.markedSeasons || 0,
+                                markedEpisodes: data.seriesProgress.markedEpisodes || 0
+                            });
+                            setShowNotification(true);
+                        }
+                    }
                 }
             }
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
@@ -296,6 +387,13 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     </button>
                 </div>
             )}
+            
+            <UnreleasedNotification
+                isOpen={showNotification}
+                onClose={() => setShowNotification(false)}
+                skippedItems={skippedItems}
+                summary={seriesSummary}
+            />
         </div>
     );
 }

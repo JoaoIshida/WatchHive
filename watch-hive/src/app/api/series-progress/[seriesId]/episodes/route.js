@@ -75,8 +75,15 @@ export async function POST(req, { params }) {
                 }
             } catch (error) {
                 console.error('Error validating episode release date:', error);
-                // If we can't verify, allow it (fail open) but log the error
-                // This prevents blocking legitimate requests if TMDB API is down
+                // Fail closed: if we can't verify the release date, reject the request
+                // This prevents unreleased episodes from being saved to the database
+                return new Response(JSON.stringify({ 
+                    error: 'Unable to verify episode release date. Please try again.',
+                    details: error.message
+                }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' },
+                });
             }
         }
 

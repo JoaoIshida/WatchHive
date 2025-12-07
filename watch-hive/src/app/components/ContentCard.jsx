@@ -40,7 +40,21 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                     const isWatched = watched.some(w => w.content_id === item.id && w.media_type === 'tv');
                     const progress = progressRes.ok ? await progressRes.json() : null;
 
-                    setWatchStatus(getSeriesWatchProgress(item.id, item, progress, isWatched));
+                    // If there's progress with watched episodes, fetch full series details
+                    // to get accurate episode counts for percentage calculation
+                    let seriesDataForProgress = item;
+                    if (progress && Object.keys(progress.seasons || {}).length > 0) {
+                        try {
+                            const detailsRes = await fetch(`/api/tv/${item.id}`);
+                            if (detailsRes.ok) {
+                                seriesDataForProgress = await detailsRes.json();
+                            }
+                        } catch (err) {
+                            console.error('Error fetching series details for progress:', err);
+                        }
+                    }
+
+                    setWatchStatus(getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched));
                 } else {
                     // Fetch watched status
                     const watchedRes = await fetch('/api/watched');

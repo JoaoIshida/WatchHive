@@ -116,6 +116,14 @@ export async function POST(req) {
             result = data;
         }
 
+        // Early return for movies - no series processing needed
+        if (mediaType === 'movie') {
+            return new Response(JSON.stringify({ watched: result, success: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
         // If it's a series, also mark all released episodes as watched in series_progress
         if (mediaType === 'tv') {
             try {
@@ -137,7 +145,7 @@ export async function POST(req) {
                         .insert({
                             user_id: user.id,
                             series_id: parseInt(itemId),
-                            completed: true,
+                            completed: true, // Mark as completed since we're marking all released episodes
                             last_watched: new Date().toISOString(),
                         })
                         .select()
@@ -148,7 +156,7 @@ export async function POST(req) {
                 } else if (progressError) {
                     throw progressError;
                 } else {
-                    // Update existing progress to completed
+                    // Update existing progress - mark as completed since we're marking all released episodes
                     await supabase
                         .from('series_progress')
                         .update({
@@ -158,43 +166,94 @@ export async function POST(req) {
                         .eq('id', seriesProgress.id);
                 }
 
-                // Fetch all seasons and mark released episodes
+                // OPTIMIZATION: Parallel fetch all seasons with date validation
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // Track skipped content for user feedback
+                const skippedSeasons = [];
+                const skippedEpisodes = [];
+                
+                // Filter unreleased seasons BEFORE fetching and fetch all released seasons in parallel
+                const seasonPromises = seasons
+                    .filter(season => {
+                        // Pre-filter: Skip unreleased seasons before making API calls
+                        if (season.air_date) {
+                            const releaseDate = new Date(season.air_date);
+                            releaseDate.setHours(0, 0, 0, 0);
+                            if (releaseDate > today) {
+                                skippedSeasons.push({
+                                    seasonNumber: season.season_number,
+                                    seasonName: season.name || `Season ${season.season_number}`,
+                                    releaseDate: season.air_date
+                                });
+                                return false; // Skip unreleased seasons
+                            }
+                        }
+                        return true; // Include released seasons or seasons without air_date
+                    })
+                    .map(async (season) => {
+                        try {
+                            // Fetch season details in parallel
+                            const seasonData = await fetchTMDB(`/tv/${itemId}/season/${season.season_number}`, {
+                                language: 'en-CA',
+                            });
+                            
+                            // Post-filter: Filter only released episodes after fetching
+                            const allEpisodes = seasonData?.episodes || [];
+                            const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep));
+                            const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep));
+                            
+                            // Track skipped episodes
+                            unreleasedEpisodes.forEach(ep => {
+                                skippedEpisodes.push({
+                                    seasonNumber: season.season_number,
+                                    seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
+                                    episodeNumber: ep.episode_number,
+                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                    releaseDate: ep.air_date
+                                });
+                            });
+                            
+                            if (releasedEpisodes.length > 0) {
+                                return {
+                                    seasonNumber: season.season_number,
+                                    seasonData: {
+                                        ...seasonData,
+                                        episodes: releasedEpisodes // Only released episodes
+                                    }
+                                };
+                            }
+                            return null; // No released episodes in this season
+                        } catch (error) {
+                            console.error(`Error fetching season ${season.season_number}:`, error);
+                            return null;
+                        }
+                    });
+                
+                // Wait for all season fetches to complete in parallel
+                const seasonResults = await Promise.all(seasonPromises);
                 const allSeasonsData = {};
-                for (const season of seasons) {
-                    // Check if season is released
-                    const seasonAirDate = season.air_date;
-                    if (seasonAirDate) {
-                        const releaseDate = new Date(seasonAirDate);
-                        releaseDate.setHours(0, 0, 0, 0);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        
-                        if (releaseDate > today) {
-                            continue; // Skip unreleased seasons
-                        }
+                
+                // Build seasons data object (only includes seasons with released episodes)
+                seasonResults.forEach(result => {
+                    if (result && result.seasonData) {
+                        allSeasonsData[result.seasonNumber] = result.seasonData;
                     }
+                });
 
-                    try {
-                        const seasonData = await fetchTMDB(`/tv/${itemId}/season/${season.season_number}`, {
-                            language: 'en-CA',
-                        });
-                        
-                        // Filter only released episodes
-                        const releasedEpisodes = (seasonData?.episodes || []).filter(ep => isEpisodeReleased(ep));
-                        
-                        if (releasedEpisodes.length > 0) {
-                            allSeasonsData[season.season_number] = {
-                                ...seasonData,
-                                episodes: releasedEpisodes
-                            };
-                        }
-                    } catch (error) {
-                        console.error(`Error fetching season ${season.season_number}:`, error);
-                    }
-                }
-
-                // Mark all released episodes in series_progress
+                // OPTIMIZATION: Batch database operations
+                let markedSeasons = 0;
+                let markedEpisodes = 0;
+                
                 if (Object.keys(allSeasonsData).length > 0) {
+                    // Collect all operations first
+                    const seasonOperations = [];
+                    const allEpisodeInserts = [];
+                    const seasonIdsToDelete = [];
+                    const seasonMap = {}; // Map season number to season record
+
+                    // Process all seasons to get/create season records
                     for (const [seasonNumStr, seasonData] of Object.entries(allSeasonsData)) {
                         const seasonNumber = parseInt(seasonNumStr);
                         
@@ -222,42 +281,95 @@ export async function POST(req) {
                         } else if (seasonError) {
                             throw seasonError;
                         } else {
-                            // Update existing season to completed
-                            await supabase
-                                .from('series_seasons')
-                                .update({ completed: true })
-                                .eq('id', season.id);
+                            // Queue season update
+                            seasonOperations.push({
+                                id: season.id,
+                                update: { completed: true }
+                            });
                         }
 
-                        // Mark all released episodes as watched
-                        if (seasonData.episodes && Array.isArray(seasonData.episodes) && seasonData.episodes.length > 0) {
-                            // Delete existing episodes for this season first
-                            await supabase
-                                .from('series_episodes')
-                                .delete()
-                                .eq('series_season_id', season.id);
+                        seasonMap[seasonNumber] = season;
 
-                            // Insert all released episodes
+                        // Collect episodes for batch insert (only released episodes)
+                        if (seasonData.episodes && Array.isArray(seasonData.episodes) && seasonData.episodes.length > 0) {
+                            seasonIdsToDelete.push(season.id);
+                            markedSeasons++;
+                            markedEpisodes += seasonData.episodes.length;
+                            
                             const episodeInserts = seasonData.episodes.map(ep => ({
                                 series_season_id: season.id,
                                 episode_number: typeof ep === 'number' ? ep : ep.episode_number,
                                 watched_at: new Date().toISOString(),
                             }));
-
-                            const { error: episodesError } = await supabase
-                                .from('series_episodes')
-                                .insert(episodeInserts);
-
-                            if (episodesError) throw episodesError;
+                            
+                            allEpisodeInserts.push(...episodeInserts);
                         }
                     }
+
+                    // Batch delete all existing episodes for these seasons
+                    if (seasonIdsToDelete.length > 0) {
+                        await supabase
+                            .from('series_episodes')
+                            .delete()
+                            .in('series_season_id', seasonIdsToDelete);
+                    }
+
+                    // Batch insert all released episodes at once
+                    if (allEpisodeInserts.length > 0) {
+                        const { error: episodesError } = await supabase
+                            .from('series_episodes')
+                            .insert(allEpisodeInserts);
+
+                        if (episodesError) throw episodesError;
+                    }
+
+                    // Batch update all seasons
+                    for (const operation of seasonOperations) {
+                        await supabase
+                            .from('series_seasons')
+                            .update(operation.update)
+                            .eq('id', operation.id);
+                    }
                 }
+
+                // Return skipped content information for user feedback
+                const seriesProgressInfo = {
+                    skippedSeasons: skippedSeasons,
+                    skippedEpisodes: skippedEpisodes,
+                    markedSeasons: markedSeasons,
+                    markedEpisodes: markedEpisodes
+                };
+
+                return new Response(JSON.stringify({ 
+                    watched: result, 
+                    success: true,
+                    seriesProgress: seriesProgressInfo
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                });
             } catch (error) {
                 console.error('Error syncing series progress:', error);
                 // Don't fail the watched operation if series progress sync fails
+                // Return with error info
+                return new Response(JSON.stringify({ 
+                    watched: result, 
+                    success: true,
+                    seriesProgress: {
+                        skippedSeasons: [],
+                        skippedEpisodes: [],
+                        markedSeasons: 0,
+                        markedEpisodes: 0,
+                        error: 'Failed to sync series progress'
+                    }
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                });
             }
         }
-
+        
+        // Fallback return (should not be reached in normal flow)
         return new Response(JSON.stringify({ watched: result, success: true }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },

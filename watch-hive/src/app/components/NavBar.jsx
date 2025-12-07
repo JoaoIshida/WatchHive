@@ -169,6 +169,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
 const Navbar = () => {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const { user, loading, signOut } = useAuth();
 
 
@@ -242,13 +243,31 @@ const Navbar = () => {
                     )}
                 </div>
 
-                {/* Mobile Right Side: Profile Icon + Menu Button */}
+                {/* Mobile Right Side: Search Icon + Menu Button */}
                 <div className="md:hidden flex items-center gap-2">
-                    {loading ? null : (user && user.id) ? (
-                        <ProfileDropdown onSignOut={handleSignOut} user={user} />
-                    ) : null}
                     <button
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        onClick={() => {
+                            setIsMobileSearchOpen(!isMobileSearchOpen);
+                            setIsMobileMenuOpen(false);
+                        }}
+                        className="text-white hover:text-futuristic-yellow-400 transition-colors p-2"
+                        aria-label="Toggle search"
+                    >
+                        {isMobileSearchOpen ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        ) : (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setIsMobileMenuOpen(!isMobileMenuOpen);
+                            setIsMobileSearchOpen(false);
+                        }}
                         className="text-white hover:text-futuristic-yellow-400 transition-colors p-2"
                         aria-label="Toggle menu"
                     >
@@ -265,6 +284,17 @@ const Navbar = () => {
                 </div>
             </div>
 
+            {/* Mobile Search */}
+            {isMobileSearchOpen && (
+                <div className="md:hidden mt-4 border-t border-futuristic-blue-500/30 pt-4 px-2">
+                    <QuickSearch 
+                        isNavbar={true} 
+                        onClose={() => setIsMobileSearchOpen(false)}
+                        autoFocus={true}
+                    />
+                </div>
+            )}
+
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
                 <div className="md:hidden mt-4 border-t border-futuristic-blue-500/30 pt-4">
@@ -280,11 +310,6 @@ const Navbar = () => {
                             transform: 'translateZ(0)'
                         }}
                     >
-                        {/* Mobile Search */}
-                        <div className="px-2">
-                            <QuickSearch isNavbar={true} />
-                        </div>
-                        
                         {/* Movies Section */}
                         <div className="flex flex-col gap-2">
                             <a 
@@ -327,6 +352,12 @@ const Navbar = () => {
                         
                         {loading ? null : (user && user.id) ? (
                             <>
+                                <div className="flex items-center gap-2 text-white font-semibold py-2 pl-4">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span>{user?.display_name || user?.email || 'User'}</span>
+                                </div>
                                 <a 
                                     href="/profile" 
                                     className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4"

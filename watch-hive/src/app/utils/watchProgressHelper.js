@@ -2,64 +2,57 @@
  * Get watch progress for a series
  * Returns { isWatched, percentage, watchedEpisodes, totalEpisodes }
  * Note: This function now requires progress data to be passed in since it's fetched from API
+ * Total episodes includes ALL episodes (released + unreleased)
+ * Watched episodes only includes released episodes that are marked as watched
  */
 export function getSeriesWatchProgress(seriesId, seriesData = null, progress = null, isWatched = false) {
-    
-    // If series is marked as completed, it's 100%
-    if (progress.completed || isWatched) {
-        return {
-            isWatched: true,
-            percentage: 100,
-            watchedEpisodes: null,
-            totalEpisodes: null,
-            isCompleted: true
-        };
-    }
     
     // Calculate from episode progress
     let watchedEpisodes = 0;
     let totalEpisodes = 0;
-    let hasAccurateData = false;
     
+    // Count watched episodes from progress (only released episodes can be watched)
+    if (progress && progress.seasons) {
+        Object.entries(progress.seasons).forEach(([seasonNum, seasonProgress]) => {
+            if (seasonProgress.completed) {
+                // If season is completed, count all episodes in that season as watched
+                // But we need to know the total episodes in the season
+                const seasonNumInt = parseInt(seasonNum);
+                const season = seriesData?.seasons?.find(s => s.season_number === seasonNumInt);
+                if (season && season.episode_count) {
+                    watchedEpisodes += season.episode_count;
+                } else if (seasonProgress.episodes && Array.isArray(seasonProgress.episodes)) {
+                    // Fallback: use the episodes array length
+                    watchedEpisodes += seasonProgress.episodes.length;
+                }
+            } else if (seasonProgress.episodes && Array.isArray(seasonProgress.episodes)) {
+                // Count individual watched episodes
+                watchedEpisodes += seasonProgress.episodes.length;
+            }
+        });
+    }
+    
+    // Count total episodes (ALL episodes including unreleased)
     if (seriesData && seriesData.seasons && Array.isArray(seriesData.seasons)) {
-        // Use actual season data if available
         seriesData.seasons.forEach(season => {
             if (season.episode_count && season.episode_count > 0) {
                 totalEpisodes += season.episode_count;
-                hasAccurateData = true;
-                const seasonProgress = progress.seasons[season.season_number];
-                if (seasonProgress?.completed) {
-                    watchedEpisodes += season.episode_count;
-                } else if (seasonProgress?.episodes && Array.isArray(seasonProgress.episodes)) {
-                    watchedEpisodes += seasonProgress.episodes.length;
-                }
             }
         });
     }
     
-    // If we don't have accurate data, try to estimate from progress
-    if (!hasAccurateData && Object.keys(progress.seasons || {}).length > 0) {
-        // Count watched episodes from progress
-        Object.entries(progress.seasons || {}).forEach(([seasonNum, season]) => {
-            if (season.completed) {
-                // Season is completed but we don't know episode count
-                // Don't include in calculation to avoid inaccurate percentage
-            } else if (season.episodes && Array.isArray(season.episodes) && season.episodes.length > 0) {
-                watchedEpisodes += season.episodes.length;
-                // Estimate total as watched + some unwatched (conservative estimate)
-                totalEpisodes += season.episodes.length + Math.max(1, Math.floor(season.episodes.length * 0.3));
-            }
-        });
-    }
-    
+    // Calculate percentage: (watched released episodes / total all episodes) * 100
     const percentage = totalEpisodes > 0 ? Math.round((watchedEpisodes / totalEpisodes) * 100) : 0;
     
+    // Series is considered watched if it's marked as watched in watched_content OR has progress
+    const isSeriesWatched = isWatched || (progress && progress.completed) || watchedEpisodes > 0;
+    
     return {
-        isWatched: isWatched || percentage > 0,
+        isWatched: isSeriesWatched,
         percentage,
         watchedEpisodes,
         totalEpisodes,
-        isCompleted: progress.completed || false
+        isCompleted: progress?.completed || false
     };
 }
 

@@ -3,13 +3,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageWithFallback from './ImageWithFallback';
 
-const QuickSearch = ({ onClose, isNavbar = false }) => {
+const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const searchRef = useRef(null);
     const resultsRef = useRef(null);
+    const inputRef = useRef(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -44,6 +45,15 @@ const QuickSearch = ({ onClose, isNavbar = false }) => {
 
         return () => clearTimeout(debounceTimer);
     }, [query]);
+
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            // Small delay to ensure the input is rendered
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+        }
+    }, [autoFocus]);
 
     const searchContent = async (searchQuery) => {
         if (!searchQuery.trim()) return;
@@ -99,6 +109,7 @@ const QuickSearch = ({ onClose, isNavbar = false }) => {
         <div className="relative w-full" ref={searchRef}>
             <div className="relative">
                 <input
+                    ref={inputRef}
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}

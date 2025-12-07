@@ -24,7 +24,6 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             }
 
             try {
-
                 const response = await fetch(`/api/series-progress/${seriesId}`);
                 if (response.ok) {
                     const data = await response.json();
@@ -37,6 +36,14 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             }
         };
         loadProgress();
+        
+        // Listen for data updates
+        const handleUpdate = () => loadProgress();
+        window.addEventListener('watchhive-data-updated', handleUpdate);
+        
+        return () => {
+            window.removeEventListener('watchhive-data-updated', handleUpdate);
+        };
     }, [seriesId, user]);
 
     const toggleSeason = async (seasonNumber) => {
@@ -77,10 +84,37 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         
         // Check if episode is released (only when marking as watched)
         if (!isWatched) {
-            const seasonData = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
+            // First, ensure we have season details with episodes loaded
+            let seasonData = seasonDetails[seasonNumber];
+            if (!seasonData || !seasonData.episodes || seasonData.episodes.length === 0) {
+                // Fetch season details to get episode data
+                try {
+                    const response = await fetch(`/api/tv/${seriesId}/season/${seasonNumber}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        seasonData = data;
+                        setSeasonDetails(prev => ({ ...prev, [seasonNumber]: data }));
+                    } else {
+                        // Fallback to season from series data
+                        seasonData = seasons.find(s => s.season_number === seasonNumber);
+                    }
+                } catch (error) {
+                    console.error('Error fetching season details:', error);
+                    // Fallback to season from series data
+                    seasonData = seasons.find(s => s.season_number === seasonNumber);
+                }
+            }
+            
+            // Now check if episode exists and is released
             const episode = seasonData?.episodes?.find(ep => ep.episode_number === episodeNumber);
             
-            if (episode && !isEpisodeReleased(episode)) {
+            if (!episode) {
+                // Episode data not available, can't verify release date
+                console.warn(`Episode ${episodeNumber} data not available for season ${seasonNumber}`);
+                return;
+            }
+            
+            if (!isEpisodeReleased(episode)) {
                 setSkippedItems([{
                     type: 'episode',
                     seriesName: seriesName,
@@ -192,45 +226,15 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             }
         }
         
-        // If there are ANY unreleased episodes, don't mark season as complete
-        if (skipped.length > 0) {
-            setSkippedItems(skipped);
-            setShowNotification(true);
-            // Don't mark season as complete if there are unreleased episodes
-            // Only mark released episodes individually
-            if (allEpisodes.length > 0) {
-                // Mark only released episodes individually via API
-                for (const ep of allEpisodes) {
-                    await fetch(`/api/series-progress/${seriesId}/episodes`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            seasonNumber,
-                            episodeNumber: ep.episode_number,
-                            watched: true,
-                        }),
-                    });
-                }
-            }
-            // Reload progress
-            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
-            if (progressResponse.ok) {
-                const data = await progressResponse.json();
-                setProgress(data);
-            }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-            return;
-        }
-        
-        // Only mark as complete if ALL episodes are released (no skipped items)
-        const episodeNumbers = allEpisodes.map(ep => ep.episode_number || ep);
+        // Mark season as complete via API (backend will filter and mark only released episodes)
+        // Even if there are unreleased episodes, season can be marked as complete
+        // Only released episodes will be marked as watched
         const response = await fetch(`/api/series-progress/${seriesId}/seasons`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 seasonNumber,
                 completed: !isCompleted,
-                episodes: episodeNumbers,
             }),
         });
 
@@ -243,6 +247,12 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             }
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            
+            // Show notification if there were skipped items (only when marking as complete)
+            if (!isCompleted && skipped.length > 0) {
+                setSkippedItems(skipped);
+                setShowNotification(true);
+            }
         }
     };
 
@@ -334,50 +344,20 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             });
         }
         
-        // Check if there are any released seasons/episodes to mark
-        const hasReleasedContent = Object.keys(allSeasonsData).length > 0;
-        
-        // If there are ANY unreleased items, don't mark the series as complete
+        // Show notification if there are unreleased items (informational)
         if (skipped.length > 0) {
             setSkippedItems(skipped);
             setShowNotification(true);
-            // Don't mark series as complete if there's unreleased content
-            // Only mark individual released seasons/episodes
-            if (hasReleasedContent) {
-                // Mark only released episodes individually via API
-                for (const [seasonNum, seasonData] of Object.entries(allSeasonsData)) {
-                    if (seasonData.episodes && seasonData.episodes.length > 0) {
-                        for (const ep of seasonData.episodes) {
-                            await fetch(`/api/series-progress/${seriesId}/episodes`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    seasonNumber: parseInt(seasonNum),
-                                    episodeNumber: ep.episode_number,
-                                    watched: true,
-                                }),
-                            });
-                        }
-                    }
-                }
-            }
-            // Reload progress
-            const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
-            if (progressResponse.ok) {
-                const data = await progressResponse.json();
-                setProgress(data);
-            }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-            return;
         }
         
-        // Only mark as complete if ALL content is released (no skipped items) or if unmarking
+        // Mark series as complete via API (backend will filter and mark only released episodes)
+        // Even if there are unreleased episodes, series can be marked as complete
+        // Only released episodes will be marked as watched
         const response = await fetch(`/api/series-progress/${seriesId}/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 completed: !isCompleted,
-                seasonsData: allSeasonsData,
             }),
         });
 
@@ -396,7 +376,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const getSeasonProgress = (seasonNumber) => {
         const season = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
         
-        // If season is marked as completed, all episodes are considered watched
+        // If season is marked as completed, count all released episodes as watched
         const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
         const watchedEpisodes = progress.seasons[seasonNumber]?.episodes || [];
         
@@ -404,6 +384,8 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             // For upcoming seasons, use episode_count if available
             const seasonFromList = seasons.find(s => s.season_number === seasonNumber);
             if (seasonFromList && seasonFromList.episode_count) {
+                // Total includes ALL episodes (released + unreleased)
+                // Watched only includes released episodes that are marked as watched
                 return { 
                     watched: isSeasonCompleted ? seasonFromList.episode_count : watchedEpisodes.length, 
                     total: seasonFromList.episode_count 
@@ -412,16 +394,26 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             return { watched: watchedEpisodes.length, total: 0 };
         }
         
-        // If season has episodes data
+        // If season has episodes data, count ALL episodes (including unreleased) as total
         if (season.episodes && season.episodes.length > 0) {
-            const total = season.episodes.length;
-            // If season is completed, all episodes are watched
-            const watched = isSeasonCompleted ? total : watchedEpisodes.length;
+            const total = season.episodes.length; // ALL episodes (released + unreleased)
+            // If season is completed, count all released episodes as watched
+            // Otherwise, count only individually watched episodes
+            let watched;
+            if (isSeasonCompleted) {
+                // Season is completed - count all released episodes as watched
+                watched = season.episodes.filter(ep => isEpisodeReleased(ep)).length;
+            } else {
+                // Season not completed - count only individually watched episodes
+                watched = watchedEpisodes.length;
+            }
             return { watched, total };
         }
         
         // Fallback: use episode_count if available
         if (season.episode_count) {
+            // Total includes ALL episodes
+            // Watched only includes released episodes that are marked as watched
             return { 
                 watched: isSeasonCompleted ? season.episode_count : watchedEpisodes.length, 
                 total: season.episode_count 
@@ -435,19 +427,16 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         let totalEpisodes = 0;
         let watchedEpisodes = 0;
         
-        // Check if series is completed - if so, all episodes are watched
-        const isSeriesCompleted = progress.completed || false;
-        
+        // Count ALL episodes (including unreleased) as total
+        // Count only watched (released) episodes as watched
         seasons.forEach(season => {
             const seasonProgress = getSeasonProgress(season.season_number);
-            totalEpisodes += seasonProgress.total;
-            watchedEpisodes += seasonProgress.watched;
+            totalEpisodes += seasonProgress.total; // Includes all episodes
+            watchedEpisodes += seasonProgress.watched; // Only watched released episodes
         });
         
-        // If series is completed, all episodes are watched
-        if (isSeriesCompleted && totalEpisodes > 0) {
-            watchedEpisodes = totalEpisodes;
-        }
+        // Note: Even if series is marked as completed, percentage may be < 100%
+        // if there are unreleased episodes, because we only mark released ones
         
         return { watched: watchedEpisodes, total: totalEpisodes };
     };

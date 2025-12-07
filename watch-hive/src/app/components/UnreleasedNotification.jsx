@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from 'react';
 
-export default function UnreleasedNotification({ isOpen, onClose, skippedItems }) {
+export default function UnreleasedNotification({ isOpen, onClose, skippedItems, summary }) {
     useEffect(() => {
         if (isOpen) {
             // Auto-close after 8 seconds
@@ -12,7 +12,10 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems }
         }
     }, [isOpen, onClose]);
 
-    if (!isOpen || !skippedItems || skippedItems.length === 0) return null;
+    if (!isOpen) return null;
+    
+    // Show notification if there are skipped items OR if there's a summary to show
+    if ((!skippedItems || skippedItems.length === 0) && !summary) return null;
 
     const movies = skippedItems.filter(item => item.type === 'movie');
     const series = skippedItems.filter(item => item.type === 'series');
@@ -39,8 +42,22 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems }
                     </button>
                 </div>
 
+                {summary && (
+                    <div className="bg-futuristic-blue-800/50 border border-futuristic-yellow-500/30 rounded-lg p-3 mb-4">
+                        <p className="text-futuristic-yellow-400 font-semibold text-sm">
+                            {summary.markedSeasons > 0 && `${summary.markedSeasons} season${summary.markedSeasons !== 1 ? 's' : ''} marked`}
+                            {summary.markedSeasons > 0 && summary.markedEpisodes > 0 && ' • '}
+                            {summary.markedEpisodes > 0 && `${summary.markedEpisodes} episode${summary.markedEpisodes !== 1 ? 's' : ''} marked`}
+                            {summary.markedSeasons > 0 && skippedItems.length > 0 && ' • '}
+                            {skippedItems.length > 0 && `${skippedItems.length} item${skippedItems.length !== 1 ? 's' : ''} skipped`}
+                        </p>
+                    </div>
+                )}
                 <p className="text-white mb-4">
-                    The following items were not marked as watched because they haven't been released yet:
+                    {skippedItems.length > 0 
+                        ? "The following items were not marked as watched because they haven't been released yet:"
+                        : "All available content has been marked as watched."
+                    }
                 </p>
 
                 <div className="space-y-3">

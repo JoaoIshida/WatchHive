@@ -1,4 +1,24 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
+import { fetchTMDB } from '../../../utils';
+
+/**
+ * Check if an episode is released (server-side validation)
+ */
+function isEpisodeReleased(episode) {
+    if (!episode || !episode.air_date) return false;
+    
+    try {
+        const releaseDate = new Date(episode.air_date);
+        releaseDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        return releaseDate <= today;
+    } catch (error) {
+        return false;
+    }
+}
 
 /**
  * POST /api/series-progress/[seriesId]/seasons
@@ -77,40 +97,77 @@ export async function POST(req, { params }) {
             throw seasonError;
         }
 
-        // Update season completion status
-        const { error: updateError } = await supabase
-            .from('series_seasons')
-            .update({ completed: completed })
-            .eq('id', season.id);
+        // If marking as completed, fetch season episodes and filter only released ones
+        if (completed) {
+            try {
+                // Fetch season details from TMDB to get all episodes
+                const seasonData = await fetchTMDB(`/tv/${seriesId}/season/${seasonNumber}`, {
+                    language: 'en-CA',
+                });
+                
+                // Filter only released episodes
+                const releasedEpisodes = (seasonData?.episodes || []).filter(ep => isEpisodeReleased(ep));
+                
+                if (releasedEpisodes.length > 0) {
+                    // Delete existing episodes for this season first
+                    await supabase
+                        .from('series_episodes')
+                        .delete()
+                        .eq('series_season_id', season.id);
 
-        if (updateError) throw updateError;
+                    // Insert only released episodes
+                    const episodeInserts = releasedEpisodes.map(ep => ({
+                        series_season_id: season.id,
+                        episode_number: ep.episode_number,
+                        watched_at: new Date().toISOString(),
+                    }));
 
-        // If marking as completed and episodes are provided, mark all episodes as watched
-        if (completed && episodes && Array.isArray(episodes) && episodes.length > 0) {
-            // Delete existing episodes for this season first
-            await supabase
-                .from('series_episodes')
-                .delete()
-                .eq('series_season_id', season.id);
+                    const { error: episodesError } = await supabase
+                        .from('series_episodes')
+                        .insert(episodeInserts);
 
-            // Insert all episodes
-            const episodeInserts = episodes.map(ep => ({
-                series_season_id: season.id,
-                episode_number: typeof ep === 'number' ? ep : ep.episode_number,
-                watched_at: new Date().toISOString(),
-            }));
+                    if (episodesError) throw episodesError;
+                    
+                    // Mark season as completed (even if there are unreleased episodes)
+                    // Only released episodes are marked as watched, so percentage may be < 100%
+                    const { error: updateError } = await supabase
+                        .from('series_seasons')
+                        .update({ completed: true })
+                        .eq('id', season.id);
 
-            const { error: episodesError } = await supabase
-                .from('series_episodes')
-                .insert(episodeInserts);
+                    if (updateError) throw updateError;
+                } else {
+                    // No released episodes, don't mark as completed
+                    const { error: updateError } = await supabase
+                        .from('series_seasons')
+                        .update({ completed: false })
+                        .eq('id', season.id);
 
-            if (episodesError) throw episodesError;
-        } else if (!completed) {
-            // If unmarking completion, remove all episodes
-            await supabase
-                .from('series_episodes')
-                .delete()
-                .eq('series_season_id', season.id);
+                    if (updateError) throw updateError;
+                }
+            } catch (error) {
+                console.error('Error fetching season episodes:', error);
+                // If we can't fetch episodes, still update the completion status
+                // but don't mark episodes (they'll be marked individually)
+                const { error: updateError } = await supabase
+                    .from('series_seasons')
+                    .update({ completed: completed })
+                    .eq('id', season.id);
+
+                if (updateError) throw updateError;
+            }
+        } else {
+            // If unmarking completion, ONLY update status - DO NOT delete episodes
+            // This preserves individual episode progress when un-marking a season as complete
+            const { error: updateError } = await supabase
+                .from('series_seasons')
+                .update({ completed: false })
+                .eq('id', season.id);
+
+            if (updateError) throw updateError;
+            
+            // Note: We intentionally do NOT delete episodes here
+            // Users may want to keep their individually watched episodes
         }
 
         // Update last_watched timestamp
