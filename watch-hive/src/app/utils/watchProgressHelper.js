@@ -27,15 +27,19 @@ export function getSeriesWatchProgress(seriesId, seriesData = null, progress = n
             }
             
             if (seasonProgress.completed) {
-                // If season is completed, count all episodes in that season as watched
-                // But we need to know the total episodes in the season
-                if (season && season.episode_count) {
-                    watchedEpisodes += season.episode_count;
+                // If season is completed, count all RELEASED episodes in that season as watched
+                // Priority: use episode data from season if available (most accurate), otherwise use progress episodes
+                if (season && season.episodes && Array.isArray(season.episodes)) {
+                    // We have full episode data - count only released episodes
+                    const releasedEpisodes = season.episodes.filter(ep => isEpisodeReleased(ep));
+                    watchedEpisodes += releasedEpisodes.length;
                 } else if (seasonProgress.episodes && Array.isArray(seasonProgress.episodes)) {
-                    // Fallback: use the episodes array length
-                    // Note: Backend already filters unreleased episodes, so these should all be released
+                    // Use the episodes from progress (backend already filters unreleased episodes before saving)
+                    // This is the most reliable source since backend ensures only released episodes are saved
                     watchedEpisodes += seasonProgress.episodes.length;
                 }
+                // Note: We don't use season.episode_count as it includes unreleased episodes
+                // Only count episodes that we know are released (from progress or season.episodes)
             } else if (seasonProgress.episodes && Array.isArray(seasonProgress.episodes)) {
                 // Count individual watched episodes
                 // Note: Backend already filters unreleased episodes before saving, so these should all be released
@@ -44,13 +48,22 @@ export function getSeriesWatchProgress(seriesId, seriesData = null, progress = n
         });
     }
     
-    // Count total episodes (ALL episodes including unreleased)
+    // Count total episodes (ALL episodes including unreleased) from ALL seasons
     if (seriesData && seriesData.seasons && Array.isArray(seriesData.seasons)) {
         seriesData.seasons.forEach(season => {
-            if (season.episode_count && season.episode_count > 0) {
+            // Count all episodes (released + unreleased)
+            if (season.episodes && Array.isArray(season.episodes) && season.episodes.length > 0) {
+                totalEpisodes += season.episodes.length;
+            } else if (season.episode_count && season.episode_count > 0) {
+                // Fallback to episode_count if episode data not available
                 totalEpisodes += season.episode_count;
             }
         });
+    }
+    
+    // If totalEpisodes is still 0, try fallback to number_of_episodes from series data
+    if (totalEpisodes === 0 && seriesData && seriesData.number_of_episodes && seriesData.number_of_episodes > 0) {
+        totalEpisodes = seriesData.number_of_episodes;
     }
     
     // Calculate percentage: (watched released episodes / total all episodes) * 100

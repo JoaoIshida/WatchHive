@@ -48,10 +48,21 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
 
     useEffect(() => {
         if (autoFocus && inputRef.current) {
-            // Small delay to ensure the input is rendered
-            setTimeout(() => {
-                inputRef.current?.focus();
-            }, 100);
+            // Use requestAnimationFrame for more reliable mobile keyboard trigger
+            // The delay ensures the DOM is ready and the input is visible
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (inputRef.current) {
+                        inputRef.current.focus({ preventScroll: false });
+                        // On some mobile browsers, we need to also set selection
+                        // to ensure the keyboard appears
+                        inputRef.current.setSelectionRange(
+                            inputRef.current.value.length,
+                            inputRef.current.value.length
+                        );
+                    }
+                }, 50);
+            });
         }
     }, [autoFocus]);
 
@@ -111,6 +122,12 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                 <input
                     ref={inputRef}
                     type="text"
+                    inputMode="search"
+                    enterKeyHint="search"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => {

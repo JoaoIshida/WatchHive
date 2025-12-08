@@ -19,6 +19,7 @@ export async function GET(req) {
         const includePublic = searchParams.get('includePublic') === 'true';
 
         // Get user's lists
+        // Uses index: idx_custom_lists_user_id, idx_custom_lists_created_at
         let query = supabase
             .from('custom_lists')
             .select('*')
@@ -27,6 +28,7 @@ export async function GET(req) {
 
         // Optionally include public lists from other users
         if (includePublic) {
+            // Uses index: idx_custom_lists_public (partial index for public lists)
             const { data: publicLists, error: publicError } = await supabase
                 .from('custom_lists')
                 .select('*')

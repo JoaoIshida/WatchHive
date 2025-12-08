@@ -14,6 +14,9 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const [showNotification, setShowNotification] = useState(false);
     const [skippedItems, setSkippedItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingSeriesComplete, setLoadingSeriesComplete] = useState(false);
+    const [loadingSeasons, setLoadingSeasons] = useState({}); // { seasonNumber: boolean }
+    const [loadingEpisodes, setLoadingEpisodes] = useState({}); // { 'seasonNumber-episodeNumber': boolean }
 
     useEffect(() => {
         // Load progress from API
@@ -78,6 +81,9 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             return;
         }
 
+        const loadingKey = `${seasonNumber}-${episodeNumber}`;
+        setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: true }));
+
         const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
         const isEpisodeInList = progress.seasons[seasonNumber]?.episodes?.includes(episodeNumber) || false;
         const isWatched = isSeasonCompleted || isEpisodeInList;
@@ -123,6 +129,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     releaseDate: formatDate(episode.air_date)
                 }]);
                 setShowNotification(true);
+                setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
                 return;
             }
         }
@@ -157,6 +164,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
         }
+        setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
     };
 
     const toggleSeasonCompleted = async (seasonNumber) => {
@@ -164,6 +172,8 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
             return;
         }
+
+        setLoadingSeasons(prev => ({ ...prev, [seasonNumber]: true }));
 
         const isCompleted = progress.seasons[seasonNumber]?.completed || false;
         
@@ -177,6 +187,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                 releaseDate: formatDate(season.air_date)
             }]);
             setShowNotification(true);
+            setLoadingSeasons(prev => ({ ...prev, [seasonNumber]: false }));
             return;
         }
         
@@ -219,6 +230,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                 if (releasedEpisodes.length === 0 && unreleasedEpisodes.length > 0) {
                     setSkippedItems(skipped);
                     setShowNotification(true);
+                    setLoadingSeasons(prev => ({ ...prev, [seasonNumber]: false }));
                     return; // Don't mark as complete
                 }
             } catch (error) {
@@ -254,6 +266,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                 setShowNotification(true);
             }
         }
+        setLoadingSeasons(prev => ({ ...prev, [seasonNumber]: false }));
     };
 
     const toggleSeriesCompleted = async () => {
@@ -262,6 +275,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             return;
         }
 
+        setLoadingSeriesComplete(true);
         const isCompleted = progress.completed || false;
         
         // If marking as completed, fetch all seasons and episodes to mark them as watched
@@ -371,7 +385,15 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
         }
+        setLoadingSeriesComplete(false);
     };
+
+    const LoadingSpinner = () => (
+        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    );
 
     const getSeasonProgress = (seasonNumber) => {
         const season = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
@@ -386,8 +408,10 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             if (seasonFromList && seasonFromList.episode_count) {
                 // Total includes ALL episodes (released + unreleased)
                 // Watched only includes released episodes that are marked as watched
+                // If season is completed, we can't know how many are released without episode data
+                // So we'll use a conservative estimate: only count individually watched episodes
                 return { 
-                    watched: isSeasonCompleted ? seasonFromList.episode_count : watchedEpisodes.length, 
+                    watched: watchedEpisodes.length, 
                     total: seasonFromList.episode_count 
                 };
             }
@@ -398,13 +422,14 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         if (season.episodes && season.episodes.length > 0) {
             const total = season.episodes.length; // ALL episodes (released + unreleased)
             // If season is completed, count all released episodes as watched
-            // Otherwise, count only individually watched episodes
+            // Otherwise, count only individually watched episodes (which are already filtered to released by backend)
             let watched;
             if (isSeasonCompleted) {
                 // Season is completed - count all released episodes as watched
                 watched = season.episodes.filter(ep => isEpisodeReleased(ep)).length;
             } else {
                 // Season not completed - count only individually watched episodes
+                // Backend already filters unreleased episodes, so watchedEpisodes only contains released ones
                 watched = watchedEpisodes.length;
             }
             return { watched, total };
@@ -414,8 +439,10 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         if (season.episode_count) {
             // Total includes ALL episodes
             // Watched only includes released episodes that are marked as watched
+            // If season is completed but we don't have episode data, we can't accurately count
+            // So we'll use a conservative estimate: only count individually watched episodes
             return { 
-                watched: isSeasonCompleted ? season.episode_count : watchedEpisodes.length, 
+                watched: watchedEpisodes.length, 
                 total: season.episode_count 
             };
         }
@@ -456,9 +483,19 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     </div>
                     <button
                         onClick={toggleSeriesCompleted}
-                        className={`futuristic-button ${isSeriesCompleted ? 'bg-futuristic-yellow-500 text-black' : ''}`}
+                        disabled={loadingSeriesComplete}
+                        className={`futuristic-button flex items-center gap-2 ${isSeriesCompleted ? 'bg-futuristic-yellow-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
-                        {isSeriesCompleted ? '✓ Series Completed' : 'Mark Series Complete'}
+                        {loadingSeriesComplete ? (
+                            <>
+                                <LoadingSpinner />
+                                <span>Processing...</span>
+                            </>
+                        ) : isSeriesCompleted ? (
+                            '✓ Series Completed'
+                        ) : (
+                            'Mark Series Complete'
+                        )}
                     </button>
                 </div>
             </div>
@@ -519,9 +556,19 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                             e.stopPropagation();
                                             toggleSeasonCompleted(season.season_number);
                                         }}
-                                        className={`futuristic-button text-sm ${isSeasonCompleted ? 'bg-futuristic-yellow-500 text-black' : ''}`}
+                                        disabled={loadingSeasons[season.season_number]}
+                                        className={`futuristic-button text-sm flex items-center gap-2 ${isSeasonCompleted ? 'bg-futuristic-yellow-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                     >
-                                        {isSeasonCompleted ? '✓ Complete' : 'Mark Complete'}
+                                        {loadingSeasons[season.season_number] ? (
+                                            <>
+                                                <LoadingSpinner />
+                                                <span>...</span>
+                                            </>
+                                        ) : isSeasonCompleted ? (
+                                            '✓ Complete'
+                                        ) : (
+                                            'Mark Complete'
+                                        )}
                                     </button>
                                     <svg
                                         className={`w-6 h-6 text-futuristic-yellow-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -537,18 +584,21 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                             {isExpanded && seasonData.episodes && (
                                 <div className="mt-4 space-y-2">
                                     {seasonData.episodes.map((episode) => {
-                                        // If season is completed, all episodes are watched
+                                        // If season is completed, all RELEASED episodes are watched
                                         const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
                                         const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
-                                        const isWatched = isSeasonCompleted || watchedEpisodes.includes(episode.episode_number);
+                                        const episodeIsReleased = isEpisodeReleased(episode);
+                                        // Only show as watched if episode is released AND (season is completed OR episode is individually watched)
+                                        const isWatched = episodeIsReleased && (isSeasonCompleted || watchedEpisodes.includes(episode.episode_number));
+                                        const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
+                                        const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                         
                                         return (
                                             <div
                                                 key={episode.id}
-                                                className={`futuristic-card p-3 flex items-center gap-4 cursor-pointer hover:bg-futuristic-blue-800 transition-colors ${
+                                                className={`futuristic-card p-3 flex items-center gap-4 transition-colors ${
                                                     isWatched ? 'border-l-4 border-futuristic-yellow-500' : ''
                                                 }`}
-                                                onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
                                             >
                                                 <div className="flex-shrink-0 w-12 text-center">
                                                     <span className="text-futuristic-yellow-400 font-bold">
@@ -560,7 +610,12 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                         <h4 className="font-semibold text-white">
                                                             {episode.name || `Episode ${episode.episode_number}`}
                                                         </h4>
-                                                        {isWatched && (
+                                                        {!episodeIsReleased && (
+                                                            <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
+                                                                Unreleased
+                                                            </span>
+                                                        )}
+                                                        {isWatched && !isEpisodeLoading && episodeIsReleased && (
                                                             <span className="text-futuristic-yellow-500">✓</span>
                                                         )}
                                                     </div>
@@ -576,14 +631,43 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                     )}
                                                 </div>
                                                 {episode.vote_average && episode.vote_average > 0 ? (
-                                                    <div className="text-xs text-futuristic-yellow-400">
+                                                    <div className="text-xs text-futuristic-yellow-400 mr-2">
                                                         ⭐ {episode.vote_average.toFixed(1)}
                                                     </div>
                                                 ) : (
-                                                    <div className="text-xs text-white/60">
+                                                    <div className="text-xs text-white/60 mr-2">
                                                         No ratings
                                                     </div>
                                                 )}
+                                                {/* Episode Watch Button */}
+                                                <button
+                                                    onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
+                                                    disabled={isEpisodeLoading || !episodeIsReleased}
+                                                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                                                        isEpisodeLoading || !episodeIsReleased
+                                                            ? 'bg-futuristic-blue-700 text-white/70 cursor-not-allowed opacity-50' 
+                                                            : isWatched 
+                                                                ? 'bg-futuristic-yellow-500 text-black hover:bg-futuristic-yellow-400' 
+                                                                : 'bg-futuristic-blue-700 text-white hover:bg-futuristic-blue-600 border border-futuristic-blue-500/50'
+                                                    }`}
+                                                    title={!episodeIsReleased ? 'Episode not yet released' : ''}
+                                                >
+                                                    {isEpisodeLoading ? (
+                                                        <>
+                                                            <LoadingSpinner />
+                                                        </>
+                                                    ) : isWatched ? (
+                                                        <>
+                                                            <span>✓</span>
+                                                            <span>Watched</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>+</span>
+                                                            <span>Watch</span>
+                                                        </>
+                                                    )}
+                                                </button>
                                             </div>
                                         );
                                     })}

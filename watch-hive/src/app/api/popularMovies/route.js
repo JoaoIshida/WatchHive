@@ -139,28 +139,28 @@ export async function GET(req) {
             params['primary_release_date.lte'] = now.toISOString().split('T')[0];
         }
 
-        let data = await fetchTMDB('/discover/movie', params);
+        let data;
 
-        // If inTheaters filter is enabled, filter results to only include movies currently in theaters
-        if (inTheaters && data.results) {
+        // If inTheaters filter is enabled, fetch from now_playing and apply filters
+        if (inTheaters) {
             try {
-                // Fetch all now playing movies
+                // Fetch all now playing movies first (we need enough to paginate properly)
                 let allNowPlaying = [];
-                let page = 1;
+                let nowPlayingPage = 1;
                 let hasMore = true;
-                const maxPages = 5; // Check up to 5 pages
+                const maxPages = 10; // Fetch more pages to ensure we have enough results
 
-                while (hasMore && page <= maxPages) {
+                while (hasMore && nowPlayingPage <= maxPages) {
                     const nowPlayingData = await fetchTMDB('/movie/now_playing', {
                         language: 'en-CA',
-                        page: page,
+                        page: nowPlayingPage,
                         region: 'CA',
                     });
 
                     if (nowPlayingData.results && nowPlayingData.results.length > 0) {
                         allNowPlaying = [...allNowPlaying, ...nowPlayingData.results];
-                        hasMore = page < (nowPlayingData.total_pages || 1);
-                        page++;
+                        hasMore = nowPlayingPage < (nowPlayingData.total_pages || 1);
+                        nowPlayingPage++;
                     } else {
                         hasMore = false;
                     }
@@ -169,16 +169,46 @@ export async function GET(req) {
                 // Create a set of now playing movie IDs for fast lookup
                 const nowPlayingIds = new Set(allNowPlaying.map(movie => movie.id));
 
-                // Filter results to only include movies in theaters
-                data.results = data.results.filter(movie => nowPlayingIds.has(movie.id));
-                
-                // Update total results count
-                data.total_results = data.results.length;
-                data.total_pages = Math.ceil(data.total_results / 20);
+                // Now fetch discover results and filter to only include movies in theaters
+                // We'll fetch multiple pages to ensure we have enough results after filtering
+                let allFilteredResults = [];
+                let discoverPage = 1;
+                const maxDiscoverPages = 5; // Fetch up to 5 pages from discover to get enough results
+
+                while (discoverPage <= maxDiscoverPages && allFilteredResults.length < (page * 20)) {
+                    const discoverParams = { ...params, page: discoverPage };
+                    const discoverData = await fetchTMDB('/discover/movie', discoverParams);
+                    
+                    if (discoverData.results && discoverData.results.length > 0) {
+                        // Filter to only include movies in theaters
+                        const filtered = discoverData.results.filter(movie => nowPlayingIds.has(movie.id));
+                        allFilteredResults = [...allFilteredResults, ...filtered];
+                        discoverPage++;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Now paginate the filtered results properly
+                const itemsPerPage = 20;
+                const startIndex = (page - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const paginatedResults = allFilteredResults.slice(startIndex, endIndex);
+
+                data = {
+                    results: paginatedResults,
+                    page: page,
+                    total_results: allFilteredResults.length,
+                    total_pages: Math.ceil(allFilteredResults.length / itemsPerPage),
+                };
             } catch (error) {
                 console.error('Error filtering by theaters:', error);
-                // If error, return original data
+                // Fallback to regular discover if error
+                data = await fetchTMDB('/discover/movie', params);
             }
+        } else {
+            // Normal flow without inTheaters filter
+            data = await fetchTMDB('/discover/movie', params);
         }
 
         return new Response(JSON.stringify(data), {

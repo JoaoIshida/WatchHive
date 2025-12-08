@@ -35,29 +35,48 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [watchProvidersExpanded, setWatchProvidersExpanded] = useState(true);
     
     // Collapsible section component
-    const CollapsibleSection = ({ title, expanded, onToggle, children }) => (
-        <div className="mb-4">
-            <button
-                onClick={onToggle}
-                className="w-full flex items-center justify-between mb-3 text-sm font-semibold text-futuristic-yellow-400/90 hover:text-futuristic-yellow-400 transition-colors"
-            >
-                <span>{title}</span>
-                <svg
-                    className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+    const CollapsibleSection = ({ title, expanded, onToggle, children }) => {
+        const handleToggle = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Prevent scroll by maintaining scroll position
+            const scrollY = window.scrollY || window.pageYOffset;
+            onToggle();
+            // Restore scroll position after DOM update
+            setTimeout(() => {
+                window.scrollTo({
+                    top: scrollY,
+                    behavior: 'auto'
+                });
+            }, 0);
+        };
+
+        return (
+            <div className="mb-4">
+                <button
+                    onClick={handleToggle}
+                    type="button"
+                    className="w-full flex items-center justify-between mb-3 text-sm font-semibold text-futuristic-yellow-400/90 hover:text-futuristic-yellow-400 transition-colors focus:outline-none"
+                    style={{ scrollMargin: 0 }}
                 >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                <div className="pb-2">
-                    {children}
+                    <span>{title}</span>
+                    <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} style={{ willChange: 'max-height' }}>
+                    <div className="pb-2">
+                        {children}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     // Sync internal state with prop changes
     useEffect(() => {
@@ -196,7 +215,7 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
         if (runtimeMax && runtimeMax < 240) filterObj.runtimeMax = runtimeMax.toString();
         if (dateRange) filterObj.dateRange = dateRange;
         if (daysPast) filterObj.daysPast = daysPast;
-        // Include upcoming is true by default, always set it
+        // Always explicitly set includeUpcoming so the API knows what to filter
         filterObj.includeUpcoming = includeUpcomingValue;
         if (inTheatersValue) filterObj.inTheaters = true;
         // Only add season filters if they're not at default values
@@ -327,21 +346,53 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
 
     return (
         <div className="hidden sm:block w-64 flex-shrink-0">
-            <div className="futuristic-card p-4 overflow-y-auto scrollbar">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">Filters</h2>
-                    {activeFiltersCount > 0 && (
-                        <button
-                            onClick={clearFilters}
-                            className="text-xs text-futuristic-yellow-400/80 hover:text-futuristic-yellow-400 transition-colors"
-                        >
-                            Clear ({activeFiltersCount})
-                        </button>
-                    )}
+            <div className="overflow-y-auto scrollbar space-y-4">
+                {/* Header Section */}
+                <div className="futuristic-card p-4">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">Filters</h2>
+                        {activeFiltersCount > 0 && (
+                            <button
+                                onClick={clearFilters}
+                                className="text-xs text-futuristic-yellow-400/80 hover:text-futuristic-yellow-400 transition-colors"
+                            >
+                                Clear ({activeFiltersCount})
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Sort Options */}
-                <div className="mb-6">
+                {/* Checkboxes Section */}
+                <div className="futuristic-card p-4">
+                    <div className="space-y-3">
+                        {/* In Theaters Filter - Only for movies */}
+                        {mediaType === 'movie' && (
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={inTheaters}
+                                    onChange={(e) => handleInTheatersChange(e.target.checked)}
+                                    className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
+                                />
+                                <span className="text-sm text-white/90 font-medium">In Theaters</span>
+                            </label>
+                        )}
+
+                        {/* Include Upcoming Filter */}
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={includeUpcoming}
+                                onChange={(e) => handleIncludeUpcomingChange(e.target.checked)}
+                                className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
+                            />
+                            <span className="text-sm text-white/90 font-medium">Include Upcoming</span>
+                        </label>
+                    </div>
+                </div>
+
+                {/* Sort By Section */}
+                <div className="futuristic-card p-4">
                     <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Sort By</h3>
                     <select
                         value={`${sortBy}.${sortOrder}`}
@@ -368,208 +419,194 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
                     </select>
                 </div>
 
-                {/* Include Upcoming */}
-                <div className="mb-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={includeUpcoming}
-                            onChange={(e) => handleIncludeUpcomingChange(e.target.checked)}
-                            className="w-4 h-4 rounded bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-futuristic-yellow-500 focus:ring-futuristic-yellow-500/30 focus:ring-1 cursor-pointer"
-                        />
-                        <span className="text-sm text-white/90">Include Upcoming</span>
-                    </label>
-                </div>
-
-                {/* Year Search - Always visible */}
-                <div className="mb-6">
-                    <YearSearch
-                        selectedYears={selectedYears}
-                        onYearsChange={handleYearsChange}
-                    />
-                </div>
-
                 {/* Basic Filters Section */}
-                <CollapsibleSection
-                    title="Basic Filters"
-                    expanded={basicFiltersExpanded}
-                    onToggle={() => setBasicFiltersExpanded(!basicFiltersExpanded)}
-                >
-
-                    {/* Rating Filter */}
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Rating</h3>
-                        <select
-                            value={ratingFilter}
-                            onChange={(e) => handleRatingChange(e.target.value)}
-                            className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
-                            style={{ 
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundPosition: 'right 0.5rem center',
-                                backgroundSize: '1rem'
-                            }}
-                        >
-                            <option value="" className="bg-futuristic-blue-900 text-white">All Ratings</option>
-                            <option value="9" className="bg-futuristic-blue-900 text-white">9+ ⭐</option>
-                            <option value="8" className="bg-futuristic-blue-900 text-white">8+ ⭐</option>
-                            <option value="7" className="bg-futuristic-blue-900 text-white">7+ ⭐</option>
-                            <option value="6" className="bg-futuristic-blue-900 text-white">6+ ⭐</option>
-                            <option value="5" className="bg-futuristic-blue-900 text-white">5+ ⭐</option>
-                            <option value="lt5" className="bg-futuristic-blue-900 text-white">&lt;5 ⭐</option>
-                        </select>
-                    </div>
-
-                    {/* Certification Filter */}
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Certification</h3>
-                        <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
-                            <div className="flex flex-wrap gap-2">
-                                {certifications.map((cert) => (
-                                    <button
-                                        key={cert}
-                                        onClick={() => handleCertificationToggle(cert)}
-                                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                            selectedCertifications.includes(cert)
-                                                ? 'bg-futuristic-yellow-500 text-black shadow-glow-yellow'
-                                                : 'bg-futuristic-blue-800/60 text-white/90 hover:bg-futuristic-blue-700/60 border border-futuristic-blue-500/30'
-                                        }`}
-                                    >
-                                        {cert}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </CollapsibleSection>
-
-                {/* Media Info Section */}
-                <CollapsibleSection
-                    title="Media Info"
-                    expanded={mediaInfoExpanded}
-                    onToggle={() => setMediaInfoExpanded(!mediaInfoExpanded)}
-                >
-                    {/* Runtime Filter - Only for movies */}
-                    {mediaType === 'movie' && (
+                <div className="futuristic-card p-4">
+                    <CollapsibleSection
+                        title="Basic Filters"
+                        expanded={basicFiltersExpanded}
+                        onToggle={() => setBasicFiltersExpanded(!basicFiltersExpanded)}
+                    >
+                        {/* Rating Filter */}
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Runtime</h3>
-                            <div className="futuristic-card p-4 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
-                                <RangeSlider
-                                    min={0}
-                                    max={240}
-                                    step={15}
-                                    valueMin={runtimeMinFilter}
-                                    valueMax={runtimeMaxFilter}
-                                    onChange={handleRuntimeChange}
-                                    formatLabel={(value) => formatRuntime(value) || '0m'}
-                                />
-                            </div>
+                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Rating</h3>
+                            <select
+                                value={ratingFilter}
+                                onChange={(e) => handleRatingChange(e.target.value)}
+                                className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
+                                style={{ 
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 0.5rem center',
+                                    backgroundSize: '1rem'
+                                }}
+                            >
+                                <option value="" className="bg-futuristic-blue-900 text-white">All Ratings</option>
+                                <option value="9" className="bg-futuristic-blue-900 text-white">9+ ⭐</option>
+                                <option value="8" className="bg-futuristic-blue-900 text-white">8+ ⭐</option>
+                                <option value="7" className="bg-futuristic-blue-900 text-white">7+ ⭐</option>
+                                <option value="6" className="bg-futuristic-blue-900 text-white">6+ ⭐</option>
+                                <option value="5" className="bg-futuristic-blue-900 text-white">5+ ⭐</option>
+                                <option value="lt5" className="bg-futuristic-blue-900 text-white">&lt;5 ⭐</option>
+                            </select>
                         </div>
-                    )}
 
-                    {/* Seasons Filter - Only for series */}
-                    {mediaType === 'tv' && (
+                        {/* Certification Filter */}
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Seasons</h3>
-                            <div className="futuristic-card p-4 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
-                                <RangeSlider
-                                    min={1}
-                                    max={20}
-                                    step={1}
-                                    valueMin={seasonsMinFilter}
-                                    valueMax={seasonsMaxFilter}
-                                    onChange={handleSeasonsChange}
-                                    formatLabel={(value) => `${value} ${value === 1 ? 'Season' : 'Seasons'}`}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </CollapsibleSection>
-
-                {/* Watch Providers Section - Moved to top */}
-                <CollapsibleSection
-                    title="Where to Watch"
-                    expanded={watchProvidersExpanded}
-                    onToggle={() => setWatchProvidersExpanded(!watchProvidersExpanded)}
-                >
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Streaming Services (Canada)</h3>
-                        {watchProviders.length > 0 ? (
-                            <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
-                                <div className="grid grid-cols-3 gap-2">
-                                    {watchProviders.map((provider) => (
-                                        <button
-                                            key={provider.provider_id}
-                                            onClick={() => handleProviderToggle(provider.provider_id)}
-                                            className={`group relative flex flex-col items-center justify-center p-2 rounded-lg transition-all ${
-                                                selectedProviders.includes(provider.provider_id)
-                                                    ? 'bg-futuristic-yellow-500/20 border-2 border-futuristic-yellow-500 shadow-glow-yellow'
-                                                    : 'bg-futuristic-blue-800/60 border border-futuristic-blue-500/30 hover:bg-futuristic-blue-700/60'
-                                            }`}
-                                            title={provider.provider_name}
-                                        >
-                                            {provider.logo_path ? (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w45${provider.logo_path}`}
-                                                    alt={provider.provider_name}
-                                                    className="w-10 h-10 object-contain mb-1"
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <span className="text-xs text-futuristic-yellow-400 font-medium mb-1">
-                                                    {provider.provider_name}
-                                                </span>
-                                            )}
-                                            {selectedProviders.includes(provider.provider_id) && (
-                                                <svg className="w-3 h-3 text-futuristic-yellow-400 absolute top-1 right-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-white/60 text-center py-4">
-                                Loading providers...
-                            </div>
-                        )}
-                    </div>
-                </CollapsibleSection>
-
-                {/* Content Type Section */}
-                <CollapsibleSection
-                    title="Content Type"
-                    expanded={contentTypeExpanded}
-                    onToggle={() => setContentTypeExpanded(!contentTypeExpanded)}
-                >
-                    {/* Genres Filter */}
-                    {genres.length > 0 && (
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Genres</h3>
+                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Certification</h3>
                             <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
                                 <div className="flex flex-wrap gap-2">
-                                    {genres.map((genre) => (
+                                    {certifications.map((cert) => (
                                         <button
-                                            key={genre.id}
-                                            onClick={() => handleGenreToggle(genre.id)}
+                                            key={cert}
+                                            onClick={() => handleCertificationToggle(cert)}
                                             className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                                selectedGenres.includes(genre.id)
+                                                selectedCertifications.includes(cert)
                                                     ? 'bg-futuristic-yellow-500 text-black shadow-glow-yellow'
                                                     : 'bg-futuristic-blue-800/60 text-white/90 hover:bg-futuristic-blue-700/60 border border-futuristic-blue-500/30'
                                             }`}
                                         >
-                                            {genre.name}
+                                            {cert}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                    )}
-                </CollapsibleSection>
+                    </CollapsibleSection>
+                </div>
 
-                {/* Keywords Search - Always visible */}
-                <div className="mb-6">
+                {/* Media Info Section */}
+                <div className="futuristic-card p-4">
+                    <CollapsibleSection
+                        title="Media Info"
+                        expanded={mediaInfoExpanded}
+                        onToggle={() => setMediaInfoExpanded(!mediaInfoExpanded)}
+                    >
+                        {/* Runtime Filter - Only for movies */}
+                        {mediaType === 'movie' && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Runtime</h3>
+                                <div className="futuristic-card p-4 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
+                                    <RangeSlider
+                                        min={0}
+                                        max={240}
+                                        step={15}
+                                        valueMin={runtimeMinFilter}
+                                        valueMax={runtimeMaxFilter}
+                                        onChange={handleRuntimeChange}
+                                        formatLabel={(value) => formatRuntime(value) || '0m'}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Seasons Filter - Only for series */}
+                        {mediaType === 'tv' && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Seasons</h3>
+                                <div className="futuristic-card p-4 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
+                                    <RangeSlider
+                                        min={1}
+                                        max={20}
+                                        step={1}
+                                        valueMin={seasonsMinFilter}
+                                        valueMax={seasonsMaxFilter}
+                                        onChange={handleSeasonsChange}
+                                        formatLabel={(value) => `${value} ${value === 1 ? 'Season' : 'Seasons'}`}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </CollapsibleSection>
+                </div>
+
+                {/* Where to Watch Section */}
+                <div className="futuristic-card p-4">
+                    <CollapsibleSection
+                        title="Where to Watch"
+                        expanded={watchProvidersExpanded}
+                        onToggle={() => setWatchProvidersExpanded(!watchProvidersExpanded)}
+                    >
+                        <div className="mb-6">
+                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Streaming Services (Canada)</h3>
+                            {watchProviders.length > 0 ? (
+                                <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {watchProviders.map((provider) => (
+                                            <button
+                                                key={provider.provider_id}
+                                                onClick={() => handleProviderToggle(provider.provider_id)}
+                                                className={`group relative flex flex-col items-center justify-center p-2 rounded-lg transition-all ${
+                                                    selectedProviders.includes(provider.provider_id)
+                                                        ? 'bg-futuristic-yellow-500/20 border-2 border-futuristic-yellow-500 shadow-glow-yellow'
+                                                        : 'bg-futuristic-blue-800/60 border border-futuristic-blue-500/30 hover:bg-futuristic-blue-700/60'
+                                                }`}
+                                                title={provider.provider_name}
+                                            >
+                                                {provider.logo_path ? (
+                                                    <img
+                                                        src={`https://image.tmdb.org/t/p/w45${provider.logo_path}`}
+                                                        alt={provider.provider_name}
+                                                        className="w-10 h-10 object-contain mb-1"
+                                                        loading="lazy"
+                                                    />
+                                                ) : (
+                                                    <span className="text-xs text-futuristic-yellow-400 font-medium mb-1">
+                                                        {provider.provider_name}
+                                                    </span>
+                                                )}
+                                                {selectedProviders.includes(provider.provider_id) && (
+                                                    <svg className="w-3 h-3 text-futuristic-yellow-400 absolute top-1 right-1" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-sm text-white/60 text-center py-4">
+                                    Loading providers...
+                                </div>
+                            )}
+                        </div>
+                    </CollapsibleSection>
+                </div>
+
+                {/* Content Type Section */}
+                <div className="futuristic-card p-4">
+                    <CollapsibleSection
+                        title="Content Type"
+                        expanded={contentTypeExpanded}
+                        onToggle={() => setContentTypeExpanded(!contentTypeExpanded)}
+                    >
+                        {/* Genres Filter */}
+                        {genres.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Genres</h3>
+                                <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-futuristic-blue-900/40 border border-futuristic-blue-500/20 rounded-lg">
+                                    <div className="flex flex-wrap gap-2">
+                                        {genres.map((genre) => (
+                                            <button
+                                                key={genre.id}
+                                                onClick={() => handleGenreToggle(genre.id)}
+                                                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                    selectedGenres.includes(genre.id)
+                                                        ? 'bg-futuristic-yellow-500 text-black shadow-glow-yellow'
+                                                        : 'bg-futuristic-blue-800/60 text-white/90 hover:bg-futuristic-blue-700/60 border border-futuristic-blue-500/30'
+                                                }`}
+                                            >
+                                                {genre.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </CollapsibleSection>
+                </div>
+
+                {/* Keywords Search Section */}
+                <div className="futuristic-card p-4">
                     <KeywordSearch
                         selectedKeywords={selectedKeywords}
                         onKeywordsChange={handleKeywordsChange}
@@ -578,82 +615,65 @@ const FilterSidebar = memo(({ onSortChange, onFilterChange, genres = [], showDat
 
                 {/* Date Filters Section */}
                 {showDateFilter && (
-                    <CollapsibleSection
-                        title="Date Filters"
-                        expanded={dateFiltersExpanded}
-                        onToggle={() => setDateFiltersExpanded(!dateFiltersExpanded)}
-                    >
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Date Range</h3>
-                            <select
-                                value={dateRangeFilter}
-                                onChange={(e) => handleDateRangeChange(e.target.value)}
-                                className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
-                                style={{ 
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.5rem center',
-                                    backgroundSize: '1rem'
-                                }}
-                            >
-                                <option value="" className="bg-futuristic-blue-900 text-white">All Dates</option>
-                                <option value="upcoming" className="bg-futuristic-blue-900 text-white">Upcoming</option>
-                                <option value="this_week" className="bg-futuristic-blue-900 text-white">This Week</option>
-                                <option value="this_month" className="bg-futuristic-blue-900 text-white">This Month</option>
-                                <option value="this_year" className="bg-futuristic-blue-900 text-white">This Year</option>
-                            </select>
-                        </div>
-
-                        <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Released In</h3>
-                            <select
-                                value={daysPastFilter}
-                                onChange={(e) => handleDaysPastChange(e.target.value)}
-                                className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
-                                style={{ 
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.5rem center',
-                                    backgroundSize: '1rem'
-                                }}
-                            >
-                                <option value="" className="bg-futuristic-blue-900 text-white">All Time</option>
-                                <option value="7" className="bg-futuristic-blue-900 text-white">Last 7 Days</option>
-                                <option value="30" className="bg-futuristic-blue-900 text-white">Last 30 Days</option>
-                                <option value="60" className="bg-futuristic-blue-900 text-white">Last 60 Days</option>
-                                <option value="90" className="bg-futuristic-blue-900 text-white">Last 90 Days</option>
-                                <option value="180" className="bg-futuristic-blue-900 text-white">Last 6 Months</option>
-                                <option value="365" className="bg-futuristic-blue-900 text-white">Last Year</option>
-                            </select>
-                        </div>
-
-                        {/* In Theaters Filter - Only for movies */}
-                        {mediaType === 'movie' && (
+                    <div className="futuristic-card p-4">
+                        <CollapsibleSection
+                            title="Date Filters"
+                            expanded={dateFiltersExpanded}
+                            onToggle={() => setDateFiltersExpanded(!dateFiltersExpanded)}
+                        >
+                            {/* Year Search */}
                             <div className="mb-6">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={inTheaters}
-                                        onChange={(e) => handleInTheatersChange(e.target.checked)}
-                                        className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
-                                    />
-                                    <span className="text-sm text-white/90">In Theaters</span>
-                                </label>
-                            </div>
-                        )}
-
-                        <div className="mb-6">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={includeUpcoming}
-                                    onChange={(e) => handleIncludeUpcomingChange(e.target.checked)}
-                                    className="w-4 h-4 rounded bg-futuristic-blue-800 border-futuristic-blue-500 text-futuristic-yellow-400 focus:ring-futuristic-yellow-400 focus:ring-2"
+                                <YearSearch
+                                    selectedYears={selectedYears}
+                                    onYearsChange={handleYearsChange}
                                 />
-                                <span className="text-sm text-white/90">Include Upcoming</span>
-                            </label>
-                        </div>
-                    </CollapsibleSection>
+                            </div>
+
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Date Range</h3>
+                                <select
+                                    value={dateRangeFilter}
+                                    onChange={(e) => handleDateRangeChange(e.target.value)}
+                                    className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
+                                    style={{ 
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.5rem center',
+                                        backgroundSize: '1rem'
+                                    }}
+                                >
+                                    <option value="" className="bg-futuristic-blue-900 text-white">All Dates</option>
+                                    <option value="upcoming" className="bg-futuristic-blue-900 text-white">Upcoming</option>
+                                    <option value="this_week" className="bg-futuristic-blue-900 text-white">This Week</option>
+                                    <option value="this_month" className="bg-futuristic-blue-900 text-white">This Month</option>
+                                    <option value="this_year" className="bg-futuristic-blue-900 text-white">This Year</option>
+                                </select>
+                            </div>
+
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">Released In</h3>
+                                <select
+                                    value={daysPastFilter}
+                                    onChange={(e) => handleDaysPastChange(e.target.value)}
+                                    className="w-full appearance-none bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 cursor-pointer hover:bg-futuristic-blue-700/80 transition-all"
+                                    style={{ 
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fef08a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.5rem center',
+                                        backgroundSize: '1rem'
+                                    }}
+                                >
+                                    <option value="" className="bg-futuristic-blue-900 text-white">All Time</option>
+                                    <option value="7" className="bg-futuristic-blue-900 text-white">Last 7 Days</option>
+                                    <option value="30" className="bg-futuristic-blue-900 text-white">Last 30 Days</option>
+                                    <option value="60" className="bg-futuristic-blue-900 text-white">Last 60 Days</option>
+                                    <option value="90" className="bg-futuristic-blue-900 text-white">Last 90 Days</option>
+                                    <option value="180" className="bg-futuristic-blue-900 text-white">Last 6 Months</option>
+                                    <option value="365" className="bg-futuristic-blue-900 text-white">Last Year</option>
+                                </select>
+                            </div>
+                        </CollapsibleSection>
+                    </div>
                 )}
             </div>
         </div>

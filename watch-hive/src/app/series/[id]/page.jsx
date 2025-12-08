@@ -12,17 +12,32 @@ import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
 
 async function getSerieDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}?language=en-CA&append_to_response=content_ratings`, {
-        headers: {
-            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-        },
+    // Use API route which properly filters seasons by season_number
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/tv/${id}`, {
+        cache: 'no-store', // Ensure fresh data
     });
 
     if (!res.ok) {
         throw new Error('Failed to fetch TV details');
     }
 
-    return res.json();
+    const data = await res.json();
+    
+    // Additional filtering: ensure seasons are valid and sorted
+    if (data.seasons && Array.isArray(data.seasons)) {
+        // Filter by season_number (already done in API, but double-check here)
+        data.seasons = data.seasons.filter(season => 
+            season.season_number !== null && 
+            season.season_number !== undefined && 
+            typeof season.season_number === 'number' &&
+            season.season_number >= 0
+        );
+        
+        // Sort by season_number
+        data.seasons.sort((a, b) => a.season_number - b.season_number);
+    }
+
+    return data;
 }
 
 async function getSerieMoreDetails(id) {

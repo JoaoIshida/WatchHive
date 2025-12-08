@@ -1,41 +1,39 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const RangeSlider = ({ min = 0, max = 240, step = 5, valueMin, valueMax, onChange, formatLabel }) => {
     const [minVal, setMinVal] = useState(valueMin !== undefined ? valueMin : min);
     const [maxVal, setMaxVal] = useState(valueMax !== undefined ? valueMax : max);
+    const [isInitialized, setIsInitialized] = useState(false);
     const minValRef = useRef(null);
     const maxValRef = useRef(null);
     const range = useRef(null);
+    const containerRef = useRef(null);
     const isDraggingRef = useRef(false);
 
     // Convert to percentage
-    const getPercent = (value) => Math.round(((value - min) / (max - min)) * 100);
+    const getPercent = useCallback((value) => Math.round(((value - min) / (max - min)) * 100), [min, max]);
 
-    // Set width of the range to decrease from the left side
-    useEffect(() => {
-        if (maxValRef.current) {
+    // Update range bar position
+    const updateRangeBar = useCallback(() => {
+        if (range.current) {
             const minPercent = getPercent(minVal);
-            const maxPercent = getPercent(+maxValRef.current.value);
-
-            if (range.current) {
-                range.current.style.left = `${minPercent}%`;
-                range.current.style.width = `${maxPercent - minPercent}%`;
-            }
-        }
-    }, [minVal, max, min]);
-
-    // Set width of the range to decrease from the right side
-    useEffect(() => {
-        if (minValRef.current) {
-            const minPercent = getPercent(+minValRef.current.value);
             const maxPercent = getPercent(maxVal);
-
-            if (range.current) {
-                range.current.style.width = `${maxPercent - minPercent}%`;
-            }
+            range.current.style.left = `${minPercent}%`;
+            range.current.style.width = `${maxPercent - minPercent}%`;
         }
-    }, [maxVal, max, min]);
+    }, [minVal, maxVal, getPercent]);
+
+    // Initialize on mount
+    useEffect(() => {
+        setIsInitialized(true);
+        updateRangeBar();
+    }, [updateRangeBar]);
+
+    // Update range bar when values change
+    useEffect(() => {
+        updateRangeBar();
+    }, [minVal, maxVal, updateRangeBar]);
 
     // Sync with external values
     useEffect(() => {
@@ -76,7 +74,7 @@ const RangeSlider = ({ min = 0, max = 240, step = 5, valueMin, valueMax, onChang
     }, [minVal, maxVal, onChange]);
 
     return (
-        <div className="w-full">
+        <div className="w-full" ref={containerRef}>
             <div className="relative h-8">
                 <input
                     type="range"
@@ -89,7 +87,10 @@ const RangeSlider = ({ min = 0, max = 240, step = 5, valueMin, valueMax, onChang
                         const value = Math.min(+event.target.value, maxVal - step);
                         setMinVal(value);
                         event.target.value = value.toString();
-                        // Don't call onChange while dragging, only update visual state
+                        // Call onChange immediately for real-time filtering
+                        if (!isDraggingRef.current) {
+                            onChange({ min: value, max: maxVal });
+                        }
                     }}
                     onMouseDown={() => {
                         isDraggingRef.current = true;
@@ -125,7 +126,10 @@ const RangeSlider = ({ min = 0, max = 240, step = 5, valueMin, valueMax, onChang
                         const value = Math.max(+event.target.value, minVal + step);
                         setMaxVal(value);
                         event.target.value = value.toString();
-                        // Don't call onChange while dragging, only update visual state
+                        // Call onChange immediately for real-time filtering
+                        if (!isDraggingRef.current) {
+                            onChange({ min: minVal, max: value });
+                        }
                     }}
                     onMouseDown={() => {
                         isDraggingRef.current = true;

@@ -7,6 +7,7 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
     const [movies, setMovies] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
         const fetchPopularMovies = async () => {
@@ -70,8 +71,9 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
                 if (filters.inTheaters === true) {
                     queryParams.set('inTheaters', 'true');
                 }
-                if (filters.includeUpcoming) {
-                    queryParams.set('includeUpcoming', 'true');
+                // Always send includeUpcoming parameter so API knows whether to filter
+                if (filters.includeUpcoming !== undefined) {
+                    queryParams.set('includeUpcoming', filters.includeUpcoming.toString());
                 }
                 
                 // Add sorting
@@ -88,6 +90,7 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
                 }
                 const data = await response.json();
                 setMovies(data.results);
+                setTotalPages(data.total_pages || 1);
             } catch (error) {
                 setError(error.message);
             } finally {
@@ -125,7 +128,8 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
                 <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
                 <button
                     onClick={() => onPageChange(page + 1)}
-                    className="futuristic-button"
+                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={page >= totalPages}
                 >
                     Next
                 </button>
@@ -155,7 +159,8 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
                 <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
                 <button
                     onClick={() => onPageChange(page + 1)}
-                    className="futuristic-button"
+                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={page >= totalPages}
                 >
                     Next
                 </button>

@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 
-const KeywordSearch = ({ selectedKeywords = [], onKeywordsChange }) => {
+const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange }, ref) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -10,6 +10,13 @@ const KeywordSearch = ({ selectedKeywords = [], onKeywordsChange }) => {
     const searchTimeoutRef = useRef(null);
     const containerRef = useRef(null);
     const inputRef = useRef(null);
+
+    // Expose focus method to parent
+    useImperativeHandle(ref, () => ({
+        focus: () => {
+            inputRef.current?.focus();
+        }
+    }));
 
     // Search for keywords
     const searchKeywords = useCallback(async (query) => {
@@ -194,7 +201,9 @@ const KeywordSearch = ({ selectedKeywords = [], onKeywordsChange }) => {
             </div>
         </div>
     );
-};
+});
+
+KeywordSearch.displayName = 'KeywordSearch';
 
 export default KeywordSearch;
 

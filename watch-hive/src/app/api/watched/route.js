@@ -31,6 +31,7 @@ export async function GET(req) {
         }
 
         const supabase = await createServerClient();
+        // Uses index: idx_watched_content_user_id, idx_watched_content_date_watched
         const { data: watched, error } = await supabase
             .from('watched_content')
             .select('*')
@@ -75,6 +76,7 @@ export async function POST(req) {
         const supabase = await createServerClient();
         
         // Check if already exists
+        // Uses index: idx_watched_content_user_content_media (composite index for fast lookup)
         const { data: existing } = await supabase
             .from('watched_content')
             .select('*')
@@ -132,6 +134,7 @@ export async function POST(req) {
                 const seasons = seriesData?.seasons || [];
                 
                 // Get or create series progress
+                // Uses index: idx_series_progress_user_series (composite index for fast lookup)
                 let { data: seriesProgress, error: progressError } = await supabase
                     .from('series_progress')
                     .select('*')
@@ -206,12 +209,17 @@ export async function POST(req) {
                             
                             // Track skipped episodes
                             unreleasedEpisodes.forEach(ep => {
+                                // Handle cases where episode data might be incomplete
+                                const episodeNumber = ep.episode_number ?? ep.episodeNumber ?? null;
+                                const episodeName = ep.name || 
+                                    (episodeNumber !== null ? `Episode ${episodeNumber}` : 'Episode');
+                                
                                 skippedEpisodes.push({
                                     seasonNumber: season.season_number,
                                     seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
-                                    episodeNumber: ep.episode_number,
-                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                    releaseDate: ep.air_date
+                                    episodeNumber: episodeNumber,
+                                    episodeName: episodeName,
+                                    releaseDate: ep.air_date || ep.release_date || null
                                 });
                             });
                             
@@ -258,6 +266,7 @@ export async function POST(req) {
                         const seasonNumber = parseInt(seasonNumStr);
                         
                         // Get or create season
+                        // Uses index: idx_series_seasons_progress_season (composite index)
                         let { data: season, error: seasonError } = await supabase
                             .from('series_seasons')
                             .select('*')
@@ -405,6 +414,7 @@ export async function DELETE(req) {
         }
 
         const supabase = await createServerClient();
+        // Uses index: idx_watched_content_user_content_media (composite index for fast deletion)
         const { error } = await supabase
             .from('watched_content')
             .delete()
@@ -418,6 +428,7 @@ export async function DELETE(req) {
         if (mediaType === 'tv') {
             try {
                 // Get series progress
+                // Uses index: idx_series_progress_user_series (composite index)
                 const { data: seriesProgress } = await supabase
                     .from('series_progress')
                     .select('id')

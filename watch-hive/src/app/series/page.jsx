@@ -74,6 +74,10 @@ const PopularSeriesContent = () => {
         if (urlDaysPast) {
             urlFilters.daysPast = urlDaysPast;
         }
+        const urlAiringToday = searchParams.get('airingToday');
+        if (urlAiringToday === 'true') {
+            urlFilters.airingToday = true;
+        }
         const urlIncludeUpcoming = searchParams.get('includeUpcoming');
         if (urlIncludeUpcoming !== null) {
             urlFilters.includeUpcoming = urlIncludeUpcoming === 'true';
@@ -158,6 +162,9 @@ const PopularSeriesContent = () => {
         }
         if (newFilters.daysPast) {
             params.set('daysPast', newFilters.daysPast);
+        }
+        if (newFilters.airingToday === true) {
+            params.set('airingToday', 'true');
         }
         // Only add includeUpcoming to URL if it's explicitly false (default is true)
         if (newFilters.includeUpcoming === false) {

@@ -18,6 +18,7 @@ export async function GET(req, { params }) {
         const supabase = await createServerClient();
 
         // Get series progress
+        // Uses index: idx_series_progress_user_series (composite index for fast lookup)
         const { data: seriesProgress, error: progressError } = await supabase
             .from('series_progress')
             .select('*')
@@ -43,6 +44,7 @@ export async function GET(req, { params }) {
         }
 
         // Get all seasons for this series progress
+        // Uses index: idx_series_seasons_progress_id, idx_series_seasons_season_number
         const { data: seasons, error: seasonsError } = await supabase
             .from('series_seasons')
             .select('*')
@@ -55,6 +57,7 @@ export async function GET(req, { params }) {
         const seasonIds = seasons.map(s => s.id);
         let episodes = [];
         if (seasonIds.length > 0) {
+            // Uses index: idx_series_episodes_season_id, idx_series_episodes_episode_number
             const { data: episodesData, error: episodesError } = await supabase
                 .from('series_episodes')
                 .select('*')

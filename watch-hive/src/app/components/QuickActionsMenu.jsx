@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
@@ -12,10 +13,18 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [isInWishlist, setIsInWishlist] = useState(false);
     const [itemLists, setItemLists] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [loadingAction, setLoadingAction] = useState(null); // 'watched', 'wishlist', 'list'
     const [showNotification, setShowNotification] = useState(false);
     const [skippedItems, setSkippedItems] = useState([]);
     const [seriesSummary, setSeriesSummary] = useState(null);
+    const [mounted, setMounted] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef(null);
     const menuRef = useRef(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         // Check initial states from API
@@ -105,10 +114,26 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         };
     }, [itemId, mediaType, user]);
 
+    // Calculate menu position when opening
+    useEffect(() => {
+        if (isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setMenuPosition({
+                top: rect.bottom + 4,
+                left: rect.right - 180, // Menu width is 180px
+            });
+        }
+    }, [isOpen]);
+
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
+            if (
+                menuRef.current && 
+                !menuRef.current.contains(event.target) &&
+                buttonRef.current &&
+                !buttonRef.current.contains(event.target)
+            ) {
                 setIsOpen(false);
             }
         };
@@ -131,16 +156,22 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
 
         // Check if item is released before marking as watched
         if (!isWatched) {
-            if (mediaType === 'movie' && itemData && !isMovieReleased(itemData)) {
-                setSkippedItems([{
-                    type: 'movie',
-                    name: itemData.title || 'Movie',
-                    releaseDate: formatDate(itemData.release_date)
-                }]);
-                setSeriesSummary(null);
-                setShowNotification(true);
-                setIsOpen(false);
-                return;
+            if (mediaType === 'movie' && itemData) {
+                // Check if movie is released - also treat movies without release_date as unreleased
+                const hasReleaseDate = itemData.release_date && itemData.release_date.trim() !== '';
+                const isReleased = hasReleaseDate && isMovieReleased(itemData);
+                
+                if (!isReleased) {
+                    setSkippedItems([{
+                        type: 'movie',
+                        name: itemData.title || 'Movie',
+                        releaseDate: itemData.release_date ? formatDate(itemData.release_date) : 'N/A'
+                    }]);
+                    setSeriesSummary(null);
+                    setShowNotification(true);
+                    setIsOpen(false);
+                    return;
+                }
             } else if (mediaType === 'tv' && itemData && !isSeriesReleased(itemData)) {
                 setSkippedItems([{
                     type: 'series',
@@ -155,6 +186,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
 
         setLoading(true);
+        setLoadingAction('watched');
         try {
             if (isWatched) {
                 const response = await fetch(`/api/watched?itemId=${itemId}&mediaType=${mediaType}`, {
@@ -192,12 +224,21 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                         // Add skipped episodes
                         if (data.seriesProgress.skippedEpisodes) {
                             data.seriesProgress.skippedEpisodes.forEach(ep => {
+                                // Handle episode name - check multiple possible fields
+                                const episodeName = ep.name || ep.episodeName || 
+                                    (ep.episode_number ? `Episode ${ep.episode_number}` : 
+                                     ep.episodeNumber ? `Episode ${ep.episodeNumber}` : 'Episode');
+                                const seasonName = ep.seasonName || 
+                                    (ep.season_number ? `Season ${ep.season_number}` : 
+                                     ep.seasonNumber ? `Season ${ep.seasonNumber}` : 'Season');
+                                const releaseDate = ep.air_date || ep.releaseDate || 'N/A';
+                                
                                 skipped.push({
                                     type: 'episode',
                                     seriesName: itemData?.name || 'Series',
-                                    seasonName: ep.seasonName || `Season ${ep.season_number}`,
-                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                    releaseDate: formatDate(ep.air_date)
+                                    seasonName: seasonName,
+                                    episodeName: episodeName,
+                                    releaseDate: releaseDate !== 'N/A' ? formatDate(releaseDate) : 'N/A'
                                 });
                             });
                         }
@@ -219,6 +260,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             console.error('Error toggling watched:', error);
         } finally {
             setLoading(false);
+            setLoadingAction(null);
             setIsOpen(false);
         }
     };
@@ -231,6 +273,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
 
         setLoading(true);
+        setLoadingAction('wishlist');
         try {
             if (isInWishlist) {
                 const response = await fetch(`/api/wishlist?itemId=${itemId}&mediaType=${mediaType}`, {
@@ -255,6 +298,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             console.error('Error toggling wishlist:', error);
         } finally {
             setLoading(false);
+            setLoadingAction(null);
             setIsOpen(false);
         }
     };
@@ -267,6 +311,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
 
         setLoading(true);
+        setLoadingAction('list');
         try {
             // Get or create "My List"
             const listsRes = await fetch('/api/custom-lists');
@@ -307,13 +352,109 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             console.error('Error adding to list:', error);
         } finally {
             setLoading(false);
+            setLoadingAction(null);
             setIsOpen(false);
         }
     };
 
-    return (
-        <div className="relative" ref={menuRef}>
+    const LoadingSpinner = () => (
+        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    );
+
+    const menuContent = isOpen && mounted && (
+        <div 
+            ref={menuRef}
+            className="fixed bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow py-2 min-w-[180px]"
+            style={{ 
+                zIndex: 99998,
+                top: menuPosition.top,
+                left: Math.max(8, menuPosition.left), // Ensure menu doesn't go off-screen
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
             <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleToggleWatched();
+                }}
+                disabled={loading}
+                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+            >
+                {loadingAction === 'watched' ? (
+                    <>
+                        <LoadingSpinner />
+                        <span>Processing...</span>
+                    </>
+                ) : isWatched ? (
+                    <>
+                        <span>✓</span>
+                        <span>Remove from Watched</span>
+                    </>
+                ) : (
+                    <>
+                        <span>+</span>
+                        <span>Mark as Watched</span>
+                    </>
+                )}
+            </button>
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleToggleWishlist();
+                }}
+                disabled={loading}
+                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+            >
+                {loadingAction === 'wishlist' ? (
+                    <>
+                        <LoadingSpinner />
+                        <span>Processing...</span>
+                    </>
+                ) : isInWishlist ? (
+                    <>
+                        <span>★</span>
+                        <span>Remove from Wishlist</span>
+                    </>
+                ) : (
+                    <>
+                        <span>☆</span>
+                        <span>Add to Wishlist</span>
+                    </>
+                )}
+            </button>
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAddToList();
+                }}
+                disabled={loading}
+                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+            >
+                {loadingAction === 'list' ? (
+                    <>
+                        <LoadingSpinner />
+                        <span>Processing...</span>
+                    </>
+                ) : (
+                    <>
+                        <span>📋</span>
+                        <span>Add to List</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="relative">
+            <button
+                ref={buttonRef}
                 onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -321,7 +462,6 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 }}
                 className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center bg-futuristic-blue-950/90 backdrop-blur-sm rounded-full border border-futuristic-yellow-500/50 hover:bg-futuristic-blue-900 hover:border-futuristic-yellow-400 transition-all"
                 aria-label="Quick actions"
-                style={{ zIndex: 20 }}
             >
                 <svg 
                     className="w-4 h-4 text-futuristic-yellow-400" 
@@ -332,61 +472,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 </svg>
             </button>
 
-            {isOpen && (
-                <div className="absolute top-10 right-0 z-30 bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow py-2 min-w-[180px]" style={{ zIndex: 30 }}>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleToggleWatched();
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2"
-                    >
-                        {isWatched ? (
-                            <>
-                                <span>✓</span>
-                                <span>Remove from Watched</span>
-                            </>
-                        ) : (
-                            <>
-                                <span>+</span>
-                                <span>Mark as Watched</span>
-                            </>
-                        )}
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleToggleWishlist();
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2"
-                    >
-                        {isInWishlist ? (
-                            <>
-                                <span>★</span>
-                                <span>Remove from Wishlist</span>
-                            </>
-                        ) : (
-                            <>
-                                <span>☆</span>
-                                <span>Add to Wishlist</span>
-                            </>
-                        )}
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleAddToList();
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2"
-                    >
-                        <span>📋</span>
-                        <span>Add to List</span>
-                    </button>
-                </div>
-            )}
+            {/* Portal the menu to body for proper z-index stacking */}
+            {mounted && menuContent && createPortal(menuContent, document.body)}
             
             <UnreleasedNotification
                 isOpen={showNotification}
@@ -397,4 +484,3 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         </div>
     );
 }
-
