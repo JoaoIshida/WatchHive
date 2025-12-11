@@ -48,21 +48,23 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
 
     useEffect(() => {
         if (autoFocus && inputRef.current) {
-            // Use requestAnimationFrame for more reliable mobile keyboard trigger
-            // The delay ensures the DOM is ready and the input is visible
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    if (inputRef.current) {
+            // Use setTimeout(0) to stay within user gesture context while letting DOM render
+            // This is critical for mobile browsers to recognize the gesture
+            setTimeout(() => {
+                if (inputRef.current) {
+                    // Ensure input is visible before focusing
+                    if (inputRef.current.offsetParent !== null) {
                         inputRef.current.focus({ preventScroll: false });
-                        // On some mobile browsers, we need to also set selection
-                        // to ensure the keyboard appears
-                        inputRef.current.setSelectionRange(
-                            inputRef.current.value.length,
-                            inputRef.current.value.length
-                        );
+                        // Set selection range to ensure keyboard appears on mobile
+                        const length = inputRef.current.value.length;
+                        inputRef.current.setSelectionRange(length, length);
+                        // Fallback: programmatic click if focus didn't work
+                        if (document.activeElement !== inputRef.current) {
+                            inputRef.current.click();
+                        }
                     }
-                }, 50);
-            });
+                }
+            }, 0);
         }
     }, [autoFocus]);
 

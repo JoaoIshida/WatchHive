@@ -111,6 +111,14 @@ const PopularSeriesContent = () => {
                 console.error('Error parsing keywords from URL:', e);
             }
         }
+        const urlTrending = searchParams.get('trending');
+        if (urlTrending === 'true') {
+            urlFilters.trending = true;
+        }
+        const urlUpcoming = searchParams.get('upcoming');
+        if (urlUpcoming === 'true') {
+            urlFilters.upcoming = true;
+        }
         if (Object.keys(urlFilters).length > 0) {
             setFilters(urlFilters);
             previousFiltersRef.current = urlFilters; // Set previous filters to prevent reset on initial load
@@ -188,6 +196,12 @@ const PopularSeriesContent = () => {
         if (newFilters.keywords && newFilters.keywords.length > 0) {
             const keywordStr = newFilters.keywords.map(k => `${k.id}:${k.name}`).join(',');
             params.set('keywords', keywordStr);
+        }
+        if (newFilters.trending === true) {
+            params.set('trending', 'true');
+        }
+        if (newFilters.upcoming === true) {
+            params.set('upcoming', 'true');
         }
         
         // Add sorting to URL
@@ -273,9 +287,19 @@ const PopularSeriesContent = () => {
         setPage(newPage);
     }, []);
 
+    // Determine page title based on filters
+    const getPageTitle = () => {
+        if (filters.trending === true) {
+            return 'Trending Series';
+        } else if (filters.upcoming === true) {
+            return 'Upcoming Series';
+        }
+        return 'Popular Series';
+    };
+
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-amber-500">Popular Series</h1>
+            <h1 className="text-4xl font-bold mb-6 text-amber-500">{getPageTitle()}</h1>
             
             {/* Layout with Sidebar on Desktop */}
             <div className="flex flex-col sm:flex-row gap-6">
@@ -321,7 +345,7 @@ const PopularSeriesPage = () => {
     return (
         <Suspense fallback={
             <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-amber-500">Popular Series</h1>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Series</h1>
                 <div className="flex gap-6">
                     <div className="hidden sm:block w-64 flex-shrink-0">
                         <div className="futuristic-card p-4">

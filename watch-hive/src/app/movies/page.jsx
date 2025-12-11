@@ -112,6 +112,14 @@ const PopularMoviesContent = () => {
         if (urlInTheaters === 'true') {
             urlFilters.inTheaters = true;
         }
+        const urlTrending = searchParams.get('trending');
+        if (urlTrending === 'true') {
+            urlFilters.trending = true;
+        }
+        const urlUpcoming = searchParams.get('upcoming');
+        if (urlUpcoming === 'true') {
+            urlFilters.upcoming = true;
+        }
         if (Object.keys(urlFilters).length > 0) {
             setFilters(urlFilters);
             previousFiltersRef.current = urlFilters; // Set previous filters to prevent reset on initial load
@@ -189,6 +197,12 @@ const PopularMoviesContent = () => {
         }
         if (newFilters.inTheaters === true) {
             params.set('inTheaters', 'true');
+        }
+        if (newFilters.trending === true) {
+            params.set('trending', 'true');
+        }
+        if (newFilters.upcoming === true) {
+            params.set('upcoming', 'true');
         }
         
         // Add sorting to URL
@@ -274,9 +288,19 @@ const PopularMoviesContent = () => {
         setPage(newPage);
     }, []);
 
+    // Determine page title based on filters
+    const getPageTitle = () => {
+        if (filters.trending === true) {
+            return 'Trending Movies';
+        } else if (filters.upcoming === true) {
+            return 'Upcoming Movies';
+        }
+        return 'Popular Movies';
+    };
+
     return (
         <div className="page-container">
-            <h1 className="page-title">Popular Movies</h1>
+            <h1 className="page-title">{getPageTitle()}</h1>
             
             {/* Layout with Sidebar on Desktop */}
             <div className="flex flex-col sm:flex-row gap-6">
@@ -322,7 +346,7 @@ const PopularMoviesPage = () => {
     return (
         <Suspense fallback={
             <div className="page-container">
-                <h1 className="page-title">Popular Movies</h1>
+                <h1 className="page-title">Movies</h1>
                 <div className="flex gap-6">
                     <div className="hidden sm:block w-64 flex-shrink-0">
                         <div className="futuristic-card p-4">

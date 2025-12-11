@@ -181,16 +181,16 @@ const Navbar = () => {
 
     const movieQuickFilters = [
         { href: '/movies', label: 'All Movies' },
-        { href: '/trending-movies', label: 'Trending' },
-        { href: '/upcoming-movies', label: 'Upcoming' },
+        { href: '/movies?trending=true', label: 'Trending' },
+        { href: '/movies?upcoming=true', label: 'Upcoming' },
         { href: '/movies?dateRange=thisYear', label: 'This Year' },
     ];
 
     const seriesQuickFilters = [
         { href: '/series', label: 'All Series' },
-        { href: '/trending-series', label: 'Trending' },
+        { href: '/series?trending=true', label: 'Trending' },
         { href: '/series?airingToday=true', label: 'Airing Today' },
-        { href: '/upcoming-series', label: 'Upcoming' },
+        { href: '/series?upcoming=true', label: 'Upcoming' },
         { href: '/series?dateRange=thisYear', label: 'This Year' },
     ];
 

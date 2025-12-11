@@ -5,16 +5,43 @@ import LoadingCard from './LoadingCard';
 
 const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
     const [movies, setMovies] = useState([]);
+    const [allMovies, setAllMovies] = useState([]); // For trending client-side filtering
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
-        const fetchPopularMovies = async () => {
+        const fetchMovies = async () => {
             setLoading(true);
             setError(null);
             try {
-                // Build query string with filters and sorting
+                // Handle trending mode - fetch array and do client-side filtering
+                if (filters.trending === true) {
+                    const response = await fetch('/api/trending/movies');
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch trending movies');
+                    }
+                    const data = await response.json();
+                    setAllMovies(data);
+                    return; // Client-side filtering will handle the rest
+                }
+                
+                // Handle upcoming mode
+                if (filters.upcoming === true) {
+                    const queryParams = new URLSearchParams();
+                    queryParams.set('page', page.toString());
+                    
+                    const response = await fetch(`/api/upcoming/movies?${queryParams.toString()}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch upcoming movies');
+                    }
+                    const data = await response.json();
+                    setMovies(data.results || []);
+                    setTotalPages(data.total_pages || 1);
+                    return;
+                }
+                
+                // Default: popular movies with server-side filtering
                 const queryParams = new URLSearchParams();
                 queryParams.set('page', page.toString());
                 
@@ -98,8 +125,95 @@ const MoviesList = ({ page, filters, sortConfig, onPageChange }) => {
             }
         };
 
-        fetchPopularMovies();
+        fetchMovies();
     }, [page, filters, sortConfig]);
+
+    // Client-side filtering and sorting for trending movies
+    useEffect(() => {
+        if (filters.trending === true && allMovies.length > 0) {
+            let filtered = [...allMovies];
+
+            // Apply filters
+            if (filters.genres && filters.genres.length > 0) {
+                filtered = filtered.filter(movie =>
+                    movie.genre_ids && movie.genre_ids.some(genreId => filters.genres.includes(genreId))
+                );
+            }
+
+            if (filters.year) {
+                const year = parseInt(Array.isArray(filters.year) ? filters.year[0] : filters.year);
+                filtered = filtered.filter(movie => {
+                    if (!movie.release_date) return false;
+                    return new Date(movie.release_date).getFullYear() === year;
+                });
+            }
+
+            if (filters.minRating) {
+                const minRating = parseFloat(filters.minRating);
+                filtered = filtered.filter(movie => movie.vote_average >= minRating);
+            }
+
+            if (filters.maxRating) {
+                const maxRating = parseFloat(filters.maxRating);
+                filtered = filtered.filter(movie => movie.vote_average <= maxRating);
+            }
+
+            if (filters.daysPast) {
+                const days = parseInt(filters.daysPast);
+                const cutoffDate = new Date();
+                cutoffDate.setDate(cutoffDate.getDate() - days);
+                filtered = filtered.filter(movie => {
+                    if (!movie.release_date) return false;
+                    const releaseDate = new Date(movie.release_date);
+                    return releaseDate >= cutoffDate && releaseDate <= new Date();
+                });
+            }
+
+            // Apply sorting
+            filtered.sort((a, b) => {
+                let aValue, bValue;
+                
+                switch (sortConfig.sortBy) {
+                    case 'rating':
+                        aValue = a.vote_average || 0;
+                        bValue = b.vote_average || 0;
+                        break;
+                    case 'release_date':
+                        aValue = a.release_date ? new Date(a.release_date).getTime() : 0;
+                        bValue = b.release_date ? new Date(b.release_date).getTime() : 0;
+                        break;
+                    case 'title':
+                        aValue = (a.title || '').toLowerCase();
+                        bValue = (b.title || '').toLowerCase();
+                        break;
+                    case 'popularity':
+                    default:
+                        aValue = a.popularity || 0;
+                        bValue = b.popularity || 0;
+                        break;
+                }
+
+                if (sortConfig.sortBy === 'title') {
+                    return sortConfig.sortOrder === 'asc' 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return sortConfig.sortOrder === 'desc' 
+                        ? bValue - aValue 
+                        : aValue - bValue;
+                }
+            });
+
+            // Client-side pagination
+            const itemsPerPage = 20;
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedResults = filtered.slice(startIndex, endIndex);
+            
+            setMovies(paginatedResults);
+            setTotalPages(Math.ceil(filtered.length / itemsPerPage));
+        }
+    }, [allMovies, filters, sortConfig, page]);
 
     if (loading) {
         return (

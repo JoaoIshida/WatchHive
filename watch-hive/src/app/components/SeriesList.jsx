@@ -11,10 +11,36 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
     const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
-        const fetchPopularSeries = async () => {
+        const fetchSeries = async () => {
             setLoading(true);
             setError(null);
             try {
+                // Handle trending mode - fetch array and do client-side filtering
+                if (filters.trending === true) {
+                    const response = await fetch('/api/trending/series');
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch trending series');
+                    }
+                    const data = await response.json();
+                    setAllSeries(data);
+                    return; // Client-side filtering will handle the rest
+                }
+                
+                // Handle upcoming mode
+                if (filters.upcoming === true) {
+                    const queryParams = new URLSearchParams();
+                    queryParams.set('page', page.toString());
+                    
+                    const response = await fetch(`/api/upcoming/series?${queryParams.toString()}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch upcoming series');
+                    }
+                    const data = await response.json();
+                    setSeries(data.results || []);
+                    setTotalPages(data.total_pages || 1);
+                    return;
+                }
+                
                 // Check if airing today filter is active
                 let apiEndpoint = '/api/popularSeries';
                 let queryParams;
@@ -109,13 +135,98 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
             }
         };
 
-        fetchPopularSeries();
-    }, [page, filters.genres, filters.year, filters.minRating, filters.maxRating, filters.certification, filters.dateRange, filters.daysPast, filters.includeUpcoming, filters.watchProviders, filters.keywords, filters.airingToday, filters.seasonsMin, filters.seasonsMax, sortConfig]);
+        fetchSeries();
+    }, [page, filters.genres, filters.year, filters.minRating, filters.maxRating, filters.certification, filters.dateRange, filters.daysPast, filters.includeUpcoming, filters.watchProviders, filters.keywords, filters.airingToday, filters.seasonsMin, filters.seasonsMax, filters.trending, filters.upcoming, sortConfig]);
 
-    // Use data directly from API (season filtering is now done server-side)
+    // Client-side filtering and sorting for trending series
     useEffect(() => {
-        setSeries(allSeries);
-    }, [allSeries]);
+        if (filters.trending === true && allSeries.length > 0) {
+            let filtered = [...allSeries];
+
+            // Apply filters
+            if (filters.genres && filters.genres.length > 0) {
+                filtered = filtered.filter(serie =>
+                    serie.genre_ids && serie.genre_ids.some(genreId => filters.genres.includes(genreId))
+                );
+            }
+
+            if (filters.year) {
+                const year = parseInt(Array.isArray(filters.year) ? filters.year[0] : filters.year);
+                filtered = filtered.filter(serie => {
+                    if (!serie.first_air_date) return false;
+                    return new Date(serie.first_air_date).getFullYear() === year;
+                });
+            }
+
+            if (filters.minRating) {
+                const minRating = parseFloat(filters.minRating);
+                filtered = filtered.filter(serie => serie.vote_average >= minRating);
+            }
+
+            if (filters.maxRating) {
+                const maxRating = parseFloat(filters.maxRating);
+                filtered = filtered.filter(serie => serie.vote_average <= maxRating);
+            }
+
+            if (filters.daysPast) {
+                const days = parseInt(filters.daysPast);
+                const cutoffDate = new Date();
+                cutoffDate.setDate(cutoffDate.getDate() - days);
+                filtered = filtered.filter(serie => {
+                    if (!serie.first_air_date) return false;
+                    const airDate = new Date(serie.first_air_date);
+                    return airDate >= cutoffDate && airDate <= new Date();
+                });
+            }
+
+            // Apply sorting
+            filtered.sort((a, b) => {
+                let aValue, bValue;
+                
+                switch (sortConfig.sortBy) {
+                    case 'rating':
+                        aValue = a.vote_average || 0;
+                        bValue = b.vote_average || 0;
+                        break;
+                    case 'release_date':
+                        aValue = a.first_air_date ? new Date(a.first_air_date).getTime() : 0;
+                        bValue = b.first_air_date ? new Date(b.first_air_date).getTime() : 0;
+                        break;
+                    case 'title':
+                        aValue = (a.name || '').toLowerCase();
+                        bValue = (b.name || '').toLowerCase();
+                        break;
+                    case 'popularity':
+                    default:
+                        aValue = a.popularity || 0;
+                        bValue = b.popularity || 0;
+                        break;
+                }
+
+                if (sortConfig.sortBy === 'title') {
+                    return sortConfig.sortOrder === 'asc' 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                } else {
+                    return sortConfig.sortOrder === 'desc' 
+                        ? bValue - aValue 
+                        : aValue - bValue;
+                }
+            });
+
+            // Client-side pagination
+            const itemsPerPage = 20;
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedResults = filtered.slice(startIndex, endIndex);
+            
+            setSeries(paginatedResults);
+            setTotalPages(Math.ceil(filtered.length / itemsPerPage));
+        } else if (filters.trending !== true) {
+            // Use data directly from API (season filtering is now done server-side)
+            setSeries(allSeries);
+        }
+    }, [allSeries, filters, sortConfig, page]);
 
     if (loading) {
         return (

@@ -25,6 +25,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [maxRuntimeInput, setMaxRuntimeInput] = useState('');
     const [selectedProviders, setSelectedProviders] = useState([]);
     const [watchProviders, setWatchProviders] = useState([]);
+    const [contentType, setContentType] = useState('all'); // 'all', 'trending', 'upcoming'
     const keywordSearchRef = useRef(null);
     
     // Mobile: all sections start closed, Desktop: all sections start open
@@ -32,7 +33,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [isKeywordsOpen, setIsKeywordsOpen] = useState(false);
     const [shouldAutoFocusKeywords, setShouldAutoFocusKeywords] = useState(false);
     const [basicFiltersExpanded, setBasicFiltersExpanded] = useState(false); // Mobile: closed
-    const [contentTypeExpanded, setContentTypeExpanded] = useState(false); // Mobile: closed
+    const [genreExpanded, setGenreExpanded] = useState(false); // Mobile: closed
     const [mediaInfoExpanded, setMediaInfoExpanded] = useState(false); // Mobile: closed
     const [dateFiltersExpanded, setDateFiltersExpanded] = useState(false); // Mobile: closed
     const [watchProvidersExpanded, setWatchProvidersExpanded] = useState(false); // Mobile: closed
@@ -152,6 +153,15 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
         } else {
             setSelectedProviders([]);
         }
+        
+        // Sync content type (trending/upcoming)
+        if (filters.trending === true) {
+            setContentType('trending');
+        } else if (filters.upcoming === true) {
+            setContentType('upcoming');
+        } else {
+            setContentType('all');
+        }
     }, [JSON.stringify(filters)]);
     
     // Fetch watch providers on mount
@@ -234,6 +244,15 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
         // Watch providers
         if (providers.length > 0) {
             filterObj.watchProviders = providers.length === 1 ? providers[0].toString() : providers.map(p => p.toString());
+        }
+        
+        // Content type (trending/upcoming)
+        const contentTypeValue = updates.contentType !== undefined ? updates.contentType : contentType;
+        if (contentTypeValue === 'trending') {
+            filterObj.trending = true;
+        } else if (contentTypeValue === 'upcoming') {
+            filterObj.upcoming = true;
+            filterObj.dateRange = 'upcoming';
         }
         
         return filterObj;
@@ -343,10 +362,16 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
         setSelectedProviders(newProviders);
         onFilterChange(buildFilterObject({ providers: newProviders }));
     };
+    
+    const handleContentTypeChange = (type) => {
+        setContentType(type);
+        onFilterChange(buildFilterObject({ contentType: type }));
+    };
 
     const clearFilters = () => {
         setSelectedGenres([]);
         setSelectedYears([]);
+        setContentType('all');
         setRatingFilter('');
         setDateRangeFilter('');
         setDaysPastFilter('');
@@ -390,13 +415,12 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
         const checkScreenSize = () => {
             if (window.innerWidth >= 640) { // sm breakpoint
                 setBasicFiltersExpanded(true);
-                setContentTypeExpanded(true);
                 setMediaInfoExpanded(true);
                 setDateFiltersExpanded(true);
                 setWatchProvidersExpanded(true);
             } else {
                 setBasicFiltersExpanded(false);
-                setContentTypeExpanded(false);
+                setGenreExpanded(false);
                 setMediaInfoExpanded(false);
                 setDateFiltersExpanded(false);
                 setWatchProvidersExpanded(false);
@@ -463,6 +487,22 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     // Set auto-focus flag for mobile - this triggers focus on mount
                                     if (willOpen) {
                                         setShouldAutoFocusKeywords(true);
+                                        // Focus synchronously within user gesture context for mobile
+                                        // Use setTimeout(0) to let React render first, but stay in gesture context
+                                        setTimeout(() => {
+                                            if (keywordSearchRef.current) {
+                                                const input = keywordSearchRef.current.querySelector('input');
+                                                if (input) {
+                                                    input.focus();
+                                                    // Ensure keyboard appears on mobile
+                                                    input.setSelectionRange(0, 0);
+                                                    // Fallback: programmatic click (legitimate DOM method)
+                                                    if (document.activeElement !== input) {
+                                                        input.click();
+                                                    }
+                                                }
+                                            }
+                                        }, 0);
                                     } else {
                                         setShouldAutoFocusKeywords(false);
                                     }
@@ -535,8 +575,8 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                 {genres.length > 0 && (
                                     <CollapsibleSection
                                         title="Genres"
-                                        expanded={contentTypeExpanded}
-                                        onToggle={() => setContentTypeExpanded(!contentTypeExpanded)}
+                                        expanded={genreExpanded}
+                                        onToggle={() => setGenreExpanded(!genreExpanded)}
                                         mobileOnly
                                     >
                                         <div className="max-h-32 overflow-y-auto futuristic-card p-2 bg-charcoal-900/40 border border-charcoal-700/20 rounded-lg">
