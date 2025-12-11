@@ -3,12 +3,27 @@ import { fetchTMDB } from '../utils';
 
 /**
  * Check if an episode is released (server-side validation)
+ * If episode has no air_date, falls back to season air_date
+ * If neither has a date, allows marking (assumes released since it exists in TMDB)
  */
-function isEpisodeReleased(episode) {
-    if (!episode || !episode.air_date) return false;
+function isEpisodeReleased(episode, seasonData = null) {
+    if (!episode) return false;
+    
+    // Try episode air_date first
+    let airDate = episode.air_date;
+    
+    // If episode has no air_date, try season air_date as fallback
+    if (!airDate && seasonData && seasonData.air_date) {
+        airDate = seasonData.air_date;
+    }
+    
+    // If still no date, allow marking (assume released since it exists in TMDB)
+    if (!airDate) {
+        return true;
+    }
     
     try {
-        const releaseDate = new Date(episode.air_date);
+        const releaseDate = new Date(airDate);
         releaseDate.setHours(0, 0, 0, 0);
         
         const today = new Date();
@@ -16,7 +31,8 @@ function isEpisodeReleased(episode) {
         
         return releaseDate <= today;
     } catch (error) {
-        return false;
+        // If date parsing fails, allow marking (assume released)
+        return true;
     }
 }
 
@@ -203,9 +219,10 @@ export async function POST(req) {
                             });
                             
                             // Post-filter: Filter only released episodes after fetching
+                            // Pass seasonData for fallback date checking
                             const allEpisodes = seasonData?.episodes || [];
-                            const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep));
-                            const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep));
+                            const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep, seasonData));
+                            const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep, seasonData));
                             
                             // Track skipped episodes
                             unreleasedEpisodes.forEach(ep => {
@@ -427,46 +444,73 @@ export async function DELETE(req) {
         // If it's a series, also clear series progress
         if (mediaType === 'tv') {
             try {
-                // Get series progress
+                // Get series progress (don't use .single() to avoid error if not found)
                 // Uses index: idx_series_progress_user_series (composite index)
-                const { data: seriesProgress } = await supabase
+                const { data: seriesProgressData, error: progressError } = await supabase
                     .from('series_progress')
                     .select('id')
                     .eq('user_id', user.id)
                     .eq('series_id', parseInt(itemId))
-                    .single();
+                    .maybeSingle();
+
+                // Handle case where progress might not exist
+                if (progressError && progressError.code !== 'PGRST116') {
+                    throw progressError;
+                }
+
+                const seriesProgress = seriesProgressData;
 
                 if (seriesProgress) {
                     // Get all seasons for this series progress
-                    const { data: seasons } = await supabase
+                    const { data: seasons, error: seasonsError } = await supabase
                         .from('series_seasons')
                         .select('id')
                         .eq('series_progress_id', seriesProgress.id);
 
+                    if (seasonsError) {
+                        console.error('Error fetching seasons for deletion:', seasonsError);
+                    }
+
                     if (seasons && seasons.length > 0) {
-                        // Delete all episodes for all seasons
                         const seasonIds = seasons.map(s => s.id);
-                        await supabase
+                        
+                        // Delete ALL episodes for all seasons (regardless of airdate)
+                        // This ensures episodes without airdate are also deleted
+                        const { error: episodesError } = await supabase
                             .from('series_episodes')
                             .delete()
                             .in('series_season_id', seasonIds);
 
+                        if (episodesError) {
+                            console.error('Error deleting episodes:', episodesError);
+                            // Continue with season deletion even if episode deletion fails
+                        }
+
                         // Delete all seasons
-                        await supabase
+                        const { error: seasonsDeleteError } = await supabase
                             .from('series_seasons')
                             .delete()
                             .eq('series_progress_id', seriesProgress.id);
+
+                        if (seasonsDeleteError) {
+                            console.error('Error deleting seasons:', seasonsDeleteError);
+                        }
                     }
 
                     // Delete series progress
-                    await supabase
+                    const { error: progressDeleteError } = await supabase
                         .from('series_progress')
                         .delete()
                         .eq('id', seriesProgress.id);
+
+                    if (progressDeleteError) {
+                        console.error('Error deleting series progress:', progressDeleteError);
+                    }
                 }
             } catch (error) {
                 console.error('Error clearing series progress:', error);
                 // Don't fail the watched deletion if series progress clear fails
+                // The watched_content deletion already succeeded
             }
         }
 

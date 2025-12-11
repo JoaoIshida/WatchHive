@@ -3,12 +3,27 @@ import { fetchTMDB } from '../../../utils';
 
 /**
  * Check if an episode is released (server-side validation)
+ * If episode has no air_date, falls back to season air_date
+ * If neither has a date, allows marking (assumes released since it exists in TMDB)
  */
-function isEpisodeReleased(episode) {
-    if (!episode || !episode.air_date) return false;
+function isEpisodeReleased(episode, seasonData = null) {
+    if (!episode) return false;
+    
+    // Try episode air_date first
+    let airDate = episode.air_date;
+    
+    // If episode has no air_date, try season air_date as fallback
+    if (!airDate && seasonData && seasonData.air_date) {
+        airDate = seasonData.air_date;
+    }
+    
+    // If still no date, allow marking (assume released since it exists in TMDB)
+    if (!airDate) {
+        return true;
+    }
     
     try {
-        const releaseDate = new Date(episode.air_date);
+        const releaseDate = new Date(airDate);
         releaseDate.setHours(0, 0, 0, 0);
         
         const today = new Date();
@@ -16,7 +31,8 @@ function isEpisodeReleased(episode) {
         
         return releaseDate <= today;
     } catch (error) {
-        return false;
+        // If date parsing fails, allow marking (assume released)
+        return true;
     }
 }
 
@@ -165,8 +181,8 @@ export async function POST(req, { params }) {
                         language: 'en-CA',
                     });
                     
-                    // Filter only released episodes
-                    const releasedEpisodes = (seasonData?.episodes || []).filter(ep => isEpisodeReleased(ep));
+                    // Filter only released episodes, passing seasonData for fallback date checking
+                    const releasedEpisodes = (seasonData?.episodes || []).filter(ep => isEpisodeReleased(ep, seasonData));
                     
                     if (releasedEpisodes.length === 0) {
                         continue; // Skip seasons with no released episodes

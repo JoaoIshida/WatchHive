@@ -110,6 +110,60 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     setIsWatched(previousState.isWatched);
                     setTimesWatched(previousState.timesWatched);
                     setError('Failed to remove from watched. Please try again.');
+                } else {
+                    // Successfully unwatched - refresh the watched status to ensure UI is in sync
+                    // This is especially important for series to ensure series progress is cleared
+                    if (mediaType === 'tv') {
+                        // Check both watched_content and series_progress to ensure everything is cleared
+                        try {
+                            const [watchedResponse, progressResponse] = await Promise.all([
+                                fetch(`/api/watched`),
+                                fetch(`/api/series-progress/${itemId}`)
+                            ]);
+
+                            if (watchedResponse.ok) {
+                                const { watched } = await watchedResponse.json();
+                                const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                                
+                                // Also check if series is marked as complete in progress
+                                let isComplete = false;
+                                if (progressResponse.ok) {
+                                    const progress = await progressResponse.json();
+                                    isComplete = progress.completed || false;
+                                }
+
+                                // Update state based on actual server state
+                                if (item || isComplete) {
+                                    setIsWatched(true);
+                                    setTimesWatched(item?.times_watched || 1);
+                                } else {
+                                    setIsWatched(false);
+                                    setTimesWatched(0);
+                                }
+                            }
+                        } catch (refreshError) {
+                            console.error('Error refreshing watched status after unwatch:', refreshError);
+                            // State is already set to unwatched, so this is just a refresh failure
+                        }
+                    } else {
+                        // For movies, just verify the watched status
+                        try {
+                            const watchedResponse = await fetch(`/api/watched`);
+                            if (watchedResponse.ok) {
+                                const { watched } = await watchedResponse.json();
+                                const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+                                if (item) {
+                                    setIsWatched(true);
+                                    setTimesWatched(item.times_watched || 1);
+                                } else {
+                                    setIsWatched(false);
+                                    setTimesWatched(0);
+                                }
+                            }
+                        } catch (refreshError) {
+                            console.error('Error refreshing watched status after unwatch:', refreshError);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error removing watched status:', error);

@@ -3,12 +3,27 @@ import { fetchTMDB } from '../../../utils';
 
 /**
  * Check if an episode is released (server-side validation)
+ * If episode has no air_date, falls back to season air_date
+ * If neither has a date, allows marking (assumes released since it exists in TMDB)
  */
-function isEpisodeReleased(episode) {
-    if (!episode || !episode.air_date) return false;
+function isEpisodeReleased(episode, seasonData = null) {
+    if (!episode) return false;
+    
+    // Try episode air_date first
+    let airDate = episode.air_date;
+    
+    // If episode has no air_date, try season air_date as fallback
+    if (!airDate && seasonData && seasonData.air_date) {
+        airDate = seasonData.air_date;
+    }
+    
+    // If still no date, allow marking (assume released since it exists in TMDB)
+    if (!airDate) {
+        return true;
+    }
     
     try {
-        const releaseDate = new Date(episode.air_date);
+        const releaseDate = new Date(airDate);
         releaseDate.setHours(0, 0, 0, 0);
         
         const today = new Date();
@@ -16,7 +31,8 @@ function isEpisodeReleased(episode) {
         
         return releaseDate <= today;
     } catch (error) {
-        return false;
+        // If date parsing fails, allow marking (assume released)
+        return true;
     }
 }
 
@@ -45,7 +61,7 @@ export async function POST(req, { params }) {
             });
         }
 
-        // If marking as watched, verify the episode is released (server-side validation)
+        // If marking as watched, verify the episode exists and is released
         if (watched) {
             try {
                 const seasonData = await fetchTMDB(`/tv/${seriesId}/season/${seasonNumber}`, {
@@ -54,36 +70,56 @@ export async function POST(req, { params }) {
                 
                 const episode = seasonData?.episodes?.find(ep => ep.episode_number === episodeNumber);
                 
+                // If episode doesn't exist in TMDB, it might not be released yet or doesn't have info
                 if (!episode) {
-                    return new Response(JSON.stringify({ error: 'Episode not found' }), {
+                    return new Response(JSON.stringify({ 
+                        error: 'Episode not found in database',
+                        message: `Episode ${episodeNumber} of Season ${seasonNumber} is not available in TMDB yet. It may not have been released or may not have complete information.`,
+                        episode: {
+                            seasonNumber,
+                            episodeNumber
+                        }
+                    }), {
                         status: 404,
                         headers: { 'Content-Type': 'application/json' },
                     });
                 }
                 
-                if (!isEpisodeReleased(episode)) {
-                    return new Response(JSON.stringify({ 
-                        error: 'Cannot mark unreleased episode as watched',
-                        episode: {
-                            name: episode.name,
-                            air_date: episode.air_date
-                        }
-                    }), {
-                        status: 400,
-                        headers: { 'Content-Type': 'application/json' },
-                    });
+                // Check if episode is released, using season data as fallback for missing dates
+                // Episodes without dates are allowed (assumed released since they exist in TMDB)
+                if (!isEpisodeReleased(episode, seasonData)) {
+                    // Only block if we have a date and it's in the future
+                    const hasDate = episode.air_date || (seasonData && seasonData.air_date);
+                    if (hasDate) {
+                        return new Response(JSON.stringify({ 
+                            error: 'Cannot mark unreleased episode as watched',
+                            episode: {
+                                name: episode.name || `Episode ${episodeNumber}`,
+                                air_date: episode.air_date || (seasonData ? seasonData.air_date : null)
+                            }
+                        }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                    }
+                    // If no date at all, allow marking (assume released)
                 }
             } catch (error) {
                 console.error('Error validating episode release date:', error);
-                // Fail closed: if we can't verify the release date, reject the request
-                // This prevents unreleased episodes from being saved to the database
-                return new Response(JSON.stringify({ 
-                    error: 'Unable to verify episode release date. Please try again.',
-                    details: error.message
-                }), {
-                    status: 500,
-                    headers: { 'Content-Type': 'application/json' },
-                });
+                // If it's a 404 (not found), provide a helpful message
+                if (error.message && error.message.includes('404')) {
+                    return new Response(JSON.stringify({ 
+                        error: 'Episode not found',
+                        message: `Season ${seasonNumber} or episode ${episodeNumber} is not available in TMDB. It may not have been released yet or may not have complete information.`,
+                        details: error.message
+                    }), {
+                        status: 404,
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                }
+                // For other errors, allow marking (assume released) - this handles cases where
+                // episodes exist but have incomplete data
+                console.warn('Allowing episode marking despite validation error:', error.message);
             }
         }
 

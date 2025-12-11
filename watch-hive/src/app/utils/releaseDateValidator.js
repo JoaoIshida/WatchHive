@@ -43,9 +43,25 @@ export function isSeasonReleased(season) {
 
 /**
  * Check if an episode is released
+ * If episode has no air_date, falls back to season air_date
+ * If neither has a date, assumes released (allows marking)
  */
-export function isEpisodeReleased(episode) {
+export function isEpisodeReleased(episode, seasonData = null) {
     if (!episode) return false;
-    return !isUnreleased(episode.air_date);
+    
+    // Try episode air_date first
+    let airDate = episode.air_date;
+    
+    // If episode has no air_date, try season air_date as fallback
+    if (!airDate && seasonData && seasonData.air_date) {
+        airDate = seasonData.air_date;
+    }
+    
+    // If still no date, allow marking (assume released)
+    if (!airDate) {
+        return true;
+    }
+    
+    return !isUnreleased(airDate);
 }
 

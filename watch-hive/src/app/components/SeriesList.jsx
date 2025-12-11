@@ -78,6 +78,13 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
                     if (filters.includeUpcoming !== undefined) {
                         queryParams.set('includeUpcoming', filters.includeUpcoming.toString());
                     }
+                    // Season filters - send to API for server-side filtering
+                    if (filters.seasonsMin) {
+                        queryParams.set('seasonsMin', filters.seasonsMin);
+                    }
+                    if (filters.seasonsMax) {
+                        queryParams.set('seasonsMax', filters.seasonsMax);
+                    }
                     
                     // Add sorting (not supported by airing today endpoint)
                     const sortByValue = sortConfig.sortBy === 'popularity' ? 'popularity' :
@@ -103,28 +110,12 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
         };
 
         fetchPopularSeries();
-    }, [page, filters.genres, filters.year, filters.minRating, filters.maxRating, filters.certification, filters.dateRange, filters.daysPast, filters.includeUpcoming, filters.watchProviders, filters.keywords, filters.airingToday, sortConfig]);
+    }, [page, filters.genres, filters.year, filters.minRating, filters.maxRating, filters.certification, filters.dateRange, filters.daysPast, filters.includeUpcoming, filters.watchProviders, filters.keywords, filters.airingToday, filters.seasonsMin, filters.seasonsMax, sortConfig]);
 
-    // Client-side filtering for seasons
+    // Use data directly from API (season filtering is now done server-side)
     useEffect(() => {
-        let filtered = [...allSeries];
-
-        // Filter by seasons - only apply if at least one value is set and not at default
-        const hasSeasonsFilter = (filters.seasonsMin && parseInt(filters.seasonsMin, 10) > 1) || 
-                                 (filters.seasonsMax && parseInt(filters.seasonsMax, 10) < 20);
-        
-        if (hasSeasonsFilter) {
-            const minSeasons = filters.seasonsMin ? parseInt(filters.seasonsMin, 10) : 1;
-            const maxSeasons = filters.seasonsMax ? parseInt(filters.seasonsMax, 10) : 20;
-            filtered = filtered.filter(serie => {
-                const seasons = serie.number_of_seasons || 0;
-                // Ensure seasons is within the range (inclusive)
-                return seasons >= minSeasons && seasons <= maxSeasons;
-            });
-        }
-
-        setSeries(filtered);
-    }, [allSeries, filters.seasonsMin, filters.seasonsMax]);
+        setSeries(allSeries);
+    }, [allSeries]);
 
     if (loading) {
         return (

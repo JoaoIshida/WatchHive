@@ -7,6 +7,7 @@ import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import WatchProvidersSection from '../../components/WatchProvidersSection';
 import ContentRatingBadge from '../../components/ContentRatingBadge';
+import HashScrollHandler from '../../components/HashScrollHandler';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
@@ -127,6 +128,7 @@ const SerieDetailPage = async ({ params }) => {
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
+            <HashScrollHandler />
             {/* Top Section: Image and Overview */}
             <div className="mb-8">
                 <div className="mb-4">
@@ -258,7 +260,7 @@ const SerieDetailPage = async ({ params }) => {
 
             {/* Seasons & Episodes Section */}
             {tv.seasons && tv.seasons.length > 0 && (
-                <div className="mt-12 border-t border-futuristic-blue-500/30 pt-8">
+                <div id="seasons-episodes" className="mt-12 border-t border-futuristic-blue-500/30 pt-8 scroll-mt-20">
                     <SeriesSeasons seriesId={tv.id} seasons={tv.seasons} seriesName={tv.name} />
                 </div>
             )}

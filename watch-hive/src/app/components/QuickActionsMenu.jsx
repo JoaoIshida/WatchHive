@@ -1,13 +1,16 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
+import { getSeriesWatchProgress } from '../utils/watchProgressHelper';
 import UnreleasedNotification from './UnreleasedNotification';
 
 export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
     const { user } = useAuth();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isWatched, setIsWatched] = useState(false);
     const [isInWishlist, setIsInWishlist] = useState(false);
@@ -19,6 +22,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [seriesSummary, setSeriesSummary] = useState(null);
     const [mounted, setMounted] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const [missingEpisodes, setMissingEpisodes] = useState(0);
     const buttonRef = useRef(null);
     const menuRef = useRef(null);
 
@@ -54,13 +58,34 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                         
                         // Also check if series is marked as complete in progress
                         let isComplete = false;
+                        let progress = null;
                         if (progressRes.ok) {
-                            const progress = await progressRes.json();
+                            progress = await progressRes.json();
                             isComplete = progress.completed || false;
                         }
                         
                         // Series is watched if it's in watched_content OR marked as complete in progress
                         setIsWatched(!!watchedItem || isComplete);
+                        
+                        // Calculate missing episodes
+                        if (itemData && progress) {
+                            try {
+                                // Fetch full series details if needed
+                                let seriesData = itemData;
+                                if (!seriesData.seasons || seriesData.seasons.length === 0) {
+                                    const seriesRes = await fetch(`/api/tv/${itemId}`);
+                                    if (seriesRes.ok) {
+                                        seriesData = await seriesRes.json();
+                                    }
+                                }
+                                
+                                const watchProgress = getSeriesWatchProgress(itemId, seriesData, progress, !!watchedItem);
+                                const missing = Math.max(0, watchProgress.totalEpisodes - watchProgress.watchedEpisodes);
+                                setMissingEpisodes(missing);
+                            } catch (error) {
+                                console.error('Error calculating missing episodes:', error);
+                            }
+                        }
                     }
                 } else {
                     [watchedRes, wishlistRes, listsRes] = await Promise.all([
@@ -357,6 +382,11 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
     };
 
+    const handleGoToUnwatchedEpisodes = () => {
+        setIsOpen(false);
+        router.push(`/series/${itemId}#seasons-episodes`);
+    };
+
     const LoadingSpinner = () => (
         <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -448,6 +478,19 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     </>
                 )}
             </button>
+            {mediaType === 'tv' && missingEpisodes > 0 && (
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleGoToUnwatchedEpisodes();
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2"
+                >
+                    <span>📺</span>
+                    <span>{missingEpisodes} missing episode{missingEpisodes !== 1 ? 's' : ''}</span>
+                </button>
+            )}
         </div>
     );
 

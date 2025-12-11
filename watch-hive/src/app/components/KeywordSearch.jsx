@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 
-const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange }, ref) => {
+const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, autoFocusOnMount = false }, ref) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -17,6 +17,16 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange }, r
             inputRef.current?.focus();
         }
     }));
+
+    // Auto-focus on mount for mobile devices (when triggered by user tap)
+    useEffect(() => {
+        if (autoFocusOnMount && inputRef.current) {
+            // Use requestAnimationFrame to ensure DOM is ready, while staying within user gesture context
+            requestAnimationFrame(() => {
+                inputRef.current?.focus();
+            });
+        }
+    }, [autoFocusOnMount]);
 
     // Search for keywords
     const searchKeywords = useCallback(async (query) => {
@@ -143,6 +153,8 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange }, r
                     <input
                         ref={inputRef}
                         type="text"
+                        inputMode="search"
+                        enterKeyHint="search"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={handleInputFocus}
