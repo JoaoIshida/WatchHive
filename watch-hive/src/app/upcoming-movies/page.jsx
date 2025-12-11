@@ -43,7 +43,7 @@ const UpcomingMoviesContent = () => {
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Upcoming Movies</h1>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Upcoming Movies</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <LoadingCard count={12} />
                 </div>
@@ -86,7 +86,7 @@ const UpcomingMoviesContent = () => {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Upcoming Movies</h1>
+            <h1 className="text-4xl font-bold mb-6 text-amber-500">Upcoming Movies</h1>
             
             <div className="flex items-center justify-center my-6 gap-2">
                 <button
@@ -96,7 +96,7 @@ const UpcomingMoviesContent = () => {
                 >
                     Prev
                 </button>
-                <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
+                <span className="bg-charcoal-800/80 border border-amber-500/50 text-amber-500 font-bold p-2 px-4 rounded-lg">{page}</span>
                 <button
                     onClick={() => setPage((prevPage) => prevPage + 1)}
                     className="futuristic-button"
@@ -116,7 +116,7 @@ const UpcomingMoviesContent = () => {
                         
                         return (
                             <div key={weekKey}>
-                                <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                                <h2 className="text-2xl font-bold mb-4 text-amber-500">
                                     Week of {week.weekStart.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })} - {weekEnd.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}
                                 </h2>
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -142,7 +142,7 @@ const UpcomingMoviesPage = () => {
     return (
         <Suspense fallback={
             <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Upcoming Movies</h1>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Upcoming Movies</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <LoadingCard count={12} />
                 </div>

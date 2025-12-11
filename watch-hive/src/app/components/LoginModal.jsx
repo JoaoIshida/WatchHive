@@ -150,7 +150,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                     onClick={(e) => e.stopPropagation()}
                 >
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-3xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                    <h2 className="text-3xl font-bold text-amber-500 futuristic-text-glow-orange">
                         {isSignUp ? 'Sign Up' : 'Sign In'}
                     </h2>
                     <button
@@ -181,7 +181,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full px-4 py-2 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                            className="w-full px-4 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                             placeholder="your@email.com"
                         />
                     </div>
@@ -198,7 +198,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 minLength={isSignUp ? 6 : undefined}
-                                className="w-full px-4 py-2 pr-12 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                                className="w-full px-4 py-2 pr-12 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                                 placeholder={isSignUp ? "At least 6 characters" : "Enter your password"}
                             />
                             <button
@@ -231,7 +231,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                                 type="text"
                                 value={displayName}
                                 onChange={(e) => setDisplayName(e.target.value)}
-                                className="w-full px-4 py-2 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                                className="w-full px-4 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                                 placeholder="Your display name"
                             />
                         </div>
@@ -252,9 +252,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                         className="text-white/70 hover:text-white transition-colors text-sm"
                     >
                         {isSignUp ? (
-                            <>Already have an account? <span className="text-futuristic-yellow-400">Sign in</span></>
+                            <>Already have an account? <span className="text-amber-500">Sign in</span></>
                         ) : (
-                            <>Don't have an account? <span className="text-futuristic-yellow-400">Sign up</span></>
+                            <>Don't have an account? <span className="text-amber-500">Sign up</span></>
                         )}
                     </button>
                 </div>

@@ -397,7 +397,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const menuContent = isOpen && mounted && (
         <div 
             ref={menuRef}
-            className="fixed bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow py-2 min-w-[180px]"
+            className="fixed bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle py-2 min-w-[180px]"
             style={{ 
                 zIndex: 99998,
                 top: menuPosition.top,
@@ -412,7 +412,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     handleToggleWatched();
                 }}
                 disabled={loading}
-                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
             >
                 {loadingAction === 'watched' ? (
                     <>
@@ -438,7 +438,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     handleToggleWishlist();
                 }}
                 disabled={loading}
-                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
             >
                 {loadingAction === 'wishlist' ? (
                     <>
@@ -464,7 +464,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     handleAddToList();
                 }}
                 disabled={loading}
-                className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
             >
                 {loadingAction === 'list' ? (
                     <>
@@ -485,7 +485,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                         e.stopPropagation();
                         handleGoToUnwatchedEpisodes();
                     }}
-                    className="w-full text-left px-4 py-2 hover:bg-futuristic-blue-800 text-white text-sm flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2"
                 >
                     <span>📺</span>
                     <span>{missingEpisodes} missing episode{missingEpisodes !== 1 ? 's' : ''}</span>
@@ -503,11 +503,11 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     e.stopPropagation();
                     setIsOpen(!isOpen);
                 }}
-                className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center bg-futuristic-blue-950/90 backdrop-blur-sm rounded-full border border-futuristic-yellow-500/50 hover:bg-futuristic-blue-900 hover:border-futuristic-yellow-400 transition-all"
+                className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center bg-charcoal-950/90 backdrop-blur-sm rounded-full border border-amber-500/50 hover:bg-charcoal-900 hover:border-amber-400 transition-all"
                 aria-label="Quick actions"
             >
                 <svg 
-                    className="w-4 h-4 text-futuristic-yellow-400" 
+                    className="w-4 h-4 text-amber-400" 
                     fill="currentColor" 
                     viewBox="0 0 20 20"
                 >

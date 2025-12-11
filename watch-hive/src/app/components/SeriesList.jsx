@@ -141,7 +141,7 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
                 >
                     Prev
                 </button>
-                <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
+                <span className="bg-charcoal-800/80 border border-amber-500/50 text-amber-500 font-bold p-2 px-4 rounded-lg">{page}</span>
                 <button
                     onClick={() => onPageChange(page + 1)}
                     className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
@@ -172,7 +172,7 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
                 >
                     Prev
                 </button>
-                <span className="bg-futuristic-blue-800/80 border border-futuristic-yellow-500/50 text-futuristic-yellow-400 font-bold p-2 px-4 rounded-lg">{page}</span>
+                <span className="bg-charcoal-800/80 border border-amber-500/50 text-amber-500 font-bold p-2 px-4 rounded-lg">{page}</span>
                 <button
                     onClick={() => onPageChange(page + 1)}
                     className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"

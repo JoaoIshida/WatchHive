@@ -56,19 +56,19 @@ const WatchProvidersSection = ({ flatrate, rent, buy, title, mediaType = 'movie'
         <div className="futuristic-card p-4 space-y-4">
             {inTheaters && mediaType === 'movie' && (
                 <div className="mb-4">
-                    <p className="text-sm font-semibold text-futuristic-yellow-400/90 mb-3">In Theaters</p>
+                    <p className="text-sm font-semibold text-amber-400/90 mb-3">In Theaters</p>
                     <div className="flex flex-wrap gap-2">
                         <a
                             href={`https://www.google.com/search?q=${encodeURIComponent(`${title} showtimes theaters`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group relative flex items-center justify-center bg-futuristic-blue-800/60 hover:bg-futuristic-blue-700/80 border border-futuristic-yellow-500/30 hover:border-futuristic-yellow-400/60 rounded-lg px-4 py-2 transition-all hover:scale-105 hover:shadow-glow-yellow"
+                            className="group relative flex items-center justify-center bg-charcoal-800/60 hover:bg-charcoal-700/80 border border-amber-500/30 hover:border-amber-400/60 rounded-lg px-4 py-2 transition-all hover:scale-105 hover:shadow-subtle"
                             title="Find showtimes near you"
                         >
-                            <svg className="w-6 h-6 text-futuristic-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-amber-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
-                            <span className="text-sm text-futuristic-yellow-400 font-medium">Find Showtimes</span>
+                            <span className="text-sm text-amber-400 font-medium">Find Showtimes</span>
                         </a>
                     </div>
                 </div>

@@ -10,7 +10,7 @@ const NewReleaseBadge = ({ releaseDate, className = "" }) => {
     // Show badge if released within last 7 days
     if (daysDiff >= 0 && daysDiff <= 7) {
         return (
-            <div className={`absolute top-1 left-1 bg-futuristic-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-glow-yellow z-10 ${className}`}>
+            <div className={`absolute top-1 left-1 bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-subtle z-10 ${className}`}>
                 NEW
             </div>
         );

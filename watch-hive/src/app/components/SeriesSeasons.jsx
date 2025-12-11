@@ -521,7 +521,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     return (
         <div className="futuristic-card p-6">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                <h2 className="text-2xl font-bold text-amber-500">
                     Seasons & Episodes
                 </h2>
                 <div className="flex items-center gap-4">
@@ -531,7 +531,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     <button
                         onClick={toggleSeriesCompleted}
                         disabled={loadingSeriesComplete}
-                        className={`futuristic-button flex items-center gap-2 ${isSeriesCompleted ? 'bg-futuristic-yellow-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        className={`futuristic-button flex items-center gap-2 ${isSeriesCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
                         {loadingSeriesComplete ? (
                             <>
@@ -571,7 +571,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                             {season.name || `Season ${season.season_number}`}
                                         </h3>
                                         {seasonData.air_date && (
-                                            <p className="text-sm text-futuristic-yellow-400/80">
+                                            <p className="text-sm text-amber-500/80">
                                                 {formatDate(seasonData.air_date)}
                                             </p>
                                         )}
@@ -582,9 +582,9 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         )}
                                         <div className="mt-2">
                                             <div className="flex items-center gap-2">
-                                                <div className="flex-1 bg-futuristic-blue-800 rounded-full h-2">
+                                                <div className="flex-1 bg-charcoal-800 rounded-full h-2">
                                                     <div 
-                                                        className="bg-futuristic-yellow-500 h-2 rounded-full transition-all"
+                                                        className="bg-amber-500 h-2 rounded-full transition-all"
                                                         style={{ 
                                                             width: `${seasonProgress.total > 0 ? (seasonProgress.watched / seasonProgress.total) * 100 : 0}%` 
                                                         }}
@@ -604,7 +604,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                             toggleSeasonCompleted(season.season_number);
                                         }}
                                         disabled={loadingSeasons[season.season_number]}
-                                        className={`futuristic-button text-sm flex items-center gap-2 ${isSeasonCompleted ? 'bg-futuristic-yellow-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                        className={`futuristic-button text-sm flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                     >
                                         {loadingSeasons[season.season_number] ? (
                                             <>
@@ -618,7 +618,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         )}
                                     </button>
                                     <svg
-                                        className={`w-6 h-6 text-futuristic-yellow-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                        className={`w-6 h-6 text-amber-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
@@ -645,11 +645,11 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                             <div
                                                 key={episode.id}
                                                 className={`futuristic-card p-3 flex items-center gap-4 transition-colors ${
-                                                    isWatched ? 'border-l-4 border-futuristic-yellow-500' : ''
+                                                    isWatched ? 'border-l-4 border-amber-500' : ''
                                                 }`}
                                             >
                                                 <div className="flex-shrink-0 w-12 text-center">
-                                                    <span className="text-futuristic-yellow-400 font-bold">
+                                                    <span className="text-amber-500 font-bold">
                                                         E{episode.episode_number}
                                                     </span>
                                                 </div>
@@ -664,11 +664,11 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                             </span>
                                                         )}
                                                         {isWatched && !isEpisodeLoading && episodeIsReleased && (
-                                                            <span className="text-futuristic-yellow-500">✓</span>
+                                                            <span className="text-amber-500">✓</span>
                                                         )}
                                                     </div>
                                                     {episode.air_date && (
-                                                        <p className="text-xs text-futuristic-yellow-400/80">
+                                                        <p className="text-xs text-amber-500/80">
                                                             {formatDate(episode.air_date)}
                                                         </p>
                                                     )}
@@ -679,7 +679,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                     )}
                                                 </div>
                                                 {episode.vote_average && episode.vote_average > 0 ? (
-                                                    <div className="text-xs text-futuristic-yellow-400 mr-2">
+                                                    <div className="text-xs text-amber-500 mr-2">
                                                         ⭐ {episode.vote_average.toFixed(1)}
                                                     </div>
                                                 ) : (
@@ -693,10 +693,10 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                     disabled={isEpisodeLoading || !episodeIsReleased}
                                                     className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
                                                         isEpisodeLoading || !episodeIsReleased
-                                                            ? 'bg-futuristic-blue-700 text-white/70 cursor-not-allowed opacity-50' 
+                                                            ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
                                                             : isWatched 
-                                                                ? 'bg-futuristic-yellow-500 text-black hover:bg-futuristic-yellow-400' 
-                                                                : 'bg-futuristic-blue-700 text-white hover:bg-futuristic-blue-600 border border-futuristic-blue-500/50'
+                                                                ? 'bg-amber-500 text-black hover:bg-amber-500' 
+                                                                : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
                                                     }`}
                                                     title={!episodeIsReleased ? 'Episode not yet released' : ''}
                                                 >

@@ -74,7 +74,7 @@ export default function WishlistButton({ itemId, mediaType, onUpdate }) {
                 disabled={loading}
                 className={`futuristic-button flex items-center gap-2 ${
                     isInWishlist 
-                        ? 'bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black' 
+                        ? 'bg-amber-500 hover:bg-amber-400 text-black' 
                         : ''
                 }`}
             >

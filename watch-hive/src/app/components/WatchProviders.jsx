@@ -20,11 +20,11 @@ const WatchProviders = ({ providers, type = 'flatrate' }) => {
     return (
         <div className="mb-4">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-futuristic-yellow-400/90">{typeLabel}</p>
+                <p className="text-sm font-semibold text-amber-400/90">{typeLabel}</p>
                 {hasMore && (
                     <button
                         onClick={() => setShowAll(!showAll)}
-                        className="text-xs text-futuristic-yellow-400/70 hover:text-futuristic-yellow-400 transition-colors"
+                        className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors"
                     >
                         {showAll ? 'Show Less' : `+${providers.length - maxVisible} more`}
                     </button>
@@ -34,7 +34,7 @@ const WatchProviders = ({ providers, type = 'flatrate' }) => {
                 {visibleProviders.map((provider) => (
                     <div
                         key={provider.provider_id}
-                        className="group relative flex items-center justify-center bg-futuristic-blue-800/60 hover:bg-futuristic-blue-700/80 border border-futuristic-yellow-500/30 hover:border-futuristic-yellow-400/60 rounded-lg p-2 transition-all hover:scale-105 hover:shadow-glow-yellow"
+                        className="group relative flex items-center justify-center bg-charcoal-800/60 hover:bg-charcoal-700/80 border border-amber-500/30 hover:border-amber-400/60 rounded-lg p-2 transition-all hover:scale-105 hover:shadow-subtle"
                         title={provider.provider_name}
                     >
                         {provider.logo_path ? (
@@ -45,12 +45,12 @@ const WatchProviders = ({ providers, type = 'flatrate' }) => {
                                 loading="lazy"
                             />
                         ) : (
-                            <span className="text-xs text-futuristic-yellow-400 font-medium px-2 py-1">
+                            <span className="text-xs text-amber-400 font-medium px-2 py-1">
                                 {provider.provider_name}
                             </span>
                         )}
                         {/* Tooltip on hover */}
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-futuristic-blue-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 border border-futuristic-yellow-500/50">
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-charcoal-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 border border-amber-500/50">
                             {provider.provider_name}
                         </div>
                     </div>

@@ -65,11 +65,11 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
             <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none" style={{ zIndex: 2 }}>
                 {/* Modal */}
                 <div 
-                    className="futuristic-card p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto border-2 border-futuristic-yellow-500/50 pointer-events-auto"
+                    className="futuristic-card p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto border-2 border-amber-500/50 pointer-events-auto"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-2xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2">
+                        <h3 className="text-2xl font-bold text-amber-500 flex items-center gap-2">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
@@ -86,8 +86,8 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
                     </div>
 
                     {summary && (
-                        <div className="bg-futuristic-blue-800/50 border border-futuristic-yellow-500/30 rounded-lg p-3 mb-4">
-                            <p className="text-futuristic-yellow-400 font-semibold text-sm">
+                        <div className="bg-charcoal-800/50 border border-amber-500/30 rounded-lg p-3 mb-4">
+                            <p className="text-amber-500 font-semibold text-sm">
                                 {summary.markedSeasons > 0 && `${summary.markedSeasons} season${summary.markedSeasons !== 1 ? 's' : ''} marked`}
                                 {summary.markedSeasons > 0 && summary.markedEpisodes > 0 && ' • '}
                                 {summary.markedEpisodes > 0 && `${summary.markedEpisodes} episode${summary.markedEpisodes !== 1 ? 's' : ''} marked`}
@@ -106,7 +106,7 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
                     <div className="space-y-3">
                         {movies.length > 0 && (
                             <div>
-                                <h4 className="text-futuristic-yellow-400 font-semibold mb-2">
+                                <h4 className="text-amber-500 font-semibold mb-2">
                                     Movies ({movies.length})
                                 </h4>
                                 <ul className="space-y-1">
@@ -121,7 +121,7 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
 
                         {series.length > 0 && (
                             <div>
-                                <h4 className="text-futuristic-yellow-400 font-semibold mb-2">
+                                <h4 className="text-amber-500 font-semibold mb-2">
                                     Series ({series.length})
                                 </h4>
                                 <ul className="space-y-1">
@@ -136,7 +136,7 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
 
                         {seasons.length > 0 && (
                             <div>
-                                <h4 className="text-futuristic-yellow-400 font-semibold mb-2">
+                                <h4 className="text-amber-500 font-semibold mb-2">
                                     Seasons ({seasons.length})
                                 </h4>
                                 <ul className="space-y-1">
@@ -151,7 +151,7 @@ export default function UnreleasedNotification({ isOpen, onClose, skippedItems, 
 
                         {episodes.length > 0 && (
                             <div>
-                                <h4 className="text-futuristic-yellow-400 font-semibold mb-2">
+                                <h4 className="text-amber-500 font-semibold mb-2">
                                     Episodes ({episodes.length})
                                 </h4>
                                 <ul className="space-y-1">

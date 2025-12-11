@@ -58,7 +58,7 @@ const TrailerPlayer = ({ trailerKey, title }) => {
 
     return (
             <div className="relative w-full futuristic-card overflow-hidden rounded-lg" style={{ paddingBottom: '56.25%' }}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-futuristic-blue-900/80 p-6">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-charcoal-900/80 p-6">
                     <p className="text-white text-lg font-semibold mb-4 text-center">No trailer available</p>
                     <a
                         href={youtubeSearchUrl}

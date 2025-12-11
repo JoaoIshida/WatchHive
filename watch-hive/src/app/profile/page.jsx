@@ -307,7 +307,7 @@ const ProfilePageContent = () => {
                 <h1 className="page-title">Profile</h1>
                 <div className="futuristic-card p-8 text-center">
                     <p className="text-xl text-white mb-4">Please sign in to view your profile</p>
-                    <p className="text-futuristic-yellow-400/80 mb-6">Sign in to track your watched content, wishlist, and more!</p>
+                    <p className="text-amber-500/80 mb-6">Sign in to track your watched content, wishlist, and more!</p>
                     <div className="flex items-center justify-center gap-4">
                         <button
                             onClick={() => {
@@ -358,13 +358,13 @@ const ProfilePageContent = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex flex-wrap gap-2 mb-6 border-b border-futuristic-blue-500/30">
+            <div className="flex flex-wrap gap-2 mb-6 border-b border-charcoal-700/30">
                 <button
                     onClick={() => setActiveTab('stats')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'stats'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Statistics
@@ -373,8 +373,8 @@ const ProfilePageContent = () => {
                     onClick={() => setActiveTab('watched')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'watched'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Watched ({stats.totalWatched})
@@ -383,8 +383,8 @@ const ProfilePageContent = () => {
                     onClick={() => setActiveTab('wishlist')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'wishlist'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Wishlist ({stats.totalWishlist})
@@ -393,8 +393,8 @@ const ProfilePageContent = () => {
                     onClick={() => setActiveTab('series')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'series'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Series Progress
@@ -403,8 +403,8 @@ const ProfilePageContent = () => {
                     onClick={() => setActiveTab('lists')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'lists'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Lists ({stats.totalLists})
@@ -413,8 +413,8 @@ const ProfilePageContent = () => {
                     onClick={() => setActiveTab('settings')}
                     className={`px-4 py-2 font-semibold transition-colors ${
                         activeTab === 'settings'
-                            ? 'text-futuristic-yellow-400 border-b-2 border-futuristic-yellow-400'
-                            : 'text-white hover:text-futuristic-yellow-400'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
                     }`}
                 >
                     Settings
@@ -426,41 +426,41 @@ const ProfilePageContent = () => {
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="futuristic-card p-6 text-center">
-                            <div className="text-4xl font-bold text-futuristic-yellow-400 mb-2">
+                            <div className="text-4xl font-bold text-amber-500 mb-2">
                                 {stats.totalWatched}
                             </div>
                             <div className="text-white font-semibold">Total Watched</div>
-                            <div className="text-sm text-futuristic-yellow-400/80 mt-2">
+                            <div className="text-sm text-amber-500/80 mt-2">
                                 {stats.watchedMovies} movies • {stats.watchedSeries} series
                             </div>
                         </div>
 
                         <div className="futuristic-card p-6 text-center">
-                            <div className="text-4xl font-bold text-futuristic-yellow-400 mb-2">
+                            <div className="text-4xl font-bold text-amber-500 mb-2">
                                 {stats.totalWishlist}
                             </div>
                             <div className="text-white font-semibold">In Wishlist</div>
-                            <div className="text-sm text-futuristic-yellow-400/80 mt-2">
+                            <div className="text-sm text-amber-500/80 mt-2">
                                 {stats.wishlistMovies} movies • {stats.wishlistSeries} series
                             </div>
                         </div>
 
                         <div className="futuristic-card p-6 text-center">
-                            <div className="text-4xl font-bold text-futuristic-yellow-400 mb-2">
+                            <div className="text-4xl font-bold text-amber-500 mb-2">
                                 {stats.seriesInProgress}
                             </div>
                             <div className="text-white font-semibold">Series In Progress</div>
-                            <div className="text-sm text-futuristic-yellow-400/80 mt-2">
+                            <div className="text-sm text-amber-500/80 mt-2">
                                 {stats.completedSeries} completed
                             </div>
                         </div>
 
                         <div className="futuristic-card p-6 text-center">
-                            <div className="text-4xl font-bold text-futuristic-yellow-400 mb-2">
+                            <div className="text-4xl font-bold text-amber-500 mb-2">
                                 {stats.totalEpisodesWatched}
                             </div>
                             <div className="text-white font-semibold">Episodes Watched</div>
-                            <div className="text-sm text-futuristic-yellow-400/80 mt-2">
+                            <div className="text-sm text-amber-500/80 mt-2">
                                 Across all series
                             </div>
                         </div>
@@ -468,8 +468,8 @@ const ProfilePageContent = () => {
 
                     {/* Upcoming Seasons Alert */}
                     {upcomingSeasons.length > 0 && (
-                        <div className="futuristic-card p-6 border-2 border-futuristic-yellow-500/50">
-                            <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2">
+                        <div className="futuristic-card p-6 border-2 border-amber-500/50">
+                            <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -480,17 +480,17 @@ const ProfilePageContent = () => {
                                     <a
                                         key={index}
                                         href={`/series/${upcoming.seriesId}`}
-                                        className="flex items-center justify-between p-3 bg-futuristic-blue-800/50 rounded hover:bg-futuristic-blue-700/50 transition-colors"
+                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
                                     >
                                         <div className="flex-1">
                                             <div className="text-white font-semibold">
                                                 {upcoming.seriesName}
                                             </div>
-                                            <div className="text-sm text-futuristic-yellow-400/80">
+                                            <div className="text-sm text-amber-500/80">
                                                 {upcoming.seasonName || `Season ${upcoming.seasonNumber}`} • {upcoming.episodeCount} episodes
                                             </div>
                                         </div>
-                                        <div className="text-futuristic-yellow-400 font-semibold text-sm">
+                                        <div className="text-amber-500 font-semibold text-sm">
                                             {formatDate(upcoming.airDate)}
                                         </div>
                                     </a>
@@ -502,7 +502,7 @@ const ProfilePageContent = () => {
                     {/* Series Progress Summary */}
                     {Object.keys(seriesProgress).length > 0 && (
                         <div className="futuristic-card p-6">
-                            <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                            <h2 className="text-2xl font-bold mb-4 text-amber-500">
                                 Series Progress Summary
                             </h2>
                             <div className="space-y-3">
@@ -517,20 +517,20 @@ const ProfilePageContent = () => {
                                         <a 
                                             key={seriesId} 
                                             href={`/series/${seriesId}`}
-                                            className="flex items-center justify-between p-3 bg-futuristic-blue-800/50 rounded hover:bg-futuristic-blue-700/50 transition-colors"
+                                            className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
                                         >
                                             <div>
                                                 <div className="text-white font-semibold">
                                                     {seriesInfo?.name || `Series ID: ${seriesId}`}
                                                 </div>
-                                                <div className="text-sm text-futuristic-yellow-400/80">
+                                                <div className="text-sm text-amber-500/80">
                                                     {completedSeasons}/{totalSeasons} seasons completed
                                                 </div>
                                             </div>
                                             <div className={`px-3 py-1 rounded font-semibold ${
                                                 progress.completed 
-                                                    ? 'bg-futuristic-yellow-500 text-black' 
-                                                    : 'bg-futuristic-blue-600 text-white'
+                                                    ? 'bg-amber-500 text-black' 
+                                                    : 'bg-charcoal-800 text-white'
                                             }`}>
                                                 {progress.completed ? 'Completed' : 'In Progress'}
                                             </div>
@@ -549,11 +549,11 @@ const ProfilePageContent = () => {
                     {watchedDetails.length === 0 ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">No watched items yet</p>
-                            <p className="text-futuristic-yellow-400/80">Start watching and mark items as watched to see them here!</p>
+                            <p className="text-amber-500/80">Start watching and mark items as watched to see them here!</p>
                         </div>
                     ) : (
                         <>
-                            <div className="mb-4 text-sm text-futuristic-yellow-400/80">
+                            <div className="mb-4 text-sm text-amber-500/80">
                                 Showing {watchedDetails.length} watched {watchedDetails.length === 1 ? 'item' : 'items'}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -576,11 +576,11 @@ const ProfilePageContent = () => {
                                                     mediaType={item.media_type}
                                                     href={href}
                                                 />
-                                                <div className="absolute top-2 right-2 bg-futuristic-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded z-20">
+                                                <div className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded z-20">
                                                     {item.timesWatched}x
                                                 </div>
                                                 {item.dateWatched && (
-                                                    <div className="absolute bottom-2 right-2 bg-futuristic-blue-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
+                                                    <div className="absolute bottom-2 right-2 bg-charcoal-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
                                                         {new Date(item.dateWatched).toLocaleDateString()}
                                                     </div>
                                                 )}
@@ -599,11 +599,11 @@ const ProfilePageContent = () => {
                     {wishlistDetails.length === 0 ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">Your wishlist is empty</p>
-                            <p className="text-futuristic-yellow-400/80">Add movies and series to your wishlist to see them here!</p>
+                            <p className="text-amber-500/80">Add movies and series to your wishlist to see them here!</p>
                         </div>
                     ) : (
                         <>
-                            <div className="mb-4 text-sm text-futuristic-yellow-400/80">
+                            <div className="mb-4 text-sm text-amber-500/80">
                                 Showing {wishlistDetails.length} {wishlistDetails.length === 1 ? 'item' : 'items'} in wishlist
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -627,7 +627,7 @@ const ProfilePageContent = () => {
                                                     href={href}
                                                 />
                                                 {item.dateAdded && (
-                                                    <div className="absolute bottom-2 right-2 bg-futuristic-blue-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
+                                                    <div className="absolute bottom-2 right-2 bg-charcoal-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
                                                         Added {new Date(item.dateAdded).toLocaleDateString()}
                                                     </div>
                                                 )}
@@ -646,7 +646,7 @@ const ProfilePageContent = () => {
                     {Object.keys(seriesProgress).length === 0 ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">No series in progress</p>
-                            <p className="text-futuristic-yellow-400/80">Start watching a series and track your progress!</p>
+                            <p className="text-amber-500/80">Start watching a series and track your progress!</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -664,11 +664,11 @@ const ProfilePageContent = () => {
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
                                                 <h3 className="text-xl font-bold text-white">
-                                                    <a href={`/series/${seriesId}`} className="hover:text-futuristic-yellow-400 transition-colors">
+                                                    <a href={`/series/${seriesId}`} className="hover:text-amber-500 transition-colors">
                                                         {seriesDetails[seriesId]?.name || `Series ID: ${seriesId}`}
                                                     </a>
                                                 </h3>
-                                                <p className="text-sm text-futuristic-yellow-400/80">
+                                                <p className="text-sm text-amber-500/80">
                                                     {completedSeasons}/{totalSeasons} seasons • {totalEpisodes} episodes watched
                                                 </p>
                                             </div>
@@ -682,19 +682,19 @@ const ProfilePageContent = () => {
                                         
                                         <div className="space-y-2">
                                             {Object.entries(progress.seasons || {}).map(([seasonNum, season]) => (
-                                                <div key={seasonNum} className="bg-futuristic-blue-800/50 p-3 rounded">
+                                                <div key={seasonNum} className="bg-charcoal-800/50 p-3 rounded">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="text-white font-semibold">Season {seasonNum}</span>
                                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
                                                             season.completed 
-                                                                ? 'bg-futuristic-yellow-500 text-black' 
-                                                                : 'bg-futuristic-blue-600 text-white'
+                                                                ? 'bg-amber-500 text-black' 
+                                                                : 'bg-charcoal-800 text-white'
                                                         }`}>
                                                             {season.completed ? 'Completed' : `${season.episodes?.length || 0} episodes watched`}
                                                         </span>
                                                     </div>
                                                     {season.episodes && season.episodes.length > 0 && (
-                                                        <div className="text-xs text-futuristic-yellow-400/80">
+                                                        <div className="text-xs text-amber-500/80">
                                                             Episodes: {season.episodes.sort((a, b) => a - b).join(', ')}
                                                         </div>
                                                     )}
@@ -715,7 +715,7 @@ const ProfilePageContent = () => {
                     {customLists.length === 0 ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">No custom lists yet</p>
-                            <p className="text-futuristic-yellow-400/80">Create lists and add movies/series to organize your content!</p>
+                            <p className="text-amber-500/80">Create lists and add movies/series to organize your content!</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
@@ -725,7 +725,7 @@ const ProfilePageContent = () => {
                                     <div key={list.id} className="futuristic-card p-6">
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
-                                                <h3 className="text-xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                                                <h3 className="text-xl font-bold text-amber-500">
                                                     {list.name}
                                                 </h3>
                                                 <p className="text-sm text-white/70 mt-1">
@@ -778,7 +778,7 @@ const ProfilePageContent = () => {
                 <div className="space-y-6">
                     {/* Change Display Name */}
                     <div className="futuristic-card p-6">
-                        <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                        <h2 className="text-2xl font-bold mb-4 text-amber-500">
                             Profile Settings
                         </h2>
                         <div className="space-y-4">
@@ -791,7 +791,7 @@ const ProfilePageContent = () => {
                                         type="text"
                                         value={displayName}
                                         onChange={(e) => setDisplayName(e.target.value)}
-                                        className="flex-1 px-4 py-2 bg-futuristic-blue-900/50 border border-futuristic-blue-500/50 rounded text-white focus:outline-none focus:border-futuristic-yellow-400 focus:ring-2 focus:ring-futuristic-yellow-400/50"
+                                        className="flex-1 px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/50"
                                         placeholder="Enter your display name"
                                     />
                                     <button
@@ -831,7 +831,7 @@ const ProfilePageContent = () => {
                                         {isUpdating ? 'Updating...' : 'Update'}
                                     </button>
                                 </div>
-                                <p className="text-sm text-futuristic-yellow-400/80 mt-2">
+                                <p className="text-sm text-amber-500/80 mt-2">
                                     This is how your name will appear on your profile
                                 </p>
                             </div>
@@ -840,7 +840,7 @@ const ProfilePageContent = () => {
 
                     {/* Account Actions */}
                     <div className="futuristic-card p-6">
-                        <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                        <h2 className="text-2xl font-bold mb-4 text-amber-500">
                             Account Actions
                         </h2>
                         <div className="space-y-4">

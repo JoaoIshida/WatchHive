@@ -138,7 +138,7 @@ const RecommendationsPage = () => {
     return (
         <div className="container mx-auto px-4 py-8 max-w-6xl">
             <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2 text-futuristic-yellow-400 futuristic-text-glow-yellow">Content Mixer</h1>
+                <h1 className="text-4xl font-bold mb-2 text-amber-500">Content Mixer</h1>
                 <p className="text-white text-lg">
                     Enter 2 to 4 movies or series you like, and we'll recommend something that combines them!
                 </p>
@@ -146,7 +146,7 @@ const RecommendationsPage = () => {
 
             {/* Media Type Selector */}
             <div className="mb-6">
-                <label className="block text-sm font-medium text-futuristic-yellow-400 mb-2">
+                <label className="block text-sm font-medium text-amber-500 mb-2">
                     Search for:
                 </label>
                 <div className="flex gap-4">
@@ -154,8 +154,8 @@ const RecommendationsPage = () => {
                         onClick={() => setMediaType('both')}
                         className={`px-4 py-2 rounded-lg font-bold transition-all ${
                             mediaType === 'both'
-                                ? 'bg-futuristic-blue-600 text-white shadow-glow-blue'
-                                : 'bg-futuristic-blue-800/50 text-white border border-futuristic-blue-500/50 hover:bg-futuristic-blue-700 hover:border-futuristic-yellow-500/50'
+                                ? 'bg-charcoal-800 text-white shadow-subtle'
+                                : 'bg-charcoal-800/50 text-white border border-charcoal-700/50 hover:bg-charcoal-700 hover:border-amber-500/50'
                         }`}
                     >
                         Both
@@ -164,8 +164,8 @@ const RecommendationsPage = () => {
                         onClick={() => setMediaType('movie')}
                         className={`px-4 py-2 rounded-lg font-bold transition-all ${
                             mediaType === 'movie'
-                                ? 'bg-futuristic-blue-600 text-white shadow-glow-blue'
-                                : 'bg-futuristic-blue-800/50 text-white border border-futuristic-blue-500/50 hover:bg-futuristic-blue-700 hover:border-futuristic-yellow-500/50'
+                                ? 'bg-charcoal-800 text-white shadow-subtle'
+                                : 'bg-charcoal-800/50 text-white border border-charcoal-700/50 hover:bg-charcoal-700 hover:border-amber-500/50'
                         }`}
                     >
                         Movies Only
@@ -174,8 +174,8 @@ const RecommendationsPage = () => {
                         onClick={() => setMediaType('tv')}
                         className={`px-4 py-2 rounded-lg font-bold transition-all ${
                             mediaType === 'tv'
-                                ? 'bg-futuristic-blue-600 text-white shadow-glow-blue'
-                                : 'bg-futuristic-blue-800/50 text-white border border-futuristic-blue-500/50 hover:bg-futuristic-blue-700 hover:border-futuristic-yellow-500/50'
+                                ? 'bg-charcoal-800 text-white shadow-subtle'
+                                : 'bg-charcoal-800/50 text-white border border-charcoal-700/50 hover:bg-charcoal-700 hover:border-amber-500/50'
                         }`}
                     >
                         Series Only
@@ -224,7 +224,7 @@ const RecommendationsPage = () => {
                                 <input
                                     value={input}
                                     onChange={(e) => handleInputChange(index, e.target.value)}
-                                    className="bg-futuristic-blue-900/80 border-2 border-futuristic-blue-500/50 rounded-lg p-3 w-full text-white placeholder-gray-400 focus:border-futuristic-yellow-500 focus:shadow-glow-yellow focus:outline-none transition-all"
+                                    className="bg-charcoal-900/80 border-2 border-charcoal-700/50 rounded-lg p-3 w-full text-white placeholder-gray-400 focus:border-amber-500 focus:shadow-subtle focus:outline-none transition-all"
                                     placeholder={`${mediaType === 'movie' ? 'Movie' : mediaType === 'tv' ? 'Series' : 'Movie or Series'} ${index + 1}`}
                                 />
                                 {suggestions[index].length > 0 && (
@@ -295,7 +295,7 @@ const RecommendationsPage = () => {
             {/* Recommendations Display */}
             {loading && (
                 <div className="mt-8">
-                    <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                    <h2 className="text-2xl font-bold mb-4 text-amber-500">
                         Finding Recommendations...
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -305,7 +305,7 @@ const RecommendationsPage = () => {
             )}
             {recommendations.length > 0 && !loading && (
                 <div className="mt-8">
-                    <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                    <h2 className="text-2xl font-bold mb-4 text-amber-500">
                         Recommended {mediaType === 'movie' ? 'Movies' : mediaType === 'tv' ? 'Series' : 'Content'} ({recommendations.length})
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -330,7 +330,7 @@ const RecommendationsPage = () => {
             {recommendations.length === 0 && !loading && selectedItems.filter(item => item !== null).length >= 2 && (
                 <div className="text-center py-8 text-white">
                     <p className="text-lg mb-2">No recommendations found.</p>
-                    <p className="text-futuristic-yellow-400/80">Try selecting different movies or series.</p>
+                    <p className="text-amber-500/80">Try selecting different movies or series.</p>
                 </div>
             )}
         </div>

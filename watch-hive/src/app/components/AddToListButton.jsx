@@ -162,9 +162,9 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                         className="fixed inset-0 z-10" 
                         onClick={() => setIsOpen(false)}
                     />
-                    <div className="absolute top-full left-0 mt-2 z-20 bg-futuristic-blue-900 border border-futuristic-yellow-500/50 rounded-lg shadow-glow-yellow p-4 min-w-[280px] max-w-sm">
+                    <div className="absolute top-full left-0 mt-2 z-20 bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 min-w-[280px] max-w-sm">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-futuristic-yellow-400 font-bold">Your Lists</h3>
+                            <h3 className="text-amber-400 font-bold">Your Lists</h3>
                             <button
                                 onClick={() => setIsOpen(false)}
                                 className="text-white/70 hover:text-white"
@@ -186,8 +186,8 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                                         onClick={() => handleToggleList(list.id)}
                                         className={`w-full text-left px-3 py-2 rounded transition-all ${
                                             isInList
-                                                ? 'bg-futuristic-yellow-500/20 border border-futuristic-yellow-500/50 text-futuristic-yellow-400'
-                                                : 'bg-futuristic-blue-800/50 hover:bg-futuristic-blue-800 text-white'
+                                                ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400'
+                                                : 'bg-charcoal-800/50 hover:bg-charcoal-800 text-white'
                                         }`}
                                     >
                                         <div className="flex items-center justify-between">
@@ -195,7 +195,7 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                                             <span>{isInList ? '✓' : '+'}</span>
                                         </div>
                                         {list.is_public && (
-                                            <span className="text-xs text-futuristic-yellow-400/80">
+                                            <span className="text-xs text-amber-400/80">
                                                 Public
                                             </span>
                                         )}
@@ -211,7 +211,7 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                                     value={newListName}
                                     onChange={(e) => setNewListName(e.target.value)}
                                     placeholder="List name"
-                                    className="w-full px-3 py-2 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                                    className="w-full px-3 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-400"
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter') {
                                             handleCreateList();

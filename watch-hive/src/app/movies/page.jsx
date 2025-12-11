@@ -278,19 +278,21 @@ const PopularMoviesContent = () => {
         <div className="page-container">
             <h1 className="page-title">Popular Movies</h1>
             
-            {/* Unified Filter - Mobile: Top, Desktop: Sidebar */}
-            <UnifiedFilter
-                onSortChange={handleSortChange}
-                onFilterChange={handleFilterChange}
-                genres={genres}
-                showDateFilter={true}
-                mediaType="movie"
-                sortConfig={sortConfig}
-                filters={filters}
-            />
+            {/* Layout with Sidebar on Desktop */}
+            <div className="flex flex-col sm:flex-row gap-6">
+                {/* Unified Filter - Mobile: Top, Desktop: Sidebar */}
+                <div className="w-full sm:w-64 flex-shrink-0">
+                    <UnifiedFilter
+                        onSortChange={handleSortChange}
+                        onFilterChange={handleFilterChange}
+                        genres={genres}
+                        showDateFilter={true}
+                        mediaType="movie"
+                        sortConfig={sortConfig}
+                        filters={filters}
+                    />
+                </div>
 
-            {/* Desktop Layout with Sidebar */}
-            <div className="flex gap-6">
                 {/* Main Content */}
                 <div className="flex-1 min-w-0">
                     {/* Active Filters - Desktop only */}
@@ -324,7 +326,7 @@ const PopularMoviesPage = () => {
                 <div className="flex gap-6">
                     <div className="hidden sm:block w-64 flex-shrink-0">
                         <div className="futuristic-card p-4">
-                            <div className="h-96 bg-futuristic-blue-900/40 rounded-lg animate-pulse"></div>
+                            <div className="h-96 bg-charcoal-900/40 rounded-lg animate-pulse"></div>
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">

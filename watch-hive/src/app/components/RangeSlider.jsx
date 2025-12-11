@@ -154,22 +154,22 @@ const RangeSlider = ({ min = 0, max = 240, step = 5, valueMin, valueMax, onChang
                     className="absolute w-full h-0 z-20 opacity-0 cursor-pointer"
                 />
                 <div className="relative w-full h-2">
-                    <div className="absolute w-full h-2 bg-futuristic-blue-800/60 rounded-full"></div>
+                    <div className="absolute w-full h-2 bg-charcoal-800/60 rounded-full"></div>
                     <div
                         ref={range}
-                        className="absolute h-2 bg-futuristic-yellow-500 rounded-full"
+                        className="absolute h-2 bg-amber-500 rounded-full"
                     ></div>
                     <div
-                        className="absolute w-4 h-4 bg-futuristic-yellow-500 border-2 border-futuristic-blue-900 rounded-full shadow-glow-yellow cursor-pointer hover:scale-110 transition-transform"
+                        className="absolute w-4 h-4 bg-amber-500 border-2 border-charcoal-900 rounded-full shadow-subtle cursor-pointer hover:scale-110 transition-transform"
                         style={{ left: `calc(${getPercent(minVal)}% - 8px)`, top: '-4px' }}
                     ></div>
                     <div
-                        className="absolute w-4 h-4 bg-futuristic-yellow-500 border-2 border-futuristic-blue-900 rounded-full shadow-glow-yellow cursor-pointer hover:scale-110 transition-transform"
+                        className="absolute w-4 h-4 bg-amber-500 border-2 border-charcoal-900 rounded-full shadow-subtle cursor-pointer hover:scale-110 transition-transform"
                         style={{ left: `calc(${getPercent(maxVal)}% - 8px)`, top: '-4px' }}
                     ></div>
                 </div>
             </div>
-            <div className="flex justify-between mt-3 text-xs text-futuristic-yellow-400/80 font-medium">
+            <div className="flex justify-between mt-3 text-xs text-amber-400/80 font-medium">
                 <span>{formatLabel ? formatLabel(minVal) : `${minVal} min`}</span>
                 <span>{formatLabel ? formatLabel(maxVal) : `${maxVal} min`}</span>
             </div>

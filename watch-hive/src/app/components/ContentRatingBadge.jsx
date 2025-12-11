@@ -22,7 +22,7 @@ export default function ContentRatingBadge({ item, mediaType = 'movie', classNam
     const sizeClass = sizeClasses[size] || sizeClasses.default;
     
     return (
-        <span className={`inline-flex items-center justify-center ${sizeClass} font-bold rounded ${borderClass} border-futuristic-yellow-500/50 bg-futuristic-blue-800/60 text-futuristic-yellow-400 shadow-glow-yellow ${className}`}>
+        <span className={`inline-flex items-center justify-center ${sizeClass} font-bold rounded ${borderClass} border-amber-500/50 bg-charcoal-800/60 text-amber-500 ${className}`}>
             {certification}
         </span>
     );

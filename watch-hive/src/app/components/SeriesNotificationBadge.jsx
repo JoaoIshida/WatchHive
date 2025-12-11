@@ -31,7 +31,7 @@ const SeriesNotificationBadge = ({ seriesId, lastAirDate, status, numberOfSeason
     if (!hasNotification) return null;
 
     return (
-        <div className={`absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-glow-yellow z-10 flex items-center justify-center w-4 h-4 ${className}`} title="New episodes or season available">
+        <div className={`absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-subtle z-10 flex items-center justify-center w-4 h-4 ${className}`} title="New episodes or season available">
             <span className="text-[8px]">!</span>
         </div>
     );

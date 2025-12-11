@@ -83,11 +83,11 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
     return (
         <div ref={containerRef} className="relative">
             {/* Header - Always visible */}
-            <div className="w-full flex items-center justify-between mb-2 text-sm font-semibold text-futuristic-yellow-400/90">
+            <div className="w-full flex items-center justify-between mb-2 text-sm font-semibold text-amber-400/90">
                 <span className="flex items-center gap-2">
                     Year
                     {selectedYears.length > 0 && (
-                        <span className="px-1.5 py-0.5 text-xs bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full">
+                        <span className="px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded-full">
                             {selectedYears.length}
                         </span>
                     )}
@@ -102,13 +102,13 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
                         {selectedYears.map((year) => (
                             <span
                                 key={year}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-lg text-xs font-medium border border-futuristic-yellow-500/30"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-xs font-medium border border-amber-500/30"
                             >
                                 {year}
                                 <button
                                     type="button"
                                     onClick={() => handleRemoveYear(year)}
-                                    className="ml-0.5 hover:text-futuristic-yellow-300 transition-colors"
+                                    className="ml-0.5 hover:text-amber-300 transition-colors"
                                 >
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -136,7 +136,7 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
                         onKeyDown={handleInputKeyDown}
                         onFocus={() => setIsFocused(true)}
                         placeholder="Search years..."
-                        className="w-full bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 hover:bg-futuristic-blue-700/80 transition-all placeholder-white/50"
+                        className="w-full bg-charcoal-800/80 border border-charcoal-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 hover:bg-charcoal-700/80 transition-all placeholder-white/50"
                     />
                     {searchQuery && (
                         <button
@@ -153,7 +153,7 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
 
                 {/* Search results dropdown */}
                 {showDropdown && (
-                    <div className="mt-1 max-h-48 overflow-y-auto scrollbar bg-futuristic-blue-900/95 border border-futuristic-blue-500/40 rounded-lg shadow-lg">
+                    <div className="mt-1 max-h-48 overflow-y-auto scrollbar bg-charcoal-900/95 border border-charcoal-500/40 rounded-lg shadow-lg">
                         {searchResults.length > 0 ? (
                             <ul className="py-1">
                                 {searchResults.map((year) => (
@@ -161,7 +161,7 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
                                         <button
                                             type="button"
                                             onClick={() => handleSelectYear(year)}
-                                            className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-futuristic-blue-700/60 hover:text-futuristic-yellow-400 transition-colors"
+                                            className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-charcoal-700/60 hover:text-amber-400 transition-colors"
                                         >
                                             {year}
                                         </button>
@@ -173,7 +173,7 @@ const YearSearch = ({ selectedYears = [], onYearsChange }) => {
                                 <button
                                     type="button"
                                     onClick={() => handleSelectYear(parseInt(searchQuery, 10))}
-                                    className="w-full text-left px-3 py-2 text-sm text-futuristic-yellow-400 hover:bg-futuristic-blue-700/60 transition-colors font-medium"
+                                    className="w-full text-left px-3 py-2 text-sm text-amber-400 hover:bg-charcoal-700/60 transition-colors font-medium"
                                 >
                                     Press Enter or click to add "{searchQuery}"
                                 </button>

@@ -140,7 +140,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                     className={`futuristic-input w-full ${isNavbar ? 'pr-12' : 'pr-12'} pl-12`}
                 />
                 <svg
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-futuristic-yellow-400/90"
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-500/90"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -149,7 +149,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                 </svg>
                 {loading && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-futuristic-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 )}
             </div>
@@ -157,7 +157,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
             {showResults && results.length > 0 && (
                 <div
                     ref={resultsRef}
-                    className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-futuristic-blue-900/95 backdrop-blur-md border border-futuristic-blue-500/50 rounded-lg shadow-glow-blue-lg max-h-96 overflow-y-auto`}
+                    className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-charcoal-900/95 backdrop-blur-md border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto`}
                 >
                     {results.map((item) => {
                         const title = item.title || item.name;
@@ -168,7 +168,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                             <div
                                 key={`${item.media_type}-${item.id}`}
                                 onClick={() => handleResultClick(item)}
-                                className={`flex items-center gap-4 p-4 hover:bg-futuristic-blue-700 cursor-pointer transition-colors border-b border-futuristic-blue-800/50 last:border-b-0 ${isNavbar ? '' : ''}`}
+                                className={`flex items-center gap-4 p-4 hover:bg-charcoal-700 cursor-pointer transition-colors border-b border-charcoal-800/50 last:border-b-0 ${isNavbar ? '' : ''}`}
                             >
                                 <div className="relative flex-shrink-0" style={{ width: isNavbar ? '80px' : '64px', height: isNavbar ? '120px' : '96px' }}>
                                     <ImageWithFallback
@@ -178,7 +178,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                                         alt={title}
                                         className="object-cover w-full h-full rounded"
                                     />
-                                    <div className="absolute top-1 right-1 bg-futuristic-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                    <div className="absolute top-1 right-1 bg-charcoal-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                                         {mediaType}
                                     </div>
                                 </div>
@@ -191,7 +191,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                                             {item.overview}
                                         </p>
                                     )}
-                                    <div className="flex items-center gap-3 text-xs text-futuristic-yellow-400/80">
+                                    <div className="flex items-center gap-3 text-xs text-amber-500/80">
                                         {releaseDate && <span>{releaseDate}</span>}
                                         {item.vote_average && item.vote_average > 0 ? (
                                             <span className="flex items-center gap-1">
@@ -212,7 +212,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                                 setShowResults(false);
                                 if (onClose) onClose();
                             }}
-                            className="p-3 text-center text-futuristic-yellow-400 hover:bg-futuristic-blue-700 cursor-pointer border-t border-futuristic-blue-800/50 font-semibold"
+                            className="p-3 text-center text-amber-500 hover:bg-charcoal-700 cursor-pointer border-t border-charcoal-800/50 font-semibold"
                         >
                             View all results for "{query}"
                         </div>

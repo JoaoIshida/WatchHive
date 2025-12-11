@@ -18,10 +18,10 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirm
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
             <div 
-                className="futuristic-card p-6 max-w-md w-full mx-4 border-2 border-futuristic-blue-500/50 shadow-glow-blue-lg"
+                className="futuristic-card p-6 max-w-md w-full mx-4 border-2 border-charcoal-700 shadow-subtle-lg"
                 onClick={(e) => e.stopPropagation()}
             >
-                <h2 className={`text-2xl font-bold mb-4 ${isDanger ? 'text-red-400' : 'text-futuristic-yellow-400'} futuristic-text-glow-yellow`}>
+                <h2 className={`text-2xl font-bold mb-4 ${isDanger ? 'text-red-400' : 'text-amber-500'}`}>
                     {title}
                 </h2>
                 <p className="text-white mb-6">

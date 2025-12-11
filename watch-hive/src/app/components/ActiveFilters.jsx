@@ -120,21 +120,21 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
             <div className="flex flex-wrap items-center gap-2 mb-2">
                 <button
                     onClick={clearAllFilters}
-                    className="px-3 py-1.5 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 hover:bg-futuristic-yellow-500/30 border border-futuristic-yellow-500/40 rounded-lg text-xs font-medium transition-all"
+                    className="px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-xs font-medium transition-all"
                 >
                     Clear All ({activeFiltersCount})
                 </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-futuristic-yellow-400/80">Active:</span>
+                <span className="text-xs font-semibold text-amber-400/80">Active:</span>
                 {getSelectedGenreNames().map((genre) => (
                     <button
                         key={`genre-${genre.id}`}
                         onClick={() => removeFilter('genre', genre.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>{genre.name}</span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 ))}
                 {filters.year && (
@@ -143,10 +143,10 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                             <button
                                 key={year}
                                 onClick={() => removeFilter('year', year)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                             >
                                 <span>Year: {year}</span>
-                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                <span className="text-amber-500 font-bold">×</span>
                             </button>
                         ))}
                     </>
@@ -154,18 +154,18 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                 {(filters.minRating || filters.maxRating) && (
                     <button
                         onClick={() => removeFilter('rating')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
                             Rating: {filters.maxRating === '5' ? '<5' : `${filters.minRating || filters.maxRating}+`}
                         </span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {(filters.runtimeMin || filters.runtimeMax) && (
                     <button
                         onClick={() => removeFilter('runtime')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
                             Runtime: {filters.runtimeMin && filters.runtimeMax 
@@ -175,7 +175,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                                     : `Up to ${formatRuntime(parseInt(filters.runtimeMax))}`
                             }
                         </span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {filters.certification && (
@@ -184,10 +184,10 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                             <button
                                 key={cert}
                                 onClick={() => removeFilter('certification', cert)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                             >
                                 <span>Age Certification: {cert}</span>
-                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                <span className="text-amber-500 font-bold">×</span>
                             </button>
                         ))}
                     </>
@@ -195,7 +195,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                 {filters.dateRange && (
                     <button
                         onClick={() => removeFilter('dateRange')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
                             {filters.dateRange === 'upcoming' ? 'Upcoming' :
@@ -203,13 +203,13 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                              filters.dateRange === 'this_month' ? 'This Month' :
                              filters.dateRange === 'this_year' ? 'This Year' : filters.dateRange}
                         </span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {filters.daysPast && (
                     <button
                         onClick={() => removeFilter('daysPast')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
                             {filters.daysPast === '7' ? 'Last 7 Days' :
@@ -219,31 +219,31 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                              filters.daysPast === '180' ? 'Last 6 Months' :
                              filters.daysPast === '365' ? 'Last Year' : `Last ${filters.daysPast} Days`}
                         </span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {filters.inTheaters && (
                     <button
                         onClick={() => removeFilter('inTheaters')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>In Theaters</span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {filters.includeUpcoming && (
                     <button
                         onClick={() => removeFilter('includeUpcoming')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>Include Upcoming</span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {(filters.seasonsMin || filters.seasonsMax || filters.seasonNumber) && (
                     <button
                         onClick={() => removeFilter('seasons')}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
                             Seasons: {filters.seasonsMin && filters.seasonsMax 
@@ -253,7 +253,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                                     : `Up to ${filters.seasonsMax}`
                             }
                         </span>
-                        <span className="text-futuristic-yellow-500 font-bold">×</span>
+                        <span className="text-amber-500 font-bold">×</span>
                     </button>
                 )}
                 {filters.watchProviders && (
@@ -264,7 +264,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                                 <button
                                     key={providerId}
                                     onClick={() => removeFilter('watchProviders', providerId)}
-                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                                 >
                                     {providerInfo && providerInfo.logo_path ? (
                                         <>
@@ -279,7 +279,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                                     ) : (
                                         <span>Provider: {providerInfo?.name || providerId}</span>
                                     )}
-                                    <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                    <span className="text-amber-500 font-bold">×</span>
                                 </button>
                             );
                         })}
@@ -291,10 +291,10 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                             <button
                                 key={keyword.id}
                                 onClick={() => removeFilter('keyword', keyword.id)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                             >
                                 <span>Keyword: {keyword.name}</span>
-                                <span className="text-futuristic-yellow-500 font-bold">×</span>
+                                <span className="text-amber-500 font-bold">×</span>
                             </button>
                         ))}
                     </>

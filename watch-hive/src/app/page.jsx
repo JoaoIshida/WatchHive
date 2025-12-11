@@ -185,7 +185,7 @@ const Home = () => {
         <div className="page-container">
             {/* Hero Section with Search */}
             <div className="hero-section text-center">
-                <h1 className="text-4xl md:text-6xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">
+                <h1 className="text-4xl md:text-6xl font-bold mb-4 text-amber-500 ">
                     Welcome to WatchHive
                 </h1>
                 <p className="text-xl md:text-2xl text-white mb-8">
@@ -208,7 +208,7 @@ const Home = () => {
                                 onClick={() => scrollToSection(section.id)}
                                 className="nav-button"
                             >
-                                <span className="text-futuristic-yellow-400">{renderIcon(section.icon, "w-4 h-4")}</span>
+                                <span className="text-amber-500">{renderIcon(section.icon, "w-4 h-4")}</span>
                                 <span>{section.label}</span>
                             </button>
                         ))}

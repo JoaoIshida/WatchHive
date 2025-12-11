@@ -3,10 +3,8 @@
 @tailwind utilities;
 
 body {
-  @apply bg-futuristic-blue-950;
   @apply text-white;
-  background: linear-gradient(135deg, #0f1a33 0%, #1f3569 50%, #2b4f90 100%);
-  background-attachment: fixed;
+  background: #0d1117;
   min-height: 100vh;
 }
 
@@ -41,76 +39,70 @@ body {
   }
 
   .futuristic-card {
-    @apply bg-futuristic-blue-900/70 backdrop-blur-md border border-futuristic-blue-500/20 rounded-xl shadow-glow-blue;
+    @apply bg-charcoal-900 border border-charcoal-700 rounded-xl shadow-subtle;
     transition: all 0.3s ease;
   }
 
   .futuristic-card:hover {
-    @apply border-futuristic-blue-400/50 shadow-glow-blue-lg transform translate-y-[-4px];
+    @apply border-charcoal-600 shadow-subtle-lg transform translate-y-[-4px];
   }
 
   .futuristic-button {
-    @apply bg-futuristic-blue-700 hover:bg-futuristic-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-glow-blue transition-all duration-300 border border-futuristic-blue-500/30;
+    @apply bg-charcoal-800 hover:bg-charcoal-700 text-white font-bold py-2 px-4 rounded-lg shadow-subtle transition-all duration-300 border border-charcoal-700;
   }
 
   .futuristic-button:hover {
-    @apply shadow-glow-blue-lg transform translate-y-[-2px] border-futuristic-yellow-500/50;
+    @apply shadow-subtle-lg transform translate-y-[-2px] border-amber-500/50;
   }
 
   .futuristic-button-yellow {
-    @apply bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black font-bold py-2 px-4 rounded-lg shadow-glow-yellow transition-all duration-300 border border-futuristic-yellow-400/30;
+    @apply bg-amber-500 hover:bg-amber-400 text-black font-bold py-2 px-4 rounded-lg shadow-subtle transition-all duration-300 border border-amber-500/30;
   }
 
   .futuristic-button-yellow:hover {
-    @apply shadow-glow-yellow-lg transform translate-y-[-2px] border-futuristic-yellow-300/50;
+    @apply shadow-subtle-lg transform translate-y-[-2px] border-amber-400/50;
+  }
+
+  .futuristic-button-orange {
+    @apply bg-amber-500 hover:bg-amber-400 text-white font-bold py-2 px-4 rounded-lg shadow-subtle transition-all duration-300 border border-amber-500/30;
+  }
+
+  .futuristic-button-orange:hover {
+    @apply shadow-subtle-lg transform translate-y-[-2px] border-amber-400/50;
   }
 
   .futuristic-input {
-    @apply bg-futuristic-blue-900/90 border-2 border-futuristic-blue-500/50 text-white placeholder-white/60 rounded-full px-4 py-3 text-base font-medium;
-    @apply focus:outline-none focus:border-futuristic-yellow-500/70 focus:ring-2 focus:ring-futuristic-yellow-500/30;
-    @apply transition-all duration-300 shadow-glow-blue;
-    backdrop-filter: blur(8px);
+    @apply bg-charcoal-900 border-2 border-charcoal-700 text-white placeholder-white/60 rounded-full px-4 py-3 text-base font-medium;
+    @apply focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30;
+    @apply transition-all duration-300 shadow-subtle;
   }
 
   .futuristic-input:hover {
-    @apply border-futuristic-blue-400/70 shadow-glow-blue-lg;
+    @apply border-charcoal-600;
   }
 
   .futuristic-input:focus {
-    @apply bg-futuristic-blue-800/95 shadow-glow-yellow;
+    @apply bg-charcoal-900 border-amber-500;
   }
 
   .futuristic-text-glow {
-    text-shadow: 0 0 8px rgba(64, 129, 210, 0.6), 0 0 15px rgba(64, 129, 210, 0.3);
+    /* LED neon effect removed */
   }
 
   .futuristic-text-glow-yellow {
-    text-shadow: 0 0 8px rgba(255, 236, 102, 0.6), 0 0 15px rgba(255, 236, 102, 0.3);
+    /* LED neon effect removed */
+  }
+
+  .futuristic-text-glow-orange {
+    /* LED neon effect removed */
   }
 
   /* Hero Section - Stands out from rest of page */
   .hero-section {
     @apply relative py-16 md:py-24 mb-12 rounded-2xl overflow-hidden;
-    background: linear-gradient(135deg, rgba(15, 26, 51, 0.95) 0%, rgba(31, 53, 105, 0.95) 50%, rgba(43, 79, 144, 0.95) 100%);
-    border: 2px solid rgba(255, 236, 102, 0.3);
-    box-shadow: 
-      0 0 40px rgba(255, 236, 102, 0.2),
-      0 0 80px rgba(64, 129, 210, 0.15),
-      inset 0 0 60px rgba(64, 129, 210, 0.1);
-    backdrop-filter: blur(10px);
-  }
-
-  .hero-section::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-      radial-gradient(circle at 20% 50%, rgba(255, 236, 102, 0.1) 0%, transparent 50%),
-      radial-gradient(circle at 80% 50%, rgba(64, 129, 210, 0.1) 0%, transparent 50%);
-    pointer-events: none;
+    background: #161b22;
+    border: 1px solid #30363d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   }
 
   .hero-section > * {
@@ -120,11 +112,11 @@ body {
 
   /* Section Titles */
   .section-title {
-    @apply text-2xl md:text-3xl font-bold text-futuristic-yellow-400 futuristic-text-glow-yellow flex items-center gap-2;
+    @apply text-2xl md:text-3xl font-bold text-amber-500 flex items-center gap-2;
   }
 
   .section-title-icon {
-    @apply text-futuristic-yellow-400;
+    @apply text-amber-500;
   }
 
   /* Content Section Container */
@@ -134,12 +126,12 @@ body {
 
   /* View All Link */
   .view-all-link {
-    @apply text-futuristic-yellow-400 hover:text-futuristic-yellow-300 text-sm md:text-base transition-colors;
+    @apply text-amber-500 hover:text-amber-400 text-sm md:text-base transition-colors;
   }
 
   /* Navigation Button (Quick Nav Menu) */
   .nav-button {
-    @apply px-4 py-2 rounded-lg bg-futuristic-blue-800/90 hover:bg-futuristic-blue-700 text-white text-sm font-medium transition-all border border-futuristic-blue-500/50 hover:border-futuristic-yellow-500/70 whitespace-nowrap flex items-center gap-2 shadow-md;
+    @apply px-4 py-2 rounded-lg bg-charcoal-900 hover:bg-charcoal-800 text-white text-sm font-medium transition-all border border-charcoal-700 hover:border-amber-500/70 whitespace-nowrap flex items-center gap-2 shadow-subtle;
   }
 
   /* Page Container */
@@ -168,7 +160,7 @@ body {
 
   /* Page Title */
   .page-title {
-    @apply text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow;
+    @apply text-4xl font-bold mb-6 text-amber-500;
   }
 
   @keyframes pulse-glow {
@@ -235,9 +227,9 @@ body {
     animation: shimmer 2s infinite linear;
     background: linear-gradient(
       to right,
-      rgba(64, 129, 210, 0.1) 0%,
-      rgba(255, 236, 102, 0.2) 50%,
-      rgba(64, 129, 210, 0.1) 100%
+      rgba(13, 17, 23, 0.1) 0%,
+      rgba(245, 158, 11, 0.1) 50%,
+      rgba(13, 17, 23, 0.1) 100%
     );
     background-size: 1000px 100%;
   }

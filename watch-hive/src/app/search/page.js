@@ -78,20 +78,20 @@ const SearchPageContent = () => {
 
     return (
         <div className="container mx-auto p-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Search</h1>
+            <h1 className="text-4xl font-bold mb-6 text-amber-500">Search</h1>
             <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search for movies and series..."
-                className="bg-futuristic-blue-900/80 border-2 border-futuristic-blue-500/50 rounded-lg p-4 w-full text-white placeholder-gray-400 focus:border-futuristic-yellow-500 focus:shadow-glow-yellow focus:outline-none transition-all text-lg"
+                className="bg-charcoal-900/80 border-2 border-charcoal-700 rounded-lg p-4 w-full text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none transition-all text-lg"
             />
 
             {loading && <LoadingSpinner text="Searching..." />}
 
             {results.length > 0 && !loading && (
                 <div className="mt-6">
-                    <h2 className="text-2xl font-bold mb-4 text-futuristic-yellow-400 futuristic-text-glow-yellow">Search Results:</h2>
+                    <h2 className="text-2xl font-bold mb-4 text-amber-500">Search Results:</h2>
                     <div className="flex flex-col space-y-3">
                         {results.map((item) => {
                             const title = item.title || item.name;
@@ -111,13 +111,13 @@ const SearchPageContent = () => {
                                         <div className='flex flex-col flex-1'>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h3 className="font-bold text-white text-lg">{title}</h3>
-                                                <span className="text-xs bg-futuristic-blue-600 text-white px-2 py-1 rounded border border-futuristic-yellow-500/50">
+                                                <span className="text-xs bg-charcoal-800 text-white px-2 py-1 rounded border border-amber-500/50">
                                                     {typeLabel}
                                                 </span>
                                             </div>
                                             <p className="text-sm text-gray-300 mt-1 line-clamp-2">{item.overview}</p>
                                             {(item.release_date || item.first_air_date) && (
-                                                <p className="text-xs text-futuristic-yellow-400/80 mt-1">
+                                                <p className="text-xs text-amber-500/80 mt-1">
                                                     {formatDate(item.release_date || item.first_air_date)}
                                                 </p>
                                             )}
@@ -137,8 +137,8 @@ const SearchPage = () => {
     return (
         <Suspense fallback={
             <div className="container mx-auto p-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Search</h1>
-                <div className="bg-futuristic-blue-900/80 border-2 border-futuristic-blue-500/50 rounded-lg p-4 w-full h-12 animate-pulse"></div>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Search</h1>
+                <div className="bg-charcoal-900/80 border-2 border-charcoal-700 rounded-lg p-4 w-full h-12 animate-pulse"></div>
                 <LoadingSpinner text="Loading..." />
             </div>
         }>

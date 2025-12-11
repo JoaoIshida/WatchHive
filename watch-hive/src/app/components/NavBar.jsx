@@ -48,7 +48,7 @@ const FilterDropdownMenu = ({ label, basePath, items }) => {
         >
             <a
                 href={basePath}
-                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white hover:text-futuristic-yellow-400 transition-colors border-b-2 border-transparent hover:border-futuristic-yellow-400 pb-1"
+                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white hover:text-amber-500 transition-colors border-b-2 border-transparent hover:border-amber-500 pb-1"
             >
                 {label}
                 <svg
@@ -63,13 +63,13 @@ const FilterDropdownMenu = ({ label, basePath, items }) => {
 
             {isOpen && (
                 <div 
-                    className="absolute left-0 z-10 mt-1 w-56 py-2 bg-futuristic-blue-900/95 backdrop-blur-sm border border-futuristic-blue-500/50 rounded-lg shadow-glow-blue-lg"
+                    className="absolute left-0 z-10 mt-1 w-56 py-2 bg-charcoal-900/95 backdrop-blur-sm border border-charcoal-700 rounded-lg shadow-subtle-lg"
                 >
                     {items.map((item, index) => (
                         <a 
                             key={index} 
                             href={item.href} 
-                            className="block px-4 py-2 text-white hover:bg-futuristic-blue-700 hover:text-futuristic-yellow-400 transition-colors text-sm"
+                            className="block px-4 py-2 text-white hover:bg-charcoal-800 hover:text-amber-500 transition-colors text-sm"
                         >
                             {item.label}
                         </a>
@@ -106,7 +106,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
         >
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors p-2"
+                className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors p-2"
                 title="Profile"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,12 +125,12 @@ const ProfileDropdown = ({ onSignOut, user }) => {
 
             {isOpen && (
                 <div 
-                    className="absolute right-0 z-10 mt-1 w-56 py-2 bg-futuristic-blue-900/95 backdrop-blur-sm border border-futuristic-blue-500/50 rounded-lg shadow-glow-blue-lg md:right-0"
+                    className="absolute right-0 z-10 mt-1 w-56 py-2 bg-charcoal-900/95 backdrop-blur-sm border border-charcoal-700 rounded-lg shadow-subtle-lg md:right-0"
                 >
                     <a 
                         href="/profile"
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-futuristic-blue-700 hover:text-futuristic-yellow-400 transition-colors text-sm"
+                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -140,7 +140,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                     <a 
                         href="/profile?tab=settings"
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-futuristic-blue-700 hover:text-futuristic-yellow-400 transition-colors text-sm"
+                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -153,7 +153,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                             setIsOpen(false);
                             onSignOut();
                         }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-white hover:bg-futuristic-blue-700 hover:text-futuristic-yellow-400 transition-colors text-sm text-left"
+                        className="w-full flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm text-left"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -195,10 +195,10 @@ const Navbar = () => {
     ];
 
     return (
-        <nav className="bg-futuristic-blue-950/90 backdrop-blur-md border-b border-futuristic-blue-500/30 shadow-glow-blue p-4 sticky top-0 z-50 max-h-screen overflow-visible">
+        <nav className="bg-charcoal-950/95 backdrop-blur-md border-b border-charcoal-700 shadow-subtle p-4 sticky top-0 z-50 max-h-screen overflow-visible">
             <div className="container mx-auto flex items-center justify-between gap-4">
                 {/* Logo */}
-                <a className="text-futuristic-yellow-400 text-3xl font-bold cursor-pointer futuristic-text-glow-yellow hover:text-futuristic-yellow-300 transition-colors flex-shrink-0" href="/">
+                <a className="text-amber-500 text-3xl font-bold cursor-pointer hover:text-amber-400 transition-colors flex-shrink-0" href="/">
                     <img src="/watchhive-logo.png" alt="Watch Hive Logo" className="inline h-12 w-auto mr-2 align-middle scale-125" />
                 </a>
                 
@@ -247,7 +247,7 @@ const Navbar = () => {
                             setIsMobileSearchOpen(!isMobileSearchOpen);
                             setIsMobileMenuOpen(false);
                         }}
-                        className="text-white hover:text-futuristic-yellow-400 transition-colors p-2"
+                        className="text-white hover:text-amber-500 transition-colors p-2"
                         aria-label="Toggle search"
                     >
                         {isMobileSearchOpen ? (
@@ -265,7 +265,7 @@ const Navbar = () => {
                             setIsMobileMenuOpen(!isMobileMenuOpen);
                             setIsMobileSearchOpen(false);
                         }}
-                        className="text-white hover:text-futuristic-yellow-400 transition-colors p-2"
+                        className="text-white hover:text-amber-500 transition-colors p-2"
                         aria-label="Toggle menu"
                     >
                         {isMobileMenuOpen ? (
@@ -283,7 +283,7 @@ const Navbar = () => {
 
             {/* Mobile Search */}
             {isMobileSearchOpen && (
-                <div className="md:hidden mt-4 border-t border-futuristic-blue-500/30 pt-4 px-2">
+                <div className="md:hidden mt-4 border-t border-charcoal-700 pt-4 px-2">
                     <QuickSearch 
                         isNavbar={true} 
                         onClose={() => setIsMobileSearchOpen(false)}
@@ -294,7 +294,7 @@ const Navbar = () => {
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                <div className="md:hidden mt-4 border-t border-futuristic-blue-500/30 pt-4">
+                <div className="md:hidden mt-4 border-t border-charcoal-700 pt-4">
                     <div 
                         className="flex flex-col gap-4 pb-4 min-h-0" 
                         style={{ 
@@ -311,7 +311,7 @@ const Navbar = () => {
                         <div className="flex flex-col gap-2">
                             <a 
                                 href="/movies" 
-                                className="text-futuristic-yellow-400 font-semibold text-sm mb-1 pl-4"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
                             >
                                 Movies
                             </a>
@@ -319,7 +319,7 @@ const Navbar = () => {
                                 <a 
                                     key={index}
                                     href={filter.href} 
-                                    className="text-white hover:text-futuristic-yellow-400 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400"
+                                    className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     {filter.label}
@@ -331,7 +331,7 @@ const Navbar = () => {
                         <div className="flex flex-col gap-2">
                             <a 
                                 href="/series" 
-                                className="text-futuristic-yellow-400 font-semibold text-sm mb-1 pl-4"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
                             >
                                 Series
                             </a>
@@ -339,7 +339,7 @@ const Navbar = () => {
                                 <a 
                                     key={index}
                                     href={filter.href} 
-                                    className="text-white hover:text-futuristic-yellow-400 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400"
+                                    className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     {filter.label}
@@ -357,7 +357,7 @@ const Navbar = () => {
                                 </div>
                                 <a 
                                     href="/profile" 
-                                    className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4"
+                                    className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,7 +367,7 @@ const Navbar = () => {
                                 </a>
                                 <a 
                                     href="/profile?tab=settings" 
-                                    className="flex items-center gap-2 text-white font-semibold hover:text-futuristic-yellow-400 transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4"
+                                    className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -381,7 +381,7 @@ const Navbar = () => {
                                         handleSignOut();
                                         setIsMobileMenuOpen(false);
                                     }}
-                                    className="flex items-center gap-2 text-white/70 hover:text-white transition-colors py-2 border-l-2 border-transparent hover:border-futuristic-yellow-400 pl-4 text-left"
+                                    className="flex items-center gap-2 text-white/70 hover:text-white transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4 text-left"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

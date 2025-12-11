@@ -54,7 +54,7 @@ export default function SignUpPage() {
     return (
         <div className="container mx-auto px-4 py-8 max-w-md">
             <div className="futuristic-card p-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow text-center">
+                <h1 className="text-4xl font-bold mb-6 text-amber-500 text-center">
                     Sign Up
                 </h1>
 
@@ -75,7 +75,7 @@ export default function SignUpPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full px-4 py-2 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                            className="w-full px-4 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                             placeholder="your@email.com"
                         />
                     </div>
@@ -92,7 +92,7 @@ export default function SignUpPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 minLength={6}
-                                className="w-full px-4 py-2 pr-12 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                                className="w-full px-4 py-2 pr-12 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                                 placeholder="At least 6 characters"
                             />
                             <button
@@ -127,7 +127,7 @@ export default function SignUpPage() {
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
                                 minLength={6}
-                                className="w-full px-4 py-2 pr-12 bg-futuristic-blue-800 border border-futuristic-yellow-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-futuristic-yellow-400"
+                                className="w-full px-4 py-2 pr-12 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
                                 placeholder="Confirm your password"
                             />
                             <button
@@ -162,7 +162,7 @@ export default function SignUpPage() {
                 <div className="mt-6 text-center">
                     <p className="text-white/70 text-sm">
                         Already have an account?{' '}
-                        <Link href="/auth/signin" className="text-futuristic-yellow-400 hover:text-futuristic-yellow-300 transition-colors">
+                        <Link href="/auth/signin" className="text-amber-500 hover:text-amber-400 transition-colors">
                             Sign in
                         </Link>
                     </p>

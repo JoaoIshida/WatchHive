@@ -112,11 +112,11 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
     return (
         <div ref={containerRef} className="relative">
             {/* Header - Always visible */}
-            <div className="w-full flex items-center justify-between mb-2 text-sm font-semibold text-futuristic-yellow-400/90">
+            <div className="w-full flex items-center justify-between mb-2 text-sm font-semibold text-amber-400/90">
                 <span className="flex items-center gap-2">
                     Keywords
                     {selectedKeywords.length > 0 && (
-                        <span className="px-1.5 py-0.5 text-xs bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full">
+                        <span className="px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded-full">
                             {selectedKeywords.length}
                         </span>
                     )}
@@ -131,13 +131,13 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
                         {selectedKeywords.map((keyword) => (
                             <span
                                 key={keyword.id}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-lg text-xs font-medium border border-futuristic-yellow-500/30"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-xs font-medium border border-amber-500/30"
                             >
                                 {keyword.name}
                                 <button
                                     type="button"
                                     onClick={() => handleRemoveKeyword(keyword.id)}
-                                    className="ml-0.5 hover:text-futuristic-yellow-300 transition-colors"
+                                    className="ml-0.5 hover:text-amber-300 transition-colors"
                                 >
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -159,11 +159,11 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={handleInputFocus}
                         placeholder="Search keywords..."
-                        className="w-full bg-futuristic-blue-800/80 border border-futuristic-blue-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-futuristic-yellow-500/50 focus:ring-1 focus:ring-futuristic-yellow-500/30 hover:bg-futuristic-blue-700/80 transition-all placeholder-white/50"
+                        className="w-full bg-charcoal-800/80 border border-charcoal-500/40 text-white text-sm px-3 py-2 pr-8 rounded-lg focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 hover:bg-charcoal-700/80 transition-all placeholder-white/50"
                     />
                     {isLoading && (
                         <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                            <svg className="animate-spin h-4 w-4 text-futuristic-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin h-4 w-4 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -184,7 +184,7 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
 
                 {/* Search results dropdown */}
                 {showDropdown && (
-                    <div className="mt-1 max-h-48 overflow-y-auto scrollbar bg-futuristic-blue-900/95 border border-futuristic-blue-500/40 rounded-lg shadow-lg">
+                    <div className="mt-1 max-h-48 overflow-y-auto scrollbar bg-charcoal-900/95 border border-charcoal-500/40 rounded-lg shadow-lg">
                         {searchResults.length > 0 ? (
                             <ul className="py-1">
                                 {searchResults.map((keyword) => (
@@ -192,7 +192,7 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
                                         <button
                                             type="button"
                                             onClick={() => handleSelectKeyword(keyword)}
-                                            className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-futuristic-blue-700/60 hover:text-futuristic-yellow-400 transition-colors"
+                                            className="w-full text-left px-3 py-2 text-sm text-white/90 hover:bg-charcoal-700/60 hover:text-amber-400 transition-colors"
                                         >
                                             {keyword.name}
                                         </button>

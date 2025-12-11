@@ -376,7 +376,7 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                         disabled={loading}
                         className={`futuristic-button flex items-center gap-2 ${
                             isWatched 
-                                ? 'bg-futuristic-yellow-500 hover:bg-futuristic-yellow-400 text-black' 
+                                ? 'bg-amber-500 hover:bg-amber-400 text-black' 
                                 : ''
                         } ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
@@ -402,7 +402,7 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     </button>
                     {isWatched && !loading && (
                         <div className="flex items-center gap-2">
-                            <span className="text-futuristic-yellow-400 font-semibold">
+                            <span className="text-amber-400 font-semibold">
                                 {timesWatched}x
                             </span>
                             <button

@@ -131,7 +131,7 @@ const TrendingSeriesContent = () => {
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Trending Series of the Week</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <LoadingCard count={12} />
                 </div>
@@ -142,7 +142,7 @@ const TrendingSeriesContent = () => {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+            <h1 className="text-4xl font-bold mb-6 text-amber-500">Trending Series of the Week</h1>
             
             <UnifiedFilter
                 onSortChange={setSortConfig}
@@ -178,7 +178,7 @@ const TrendingSeriesPage = () => {
     return (
         <Suspense fallback={
             <div className="container mx-auto px-4 py-8">
-                <h1 className="text-4xl font-bold mb-6 text-futuristic-yellow-400 futuristic-text-glow-yellow">Trending Series of the Week</h1>
+                <h1 className="text-4xl font-bold mb-6 text-amber-500">Trending Series of the Week</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <LoadingCard count={12} />
                 </div>
