@@ -3,7 +3,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
-import SortFilter from '../components/SortFilter';
+import UnifiedFilter from '../components/UnifiedFilter';
 import ContentCard from '../components/ContentCard';
 
 const TrendingMoviesContent = () => {
@@ -144,11 +144,14 @@ const TrendingMoviesContent = () => {
         <div className="page-container">
             <h1 className="page-title">Trending Movies of the Week</h1>
             
-            <SortFilter
+            <UnifiedFilter
                 onSortChange={setSortConfig}
                 onFilterChange={setFilters}
                 genres={genres}
                 showDateFilter={true}
+                mediaType="movie"
+                sortConfig={sortConfig}
+                filters={filters}
             />
 
             {

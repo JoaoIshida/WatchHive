@@ -2,8 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import LoadingCard from '../components/LoadingCard';
-import SortFilter from '../components/SortFilter';
-import FilterSidebar from '../components/FilterSidebar';
+import UnifiedFilter from '../components/UnifiedFilter';
 import ActiveFilters from '../components/ActiveFilters';
 import MoviesList from '../components/MoviesList';
 
@@ -68,11 +67,11 @@ const PopularMoviesContent = () => {
         }
         const urlRuntimeMin = searchParams.get('runtimeMin');
         if (urlRuntimeMin) {
-            urlFilters.runtimeMin = urlRuntimeMin; // Keep as string for URL, will be parsed in FilterSidebar
+            urlFilters.runtimeMin = urlRuntimeMin; // Keep as string for URL, will be parsed in UnifiedFilter
         }
         const urlRuntimeMax = searchParams.get('runtimeMax');
         if (urlRuntimeMax) {
-            urlFilters.runtimeMax = urlRuntimeMax; // Keep as string for URL, will be parsed in FilterSidebar
+            urlFilters.runtimeMax = urlRuntimeMax; // Keep as string for URL, will be parsed in UnifiedFilter
         }
         const urlWatchProviders = searchParams.get('watchProviders');
         if (urlWatchProviders) {
@@ -279,31 +278,19 @@ const PopularMoviesContent = () => {
         <div className="page-container">
             <h1 className="page-title">Popular Movies</h1>
             
-            {/* Mobile Filter - Hidden on sm and above */}
-            <div className="sm:hidden mb-4">
-                <SortFilter
-                    onSortChange={handleSortChange}
-                    onFilterChange={handleFilterChange}
-                    genres={genres}
-                    showDateFilter={true}
-                    sortConfig={sortConfig}
-                    filters={filters}
-                />
-            </div>
+            {/* Unified Filter - Mobile: Top, Desktop: Sidebar */}
+            <UnifiedFilter
+                onSortChange={handleSortChange}
+                onFilterChange={handleFilterChange}
+                genres={genres}
+                showDateFilter={true}
+                mediaType="movie"
+                sortConfig={sortConfig}
+                filters={filters}
+            />
 
             {/* Desktop Layout with Sidebar */}
             <div className="flex gap-6">
-                {/* Desktop Sidebar Filter - Hidden on mobile */}
-                <FilterSidebar
-                    onSortChange={handleSortChange}
-                    onFilterChange={handleFilterChange}
-                    genres={genres}
-                    showDateFilter={true}
-                    mediaType="movie"
-                    sortConfig={sortConfig}
-                    filters={filters}
-                />
-
                 {/* Main Content */}
                 <div className="flex-1 min-w-0">
                     {/* Active Filters - Desktop only */}

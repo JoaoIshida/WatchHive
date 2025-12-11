@@ -186,7 +186,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                                 onClick={() => removeFilter('certification', cert)}
                                 className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
                             >
-                                <span>Certification: {cert}</span>
+                                <span>Age Certification: {cert}</span>
                                 <span className="text-futuristic-yellow-500 font-bold">×</span>
                             </button>
                         ))}
@@ -240,7 +240,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                         <span className="text-futuristic-yellow-500 font-bold">×</span>
                     </button>
                 )}
-                {(filters.seasonsMin || filters.seasonsMax) && (
+                {(filters.seasonsMin || filters.seasonsMax || filters.seasonNumber) && (
                     <button
                         onClick={() => removeFilter('seasons')}
                         className="flex items-center gap-1.5 px-2.5 py-1 bg-futuristic-yellow-500/20 text-futuristic-yellow-400 rounded-full text-xs font-medium hover:bg-futuristic-yellow-500/30 transition-colors border border-futuristic-yellow-500/30"
