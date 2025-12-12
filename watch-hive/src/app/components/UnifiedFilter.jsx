@@ -560,7 +560,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                         onToggle={() => setGenreExpanded(!genreExpanded)}
                                         mobileOnly
                                     >
-                                        <div className="max-h-32 overflow-y-auto scrollbar futuristic-card p-2 bg-charcoal-900/40 border border-charcoal-700/20 rounded-lg">
+                                        <div className="max-h-32 overflow-y-auto futuristic-card p-2 bg-charcoal-900/40 border border-charcoal-700/20 rounded-lg">
                                             <div className="flex flex-wrap gap-1.5">
                                                 {genres.map((genre) => (
                                                     <button
