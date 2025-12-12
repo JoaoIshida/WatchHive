@@ -44,7 +44,7 @@ body {
   }
 
   .futuristic-card:hover {
-    @apply border-charcoal-600 shadow-subtle-lg transform translate-y-[-4px];
+    @apply shadow-subtle-lg;
   }
 
   .futuristic-button {
