@@ -46,27 +46,8 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
         return () => clearTimeout(debounceTimer);
     }, [query]);
 
-    useEffect(() => {
-        if (autoFocus && inputRef.current) {
-            // Use setTimeout(0) to stay within user gesture context while letting DOM render
-            // This is critical for mobile browsers to recognize the gesture
-            setTimeout(() => {
-                if (inputRef.current) {
-                    // Ensure input is visible before focusing
-                    if (inputRef.current.offsetParent !== null) {
-                        inputRef.current.focus({ preventScroll: false });
-                        // Set selection range to ensure keyboard appears on mobile
-                        const length = inputRef.current.value.length;
-                        inputRef.current.setSelectionRange(length, length);
-                        // Fallback: programmatic click if focus didn't work
-                        if (document.activeElement !== inputRef.current) {
-                            inputRef.current.click();
-                        }
-                    }
-                }
-            }, 0);
-        }
-    }, [autoFocus]);
+    // Browser natively handles autofocus attribute when element is added to DOM
+    // This works reliably on mobile within user gesture context (similar to GT's dialog approach)
 
     const searchContent = async (searchQuery) => {
         if (!searchQuery.trim()) return;
@@ -130,6 +111,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck="false"
+                    autoFocus={autoFocus}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => {

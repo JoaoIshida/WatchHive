@@ -484,28 +484,8 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                 onClick={() => {
                                     const willOpen = !isKeywordsOpen;
                                     setIsKeywordsOpen(willOpen);
-                                    // Set auto-focus flag for mobile - this triggers focus on mount
-                                    if (willOpen) {
-                                        setShouldAutoFocusKeywords(true);
-                                        // Focus synchronously within user gesture context for mobile
-                                        // Use setTimeout(0) to let React render first, but stay in gesture context
-                                        setTimeout(() => {
-                                            if (keywordSearchRef.current) {
-                                                const input = keywordSearchRef.current.querySelector('input');
-                                                if (input) {
-                                                    input.focus();
-                                                    // Ensure keyboard appears on mobile
-                                                    input.setSelectionRange(0, 0);
-                                                    // Fallback: programmatic click (legitimate DOM method)
-                                                    if (document.activeElement !== input) {
-                                                        input.click();
-                                                    }
-                                                }
-                                            }
-                                        }, 0);
-                                    } else {
-                                        setShouldAutoFocusKeywords(false);
-                                    }
+                                    // Set auto-focus flag - HTML autofocus attribute will handle keyboard activation
+                                    setShouldAutoFocusKeywords(willOpen);
                                 }}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                     selectedKeywords.length > 0
@@ -559,6 +539,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                     {isKeywordsOpen && (
                         <div className="mt-3 pt-3 border-t border-charcoal-700/20">
                             <KeywordSearch
+                                key="keywords-search"
                                 ref={keywordSearchRef}
                                 selectedKeywords={selectedKeywords}
                                 onKeywordsChange={handleKeywordsChange}

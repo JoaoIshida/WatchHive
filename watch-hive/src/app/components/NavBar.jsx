@@ -285,6 +285,7 @@ const Navbar = () => {
             {isMobileSearchOpen && (
                 <div className="md:hidden mt-4 border-t border-charcoal-700 pt-4 px-2">
                     <QuickSearch 
+                        key="mobile-search"
                         isNavbar={true} 
                         onClose={() => setIsMobileSearchOpen(false)}
                         autoFocus={true}

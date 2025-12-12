@@ -18,28 +18,8 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
         }
     }));
 
-    // Auto-focus on mount for mobile devices (when triggered by user tap)
-    useEffect(() => {
-        if (autoFocusOnMount && inputRef.current) {
-            // Use setTimeout(0) to stay within user gesture context while letting DOM render
-            // This is critical for mobile browsers to recognize the gesture
-            setTimeout(() => {
-                if (inputRef.current) {
-                    // Ensure input is visible before focusing
-                    if (inputRef.current.offsetParent !== null) {
-                        inputRef.current.focus();
-                        // Set selection range to ensure keyboard appears on mobile
-                        const length = inputRef.current.value.length;
-                        inputRef.current.setSelectionRange(length, length);
-                        // Fallback: programmatic click if focus didn't work
-                        if (document.activeElement !== inputRef.current) {
-                            inputRef.current.click();
-                        }
-                    }
-                }
-            }, 0);
-        }
-    }, [autoFocusOnMount]);
+    // Browser natively handles autofocus attribute when element is added to DOM
+    // This works reliably on mobile within user gesture context (similar to GT's dialog approach)
 
     // Search for keywords
     const searchKeywords = useCallback(async (query) => {
@@ -168,6 +148,7 @@ const KeywordSearch = forwardRef(({ selectedKeywords = [], onKeywordsChange, aut
                         type="text"
                         inputMode="search"
                         enterKeyHint="search"
+                        autoFocus={autoFocusOnMount}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={handleInputFocus}
