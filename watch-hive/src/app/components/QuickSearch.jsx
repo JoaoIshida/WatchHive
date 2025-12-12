@@ -142,7 +142,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
             {showResults && results.length > 0 && (
                 <div
                     ref={resultsRef}
-                    className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-charcoal-900/95 backdrop-blur-md border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto`}
+                    className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-charcoal-900 border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto`}
                 >
                     {results.map((item) => {
                         const title = item.title || item.name;
