@@ -5,6 +5,7 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/dateFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
+import { highlightText } from '../utils/highlightText';
 
 const SearchPageContent = () => {
     const searchParams = useSearchParams();
@@ -110,7 +111,7 @@ const SearchPageContent = () => {
                                         />
                                         <div className='flex flex-col flex-1'>
                                             <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-bold text-white text-lg">{title}</h3>
+                                                <h3 className="font-bold text-white text-lg">{highlightText(title, query)}</h3>
                                                 <span className="text-xs bg-charcoal-800 text-white px-2 py-1 rounded border border-amber-500/50">
                                                     {typeLabel}
                                                 </span>

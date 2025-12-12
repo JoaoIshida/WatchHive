@@ -195,7 +195,7 @@ const Navbar = () => {
     ];
 
     return (
-        <nav className="bg-charcoal-950/95 backdrop-blur-md border-b border-charcoal-700 shadow-subtle p-4 sticky top-0 z-50 max-h-screen overflow-visible">
+        <nav className="bg-charcoal-950/95 backdrop-blur-md border-b border-charcoal-700 shadow-subtle p-4 sticky top-0 z-[120] max-h-screen overflow-visible">
             <div className="container mx-auto flex items-center justify-between gap-4">
                 {/* Logo */}
                 <a className="text-amber-500 text-3xl font-bold cursor-pointer hover:text-amber-400 transition-colors flex-shrink-0" href="/">

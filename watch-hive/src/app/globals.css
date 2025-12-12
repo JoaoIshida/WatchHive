@@ -99,10 +99,12 @@ body {
 
   /* Hero Section - Stands out from rest of page */
   .hero-section {
-    @apply relative py-16 md:py-24 mb-12 rounded-2xl overflow-hidden;
+    @apply relative py-16 md:py-24 mb-12 rounded-2xl;
     background: #161b22;
     border: 1px solid #30363d;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    /* Allow search dropdown to overflow */
+    overflow: visible;
   }
 
   .hero-section > * {
@@ -235,20 +237,52 @@ body {
   }
 }
 
+/* Custom Scrollbar Styles - Amber Theme */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+  border: 2px solid #161b22;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+}
+
+::-webkit-scrollbar-track {
+  background-color: #161b22;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b #161b22;
+}
+
 .scrollbar::-webkit-scrollbar {
   width: 12px;
   height: 12px;
 }
 
 .scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #0066ff, #003d99);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
   border-radius: 6px;
-  box-shadow: 0 0 10px rgba(0, 102, 255, 0.5);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+  border: 2px solid #161b22;
 }
 
 .scrollbar::-webkit-scrollbar-track {
-  background-color: rgba(0, 20, 51, 0.5);
+  background-color: #161b22;
   border-radius: 6px;
+  border: 1px solid #30363d;
 }
 
 .scrollbar-hide {

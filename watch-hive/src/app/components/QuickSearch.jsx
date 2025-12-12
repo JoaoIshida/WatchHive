@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageWithFallback from './ImageWithFallback';
+import { highlightText } from '../utils/highlightText';
 
 const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
     const [query, setQuery] = useState('');
@@ -141,7 +142,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
             {showResults && results.length > 0 && (
                 <div
                     ref={resultsRef}
-                    className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-charcoal-900/95 backdrop-blur-md border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto`}
+                    className={`absolute ${isNavbar ? 'z-[110] w-[600px] left-1/2 -translate-x-1/2 bg-charcoal-900' : 'z-[100] w-full bg-charcoal-900/95'} mt-2 backdrop-blur-md border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto scrollbar`}
                 >
                     {results.map((item) => {
                         const title = item.title || item.name;
@@ -168,7 +169,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className={`${isNavbar ? 'text-base' : 'text-sm'} font-semibold text-white truncate mb-1.5`}>
-                                        {title}
+                                        {highlightText(title, query)}
                                     </h3>
                                     {item.overview && (
                                         <p className={`${isNavbar ? 'text-sm' : 'text-xs'} text-white/70 ${isNavbar ? 'line-clamp-3' : 'line-clamp-2'} mb-2`}>

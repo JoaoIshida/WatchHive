@@ -193,7 +193,7 @@ const Home = () => {
                 </p>
                 
                 {/* Quick Search */}
-                <div className="max-w-2xl mx-auto mb-8">
+                <div className="max-w-2xl mx-auto mb-8 relative z-[100]">
                     <QuickSearch />
                 </div>
             </div>
