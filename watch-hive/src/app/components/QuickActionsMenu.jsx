@@ -23,6 +23,13 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [mounted, setMounted] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [missingEpisodes, setMissingEpisodes] = useState(0);
+    const [showListModal, setShowListModal] = useState(false);
+    const [lists, setLists] = useState([]);
+    const [listModalItemLists, setListModalItemLists] = useState([]);
+    const [newListName, setNewListName] = useState('');
+    const [showCreateForm, setShowCreateForm] = useState(false);
+    const [listError, setListError] = useState(null);
+    const [listSuccess, setListSuccess] = useState(null);
     const buttonRef = useRef(null);
     const menuRef = useRef(null);
 
@@ -171,6 +178,13 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [isOpen]);
+
+    // Load lists when modal opens
+    useEffect(() => {
+        if (showListModal && user) {
+            loadListsForModal();
+        }
+    }, [showListModal, user, itemId, mediaType]);
 
     const handleToggleWatched = async () => {
         if (!user) {
@@ -328,57 +342,195 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
     };
 
-    const handleAddToList = async () => {
+    const handleAddToList = () => {
         if (!user) {
             window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
             setIsOpen(false);
             return;
         }
 
-        setLoading(true);
-        setLoadingAction('list');
+        // Close quick actions menu and open list selection modal
+        setIsOpen(false);
+        setShowListModal(true);
+        loadListsForModal();
+    };
+
+    const loadListsForModal = async () => {
+        if (!user) return;
+
         try {
-            // Get or create "My List"
-            const listsRes = await fetch('/api/custom-lists');
-            if (!listsRes.ok) throw new Error('Failed to fetch lists');
-            
-            const { lists } = await listsRes.json();
-            let defaultList = lists.find(l => l.name === 'My List');
-            
-            if (!defaultList) {
-                // Create default list
-                const createRes = await fetch('/api/custom-lists', {
+            const response = await fetch('/api/custom-lists');
+            if (response.ok) {
+                const { lists: allLists } = await response.json();
+                setLists(allLists || []);
+
+                // Find which lists contain this item
+                const listsWithItem = [];
+                const listPromises = (allLists || []).map(async (list) => {
+                    try {
+                        const listResponse = await fetch(`/api/custom-lists/${list.id}`);
+                        if (listResponse.ok) {
+                            const { list: listWithItems } = await listResponse.json();
+                            const hasItem = (listWithItems.items || []).some(item => 
+                                item.content_id === itemId && item.media_type === mediaType
+                            );
+                            if (hasItem) {
+                                return list.id;
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error checking list ${list.id}:`, error);
+                    }
+                    return null;
+                });
+
+                const results = await Promise.all(listPromises);
+                setListModalItemLists(results.filter(id => id !== null));
+            }
+        } catch (error) {
+            console.error('Error loading lists:', error);
+        }
+    };
+
+    const handleToggleListInModal = async (listId) => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
+        // Validate itemTitle - provide fallback if missing
+        const validTitle = (itemData?.title || itemData?.name || 'Untitled')?.trim() || 'Untitled';
+        if (!itemId || !mediaType) {
+            setListError('Missing required item information');
+            setTimeout(() => setListError(null), 3000);
+            return;
+        }
+
+        setLoading(true);
+        setListError(null);
+        setListSuccess(null);
+        try {
+            const isInList = listModalItemLists.includes(listId);
+
+            if (isInList) {
+                // Remove from list via API
+                const response = await fetch(`/api/custom-lists/${listId}/items?contentId=${itemId}&mediaType=${mediaType}`, {
+                    method: 'DELETE',
+                });
+                if (response.ok) {
+                    setListModalItemLists(prev => prev.filter(id => id !== listId));
+                    setItemLists(prev => prev.filter(id => id !== listId));
+                    setListSuccess('Removed from list');
+                    setTimeout(() => setListSuccess(null), 2000);
+                    await loadListsForModal();
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to remove from list');
+                }
+            } else {
+                // Add to list via API
+                const response = await fetch(`/api/custom-lists/${listId}/items`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: 'My List' }),
+                    body: JSON.stringify({
+                        contentId: itemId,
+                        mediaType,
+                        title: validTitle,
+                    }),
                 });
-                if (!createRes.ok) throw new Error('Failed to create list');
-                const { list } = await createRes.json();
-                defaultList = list;
+                if (response.ok) {
+                    setListModalItemLists(prev => [...prev, listId]);
+                    setItemLists(prev => [...prev, listId]);
+                    setListSuccess('Added to list');
+                    setTimeout(() => setListSuccess(null), 2000);
+                    await loadListsForModal();
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to add to list');
+                }
+            }
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error('Error toggling list:', error);
+            setListError(error.message || 'An error occurred');
+            setTimeout(() => setListError(null), 3000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateListInModal = async () => {
+        if (!newListName.trim()) {
+            setListError('List name is required');
+            setTimeout(() => setListError(null), 3000);
+            return;
+        }
+
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
+        // Validate itemTitle - provide fallback if missing
+        const validTitle = (itemData?.title || itemData?.name || 'Untitled')?.trim() || 'Untitled';
+        if (!itemId || !mediaType) {
+            setListError('Missing required item information');
+            setTimeout(() => setListError(null), 3000);
+            return;
+        }
+
+        setLoading(true);
+        setListError(null);
+        setListSuccess(null);
+        try {
+            // Create list via API
+            const response = await fetch('/api/custom-lists', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newListName.trim(),
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to create list');
             }
 
-            // Add item to list
-            const addRes = await fetch(`/api/custom-lists/${defaultList.id}/items`, {
+            const { list } = await response.json();
+            
+            // Add current item to the new list
+            const addResponse = await fetch(`/api/custom-lists/${list.id}/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contentId: itemId,
                     mediaType,
-                    title: itemData?.title || itemData?.name || 'Untitled',
+                    title: validTitle,
                 }),
             });
 
-            if (addRes.ok) {
-                setItemLists(prev => [...prev, defaultList.id]);
-                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-                if (onUpdate) onUpdate();
+            if (!addResponse.ok) {
+                const errorData = await addResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to add item to list');
             }
+
+            setNewListName('');
+            setShowCreateForm(false);
+            setListSuccess('List created and item added');
+            setTimeout(() => setListSuccess(null), 2000);
+            
+            // Refresh lists and item lists state
+            await loadListsForModal();
+            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            if (onUpdate) onUpdate();
         } catch (error) {
-            console.error('Error adding to list:', error);
+            console.error('Error creating list:', error);
+            setListError(error.message || 'Failed to create list');
+            setTimeout(() => setListError(null), 3000);
         } finally {
             setLoading(false);
-            setLoadingAction(null);
-            setIsOpen(false);
         }
     };
 
@@ -517,6 +669,134 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
 
             {/* Portal the menu to body for proper z-index stacking */}
             {mounted && menuContent && createPortal(menuContent, document.body)}
+            
+            {/* List Selection Modal */}
+            {showListModal && mounted && (
+                <>
+                    <div 
+                        className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4"
+                        onClick={() => {
+                            setShowListModal(false);
+                            setShowCreateForm(false);
+                            setNewListName('');
+                            setListError(null);
+                            setListSuccess(null);
+                        }}
+                    >
+                        <div 
+                            className="bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 w-full max-w-sm max-h-[calc(100vh-2rem)] flex flex-col"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-amber-400 font-bold">Your Lists</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowListModal(false);
+                                        setShowCreateForm(false);
+                                        setNewListName('');
+                                        setListError(null);
+                                        setListSuccess(null);
+                                    }}
+                                    className="text-white/70 hover:text-white w-8 h-8 flex items-center justify-center"
+                                    aria-label="Close"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            
+                            {listError && (
+                                <div className="mb-3 p-2 bg-red-500/20 border border-red-500/50 rounded text-red-400 text-sm">
+                                    {listError}
+                                </div>
+                            )}
+                            
+                            {listSuccess && (
+                                <div className="mb-3 p-2 bg-green-500/20 border border-green-500/50 rounded text-green-400 text-sm">
+                                    {listSuccess}
+                                </div>
+                            )}
+
+                            {lists.length === 0 && !showCreateForm && (
+                                <p className="text-white/70 text-sm mb-3">No lists yet. Create one!</p>
+                            )}
+
+                            <div className="space-y-2 flex-1 overflow-y-auto mb-3 min-h-0">
+                                {lists.map(list => {
+                                    const isInList = listModalItemLists.includes(list.id);
+                                    return (
+                                        <button
+                                            key={list.id}
+                                            onClick={() => handleToggleListInModal(list.id)}
+                                            disabled={loading}
+                                            className={`w-full text-left px-3 py-3 rounded transition-all min-h-[44px] flex flex-col justify-center ${
+                                                isInList
+                                                    ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400'
+                                                    : 'bg-charcoal-800/50 hover:bg-charcoal-800 text-white'
+                                            } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-medium">{list.name}</span>
+                                                <span>{isInList ? '✓' : '+'}</span>
+                                            </div>
+                                            {list.is_public && (
+                                                <span className="text-xs text-amber-400/80 mt-1">
+                                                    Public
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {showCreateForm ? (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={newListName}
+                                        onChange={(e) => setNewListName(e.target.value)}
+                                        placeholder="List name"
+                                        className="w-full px-3 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-400"
+                                        onKeyPress={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleCreateListInModal();
+                                            }
+                                        }}
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleCreateListInModal}
+                                            disabled={loading}
+                                            className="flex-1 futuristic-button-yellow text-sm py-3 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {loading ? 'Creating...' : 'Create'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowCreateForm(false);
+                                                setNewListName('');
+                                                setListError(null);
+                                            }}
+                                            disabled={loading}
+                                            className="flex-1 futuristic-button text-sm py-3 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowCreateForm(true)}
+                                    disabled={loading}
+                                    className="w-full futuristic-button-yellow text-sm py-3 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    + Create New List
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
             
             <UnreleasedNotification
                 isOpen={showNotification}

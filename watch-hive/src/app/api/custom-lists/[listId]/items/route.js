@@ -83,8 +83,25 @@ export async function POST(req, { params }) {
         const body = await req.json();
         const { contentId, mediaType, title } = body;
 
-        if (!contentId || !mediaType || !title) {
-            return new Response(JSON.stringify({ error: 'contentId, mediaType, and title are required' }), {
+        // Validate required fields
+        if (!contentId || !mediaType) {
+            return new Response(JSON.stringify({ error: 'contentId and mediaType are required' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
+        // Validate title - ensure it's not empty after trim
+        if (!title || typeof title !== 'string' || !title.trim()) {
+            return new Response(JSON.stringify({ error: 'title is required and cannot be empty' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
+        // Validate mediaType is valid enum value
+        if (mediaType !== 'movie' && mediaType !== 'tv') {
+            return new Response(JSON.stringify({ error: 'mediaType must be either "movie" or "tv"' }), {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' },
             });
@@ -135,14 +152,15 @@ export async function POST(req, { params }) {
             });
         }
 
-        // Insert new item
+        // Insert new item (title is already validated and trimmed)
+        const trimmedTitle = title.trim();
         const { data, error } = await supabase
             .from('custom_list_items')
             .insert({
                 list_id: listId,
                 content_id: contentId,
                 media_type: mediaType,
-                title: title.trim(),
+                title: trimmedTitle,
             })
             .select()
             .single();
