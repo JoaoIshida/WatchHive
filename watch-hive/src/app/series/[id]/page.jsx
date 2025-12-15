@@ -11,22 +11,18 @@ import HashScrollHandler from '../../components/HashScrollHandler';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
+import { fetchTMDB } from '../../api/utils';
 
 async function getSerieDetails(id) {
-    // Use API route which properly filters seasons by season_number
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/tv/${id}`, {
-        cache: 'no-store', // Ensure fresh data
+    // Directly call TMDB API (like movie page) to avoid server-side fetch issues
+    const data = await fetchTMDB(`/tv/${id}`, {
+        language: 'en-CA',
+        append_to_response: 'content_ratings',
     });
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch TV details');
-    }
-
-    const data = await res.json();
     
-    // Additional filtering: ensure seasons are valid and sorted
+    // Filter seasons by season_number
+    // According to TMDB: season_number >= 0 (0 is for specials, 1+ are regular seasons)
     if (data.seasons && Array.isArray(data.seasons)) {
-        // Filter by season_number (already done in API, but double-check here)
         data.seasons = data.seasons.filter(season => 
             season.season_number !== null && 
             season.season_number !== undefined && 
