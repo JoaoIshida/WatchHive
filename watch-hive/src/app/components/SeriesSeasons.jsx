@@ -444,8 +444,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const getSeasonProgress = (seasonNumber) => {
         const season = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
         
-        // If season is marked as completed, count all released episodes as watched
-        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
+        // Only count episodes that are actually in the database as watched
         const watchedEpisodes = progress.seasons[seasonNumber]?.episodes || [];
         
         if (!season) {
@@ -453,9 +452,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
             const seasonFromList = seasons.find(s => s.season_number === seasonNumber);
             if (seasonFromList && seasonFromList.episode_count) {
                 // Total includes ALL episodes (released + unreleased)
-                // Watched only includes released episodes that are marked as watched
-                // If season is completed, we can't know how many are released without episode data
-                // So we'll use a conservative estimate: only count individually watched episodes
+                // Watched only includes episodes that are in the database
                 return { 
                     watched: watchedEpisodes.length, 
                     total: seasonFromList.episode_count 
@@ -467,27 +464,16 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         // If season has episodes data, count ALL episodes (including unreleased) as total
         if (season.episodes && season.episodes.length > 0) {
             const total = season.episodes.length; // ALL episodes (released + unreleased)
-            // If season is completed, count all released episodes as watched
-            // Otherwise, count only individually watched episodes (which are already filtered to released by backend)
-            let watched;
-            if (isSeasonCompleted) {
-                // Season is completed - count all released episodes as watched
-                // Pass season data for fallback date checking
-                watched = season.episodes.filter(ep => isEpisodeReleased(ep, season)).length;
-            } else {
-                // Season not completed - count only individually watched episodes
-                // Backend already filters unreleased episodes, so watchedEpisodes only contains released ones
-                watched = watchedEpisodes.length;
-            }
+            // Only count episodes that are actually in the database as watched
+            // Backend already filters unreleased episodes, so watchedEpisodes only contains released ones
+            const watched = watchedEpisodes.length;
             return { watched, total };
         }
         
         // Fallback: use episode_count if available
         if (season.episode_count) {
             // Total includes ALL episodes
-            // Watched only includes released episodes that are marked as watched
-            // If season is completed but we don't have episode data, we can't accurately count
-            // So we'll use a conservative estimate: only count individually watched episodes
+            // Watched only includes episodes that are in the database
             return { 
                 watched: watchedEpisodes.length, 
                 total: season.episode_count 
@@ -631,13 +617,12 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                             {isExpanded && seasonData.episodes && (
                                 <div className="mt-4 space-y-2">
                                     {seasonData.episodes.map((episode) => {
-                                        // If season is completed, all RELEASED episodes are watched
-                                        const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
+                                        // Only check database for watched status - don't assume based on season completion
                                         const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
                                         // Pass seasonData for fallback date checking
                                         const episodeIsReleased = isEpisodeReleased(episode, seasonData);
-                                        // Only show as watched if episode is released AND (season is completed OR episode is individually watched)
-                                        const isWatched = episodeIsReleased && (isSeasonCompleted || watchedEpisodes.includes(episode.episode_number));
+                                        // Only show as watched if episode is in the database as watched
+                                        const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                         const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
                                         const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                         

@@ -25,28 +25,19 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
             }
 
             try {
-                // For series, also check series progress
+                // For series, check watched_content table
                 if (mediaType === 'tv') {
-                    const [watchedResponse, progressResponse] = await Promise.all([
-                        fetch(`/api/watched`),
-                        fetch(`/api/series-progress/${itemId}`)
-                    ]);
+                    const watchedResponse = await fetch(`/api/watched`);
 
                     if (watchedResponse.ok) {
                         const { watched } = await watchedResponse.json();
                         const item = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
                         
-                        // Also check if series is marked as complete in progress
-                        let isComplete = false;
-                        if (progressResponse.ok) {
-                            const progress = await progressResponse.json();
-                            isComplete = progress.completed || false;
-                        }
-
-                        // Series is watched if it's in watched_content OR marked as complete in progress
-                        if (item || isComplete) {
+                        // Series is watched ONLY if it's in the watched_content table
+                        // Don't check series completion status - that's separate from watched status
+                        if (item) {
                             setIsWatched(true);
-                            setTimesWatched(item?.times_watched || 1);
+                            setTimesWatched(item.times_watched || 1);
                         } else {
                             setIsWatched(false);
                             setTimesWatched(0);

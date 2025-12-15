@@ -225,7 +225,7 @@ const Home = () => {
                     titleIcon="flame"
                     items={trendingMovies}
                     mediaType="movie"
-                    href="/trending-movies"
+                    href="/movies?sortBy=popularity.desc"
                     loading={loading}
                 />
 
@@ -236,7 +236,7 @@ const Home = () => {
                     titleIcon="flame"
                     items={trendingSeries}
                     mediaType="tv"
-                    href="/trending-series"
+                    href="/series?sortBy=popularity.desc"
                     loading={loading}
                 />
 
@@ -247,7 +247,7 @@ const Home = () => {
                     titleIcon="clapperboard"
                     items={nowPlaying}
                     mediaType="movie"
-                    href="/movies"
+                    href="/movies?inTheaters=true"
                     loading={loading}
                 />
 
