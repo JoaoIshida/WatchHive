@@ -52,34 +52,32 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             if (detailsRes.ok) {
                                 seriesDataForProgress = await detailsRes.json();
                                 
-                                // For completed seasons, fetch episode data to accurately count released episodes
-                                // This ensures we count only released episodes, not all episodes including unreleased
-                                if (seriesDataForProgress.seasons && progress.seasons) {
+                                // Fetch season details for all seasons with progress to get accurate episode counts
+                                // This ensures we count all episodes (released + unreleased) correctly
+                                if (seriesDataForProgress.seasons && progress && progress.seasons) {
                                     const seasonPromises = Object.keys(progress.seasons).map(async (seasonNum) => {
-                                        const seasonProgress = progress.seasons[seasonNum];
-                                        // Only fetch if season is completed (we need episode data to count released episodes)
-                                        if (seasonProgress.completed) {
-                                            try {
-                                                const seasonRes = await fetch(`/api/tv/${item.id}/season/${seasonNum}`);
-                                                if (seasonRes.ok) {
-                                                    const seasonData = await seasonRes.json();
-                                                    // Find and update the season in seriesDataForProgress
-                                                    const seasonIndex = seriesDataForProgress.seasons.findIndex(
-                                                        s => s.season_number === parseInt(seasonNum)
-                                                    );
-                                                    if (seasonIndex !== -1) {
-                                                        // Preserve episode_count if it exists in original season data
-                                                        const originalSeason = seriesDataForProgress.seasons[seasonIndex];
-                                                        seriesDataForProgress.seasons[seasonIndex] = {
-                                                            ...seasonData,
-                                                            // Preserve episode_count - use seasonData's count, or original, or calculate from episodes
-                                                            episode_count: seasonData.episode_count || originalSeason?.episode_count || (seasonData.episodes?.length || 0)
-                                                        };
-                                                    }
+                                        try {
+                                            const seasonRes = await fetch(`/api/tv/${item.id}/season/${seasonNum}`);
+                                            if (seasonRes.ok) {
+                                                const seasonData = await seasonRes.json();
+                                                // Find and update the season in seriesDataForProgress with full episode data
+                                                const seasonIndex = seriesDataForProgress.seasons.findIndex(
+                                                    s => s.season_number === parseInt(seasonNum)
+                                                );
+                                                if (seasonIndex !== -1) {
+                                                    // Update with full season data including episodes
+                                                    seriesDataForProgress.seasons[seasonIndex] = {
+                                                        ...seriesDataForProgress.seasons[seasonIndex],
+                                                        ...seasonData,
+                                                        // Ensure episode_count is set (use from seasonData or calculate from episodes)
+                                                        episode_count: seasonData.episode_count || 
+                                                                      seriesDataForProgress.seasons[seasonIndex]?.episode_count || 
+                                                                      (seasonData.episodes?.length || 0)
+                                                    };
                                                 }
-                                            } catch (err) {
-                                                // Silently fail - we'll use progress.episodes as fallback
                                             }
+                                        } catch (err) {
+                                            // Silently fail - we'll use episode_count as fallback
                                         }
                                     });
                                     await Promise.all(seasonPromises);

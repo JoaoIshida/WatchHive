@@ -6,6 +6,8 @@ import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { formatDate } from '../utils/dateFormatter';
+import { isEpisodeReleased } from '../utils/releaseDateValidator';
+import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
 
 // Component that uses useSearchParams - must be wrapped in Suspense
 const ProfilePageContent = () => {
@@ -23,12 +25,17 @@ const ProfilePageContent = () => {
     const [customLists, setCustomLists] = useState([]);
     const [listDetails, setListDetails] = useState({});
     const [upcomingSeasons, setUpcomingSeasons] = useState([]);
+    const [upcomingEpisodes, setUpcomingEpisodes] = useState([]);
+    const [upcomingWishlistMovies, setUpcomingWishlistMovies] = useState([]);
     const [dbStats, setDbStats] = useState(null);
     const [displayName, setDisplayName] = useState('');
     const [showSignOutModal, setShowSignOutModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [expandedSeries, setExpandedSeries] = useState({});
+    const [seriesSeasonDetails, setSeriesSeasonDetails] = useState({}); // { seriesId: { seasonNumber: seasonData } }
+    const [watchedFilter, setWatchedFilter] = useState('all'); // 'all', 'movie', 'tv'
 
     useEffect(() => {
         // Check URL params for tab
@@ -37,6 +44,54 @@ const ProfilePageContent = () => {
             setActiveTab('settings');
         }
     }, [searchParams]);
+
+    // Reload series data when switching to series tab (only once per tab switch)
+    const [hasReloadedSeries, setHasReloadedSeries] = useState(false);
+    useEffect(() => {
+        if (activeTab === 'series' && user && !hasReloadedSeries) {
+            // Reload series progress to get latest episode data
+            const reloadSeriesProgress = async () => {
+                try {
+                    const seriesProgressRes = await fetch('/api/series-progress');
+                    if (seriesProgressRes.ok) {
+                        const seriesProgressData = await seriesProgressRes.json();
+                        setSeriesProgress(seriesProgressData);
+                        
+                        // Reload series details
+                        const seriesIds = Object.keys(seriesProgressData);
+                        if (seriesIds.length > 0) {
+                            const seriesDetailsPromises = seriesIds.map(async (seriesId) => {
+                                try {
+                                    const response = await fetch(`/api/content/tv/${seriesId}`);
+                                    if (response.ok) {
+                                        const data = await response.json();
+                                        return { id: seriesId, ...data };
+                                    }
+                                } catch (error) {
+                                    console.error(`Error fetching series ${seriesId}:`, error);
+                                }
+                                return null;
+                            });
+                            const details = await Promise.all(seriesDetailsPromises);
+                            const seriesMap = {};
+                            details.filter(item => item !== null).forEach(item => {
+                                seriesMap[item.id] = item;
+                            });
+                            setSeriesDetails(prev => ({ ...prev, ...seriesMap }));
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error reloading series progress:', error);
+                } finally {
+                    setHasReloadedSeries(true);
+                }
+            };
+            reloadSeriesProgress();
+        } else if (activeTab !== 'series') {
+            // Reset reload flag when switching away from series tab
+            setHasReloadedSeries(false);
+        }
+    }, [activeTab, user, hasReloadedSeries]);
 
     useEffect(() => {
         // Wait for auth to load, then check if user is authenticated
@@ -234,7 +289,107 @@ const ProfilePageContent = () => {
                 // Sort upcoming seasons by air date
                 upcomingSeasonsList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
                 setUpcomingSeasons(upcomingSeasonsList);
+
+                // Check for upcoming episodes from ALL series the user has watched
+                // Check ALL seasons from TMDB (even if season is marked as completed, episodes might be missing in Supabase)
+                const upcomingEpisodesList = [];
+                for (const seriesId of seriesIds) {
+                    try {
+                        const seriesData = seriesDetails[seriesId];
+                        if (!seriesData || !seriesData.seasons) continue;
+
+                        const progressData = seriesProgressData[seriesId];
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        // Check ALL seasons from TMDB (not just watched seasons)
+                        // This ensures we catch upcoming episodes even if season is marked as completed
+                        for (const season of seriesData.seasons) {
+                            if (season.season_number < 0) continue; // Skip specials
+                            
+                            try {
+                                // Fetch season episodes from TMDB to check each one individually
+                                const seasonResponse = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
+                                if (seasonResponse.ok) {
+                                    const seasonData = await seasonResponse.json();
+                                        
+                                    if (seasonData.episodes && seasonData.episodes.length > 0) {
+                                        // Get watched episodes from Supabase (may be incomplete even if season is marked complete)
+                                        const watchedEpisodes = progressData?.seasons?.[String(season.season_number)]?.episodes || [];
+                                        
+                                        // Check each episode individually using the same logic as SeriesSeasons
+                                        seasonData.episodes.forEach(episode => {
+                                            // Only show episodes that have their own air_date (not season fallback)
+                                            if (!episode.air_date) return;
+                                            
+                                            // Use isEpisodeReleased to check if episode is released (same logic as SeriesSeasons)
+                                            const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                            
+                                            // If episode is NOT released (upcoming) and NOT watched, add to list
+                                            // This catches episodes even if season is marked as completed but episode is missing in Supabase
+                                            if (!episodeIsReleased && !watchedEpisodes.includes(episode.episode_number)) {
+                                                upcomingEpisodesList.push({
+                                                    seriesId,
+                                                    seriesName: seriesData.name,
+                                                    seasonNumber: season.season_number,
+                                                    seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
+                                                    episodeNumber: episode.episode_number,
+                                                    episodeName: episode.name || `Episode ${episode.episode_number}`,
+                                                    airDate: episode.air_date,
+                                                });
+                                            }
+                                        });
+                                    }
+                                }
+                            } catch (error) {
+                                console.error(`Error fetching season ${season.season_number} episodes for series ${seriesId}:`, error);
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error checking upcoming episodes for series ${seriesId}:`, error);
+                    }
+                }
+                
+                // Sort upcoming episodes by air date
+                upcomingEpisodesList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
+                setUpcomingEpisodes(upcomingEpisodesList);
             }
+
+            // Check for upcoming movies in wishlist
+            const upcomingMoviesList = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            for (const item of wishlistItems) {
+                if (item.media_type === 'movie') {
+                    try {
+                        const response = await fetch(`/api/content/movie/${item.content_id}`);
+                        if (response.ok) {
+                            const movieData = await response.json();
+                            if (movieData.release_date) {
+                                const releaseDate = new Date(movieData.release_date);
+                                releaseDate.setHours(0, 0, 0, 0);
+                                
+                                // Check if movie is upcoming
+                                if (releaseDate > today) {
+                                    upcomingMoviesList.push({
+                                        movieId: item.content_id,
+                                        title: movieData.title,
+                                        releaseDate: movieData.release_date,
+                                        posterPath: movieData.poster_path,
+                                    });
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error checking upcoming movie ${item.content_id}:`, error);
+                    }
+                }
+            }
+            
+            // Sort upcoming movies by release date
+            upcomingMoviesList.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+            setUpcomingWishlistMovies(upcomingMoviesList);
             
             // TODO: Load custom lists details from Supabase
         } catch (error) {
@@ -499,6 +654,78 @@ const ProfilePageContent = () => {
                         </div>
                     )}
 
+                    {/* Upcoming Episodes Alert */}
+                    {upcomingEpisodes.length > 0 && (
+                        <div className="futuristic-card p-6 border-2 border-amber-500/50">
+                            <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Upcoming Episodes ({upcomingEpisodes.length})
+                            </h2>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {upcomingEpisodes.slice(0, 10).map((upcoming, index) => (
+                                    <a
+                                        key={index}
+                                        href={`/series/${upcoming.seriesId}`}
+                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                    >
+                                        <div className="flex-1">
+                                            <div className="text-white font-semibold">
+                                                {upcoming.seriesName}
+                                            </div>
+                                            <div className="text-sm text-amber-500/80">
+                                                {upcoming.seasonName} • {upcoming.episodeName}
+                                            </div>
+                                        </div>
+                                        <div className="text-amber-500 font-semibold text-sm">
+                                            {formatDate(upcoming.airDate)}
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Upcoming Wishlist Movies Alert */}
+                    {upcomingWishlistMovies.length > 0 && (
+                        <div className="futuristic-card p-6 border-2 border-amber-500/50">
+                            <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                                Upcoming Movies in Wishlist ({upcomingWishlistMovies.length})
+                            </h2>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {upcomingWishlistMovies.slice(0, 10).map((movie, index) => (
+                                    <a
+                                        key={index}
+                                        href={`/movies/${movie.movieId}`}
+                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-3 flex-1">
+                                            {movie.posterPath && (
+                                                <img
+                                                    src={`https://image.tmdb.org/t/p/w92${movie.posterPath}`}
+                                                    alt={movie.title}
+                                                    className="w-12 h-16 object-cover rounded"
+                                                />
+                                            )}
+                                            <div className="flex-1">
+                                                <div className="text-white font-semibold">
+                                                    {movie.title}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-amber-500 font-semibold text-sm">
+                                            {formatDate(movie.releaseDate)}
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Series Progress Summary */}
                     {Object.keys(seriesProgress).length > 0 && (
                         <div className="futuristic-card p-6">
@@ -508,10 +735,29 @@ const ProfilePageContent = () => {
                             <div className="space-y-3">
                                 {Object.entries(seriesProgress).map(([seriesId, progress]) => {
                                     const seriesInfo = seriesDetails[seriesId];
-                                    const totalSeasons = Object.keys(progress.seasons || {}).length;
+                                    
+                                    // Get total seasons from TMDB (exclude specials - only season_number > 0)
+                                    const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
+                                    // Get watched seasons (seasons user has progress on, exclude specials)
+                                    const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
+                                    // Use TMDB total if available, otherwise fallback to watched count
+                                    const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
+                                    
+                                    // Count specials separately
+                                    const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
+                                    const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
+                                    
                                     const completedSeasons = Object.values(progress.seasons || {}).filter(
                                         season => season.completed
                                     ).length;
+                                    
+                                    // Calculate total episodes watched (exclude specials)
+                                    const totalEpisodesWatched = Object.entries(progress.seasons || {})
+                                        .filter(([seasonNum]) => parseInt(seasonNum) > 0) // Exclude specials
+                                        .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
+                                    
+                                    // Calculate progress using shared utility (excludes specials automatically)
+                                    const seriesProgressData = calculateSeriesProgress(progress, seriesInfo?.seasons, {});
                                     
                                     return (
                                         <a 
@@ -519,12 +765,18 @@ const ProfilePageContent = () => {
                                             href={`/series/${seriesId}`}
                                             className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
                                         >
-                                            <div>
+                                            <div className="flex-1">
                                                 <div className="text-white font-semibold">
                                                     {seriesInfo?.name || `Series ID: ${seriesId}`}
                                                 </div>
-                                                <div className="text-sm text-amber-500/80">
-                                                    {completedSeasons}/{totalSeasons} seasons completed
+                                                <div className="text-sm text-amber-500/80 mt-1">
+                                                    {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
+                                                    {specialsCount > 0 && (
+                                                        <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>
+                                                    )}
+                                                    {seriesProgressData.total > 0 && (
+                                                        <span className="ml-2">• {seriesProgressData.percentage}%</span>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className={`px-3 py-1 rounded font-semibold ${
@@ -553,41 +805,102 @@ const ProfilePageContent = () => {
                         </div>
                     ) : (
                         <>
-                            <div className="mb-4 text-sm text-amber-500/80">
-                                Showing {watchedDetails.length} watched {watchedDetails.length === 1 ? 'item' : 'items'}
+                            {/* Filter Buttons */}
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="text-sm text-white/70">Filter:</span>
+                                <button
+                                    onClick={() => setWatchedFilter('all')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                        watchedFilter === 'all'
+                                            ? 'bg-amber-500 text-black'
+                                            : 'bg-charcoal-800 text-white hover:bg-charcoal-700'
+                                    }`}
+                                >
+                                    All
+                                </button>
+                                <button
+                                    onClick={() => setWatchedFilter('movie')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                        watchedFilter === 'movie'
+                                            ? 'bg-amber-500 text-black'
+                                            : 'bg-charcoal-800 text-white hover:bg-charcoal-700'
+                                    }`}
+                                >
+                                    Movies
+                                </button>
+                                <button
+                                    onClick={() => setWatchedFilter('tv')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                        watchedFilter === 'tv'
+                                            ? 'bg-amber-500 text-black'
+                                            : 'bg-charcoal-800 text-white hover:bg-charcoal-700'
+                                    }`}
+                                >
+                                    Series
+                                </button>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                {watchedDetails
-                                    .sort((a, b) => {
-                                        // Sort by most recently watched first
-                                        const dateA = new Date(a.dateWatched || 0);
-                                        const dateB = new Date(b.dateWatched || 0);
-                                        return dateB - dateA;
-                                    })
-                                    .map((item) => {
-                                        const href = item.media_type === 'movie' 
-                                            ? `/movies/${item.id}` 
-                                            : `/series/${item.id}`;
-                                        
-                                        return (
-                                            <div key={`${item.media_type}-${item.id}`} className="relative">
-                                                <ContentCard
-                                                    item={item}
-                                                    mediaType={item.media_type}
-                                                    href={href}
-                                                />
-                                                <div className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded z-20">
-                                                    {item.timesWatched}x
-                                                </div>
-                                                {item.dateWatched && (
-                                                    <div className="absolute bottom-2 right-2 bg-charcoal-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
-                                                        {new Date(item.dateWatched).toLocaleDateString()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                            </div>
+
+                            {/* Filtered Items */}
+                            {(() => {
+                                const filteredItems = watchedDetails.filter(item => {
+                                    if (watchedFilter === 'all') return true;
+                                    if (watchedFilter === 'movie') return item.media_type === 'movie';
+                                    if (watchedFilter === 'tv') return item.media_type === 'tv';
+                                    return true;
+                                });
+
+                                if (filteredItems.length === 0) {
+                                    return (
+                                        <div className="text-center py-12 futuristic-card">
+                                            <p className="text-xl text-white mb-2">No {watchedFilter === 'movie' ? 'movies' : watchedFilter === 'tv' ? 'series' : 'items'} watched yet</p>
+                                            <p className="text-amber-500/80">Start watching {watchedFilter === 'movie' ? 'movies' : watchedFilter === 'tv' ? 'series' : 'content'} to see them here!</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <>
+                                        <div className="mb-4 text-sm text-amber-500/80">
+                                            Showing {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} 
+                                            {watchedFilter !== 'all' && (
+                                                <span> ({watchedDetails.length} total)</span>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                            {filteredItems
+                                                .sort((a, b) => {
+                                                    // Sort by most recently watched first
+                                                    const dateA = new Date(a.dateWatched || 0);
+                                                    const dateB = new Date(b.dateWatched || 0);
+                                                    return dateB - dateA;
+                                                })
+                                                .map((item) => {
+                                                    const href = item.media_type === 'movie' 
+                                                        ? `/movies/${item.id}` 
+                                                        : `/series/${item.id}`;
+                                                    
+                                                    return (
+                                                        <div key={`${item.media_type}-${item.id}`} className="relative">
+                                                            <ContentCard
+                                                                item={item}
+                                                                mediaType={item.media_type}
+                                                                href={href}
+                                                            />
+                                                            <div className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded z-20">
+                                                                {item.timesWatched}x
+                                                            </div>
+                                                            {item.dateWatched && (
+                                                                <div className="absolute bottom-2 right-2 bg-charcoal-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
+                                                                    {new Date(item.dateWatched).toLocaleDateString()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </>
                     )}
                 </div>
@@ -651,56 +964,322 @@ const ProfilePageContent = () => {
                     ) : (
                         <div className="space-y-4">
                             {Object.entries(seriesProgress).map(([seriesId, progress]) => {
-                                const totalSeasons = Object.keys(progress.seasons || {}).length;
+                                const seriesInfo = seriesDetails[seriesId];
+                                const isExpanded = expandedSeries[seriesId];
+                                
+                                // Get total seasons from TMDB (exclude specials - only season_number > 0)
+                                const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
+                                // Get watched seasons (seasons user has progress on, exclude specials)
+                                const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
+                                // Use TMDB total if available, otherwise fallback to watched count
+                                const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
+                                
+                                // Count specials separately
+                                const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
+                                const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
+                                
                                 const completedSeasons = Object.values(progress.seasons || {}).filter(
                                     season => season.completed
                                 ).length;
-                                const totalEpisodes = Object.values(progress.seasons || {}).reduce(
-                                    (total, season) => total + (season.episodes?.length || 0), 0
-                                );
+                                // Calculate total episodes watched (exclude specials)
+                                const totalEpisodesWatched = Object.entries(progress.seasons || {})
+                                    .filter(([seasonNum]) => parseInt(seasonNum) > 0) // Exclude specials
+                                    .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
+
+                                // Calculate progress percentage using shared utility
+                                const getSeriesOverallProgress = () => {
+                                    return calculateSeriesProgress(progress, seriesInfo?.seasons, seriesSeasonDetails[seriesId]);
+                                };
+
+                                const overallProgress = getSeriesOverallProgress();
+
+                                // Toggle series expansion and fetch season details
+                                const toggleSeries = async () => {
+                                    if (isExpanded) {
+                                        setExpandedSeries(prev => ({ ...prev, [seriesId]: false }));
+                                    } else {
+                                        setExpandedSeries(prev => ({ ...prev, [seriesId]: true }));
+                                        
+                                        // Fetch season details for all seasons the user is watching
+                                        if (seriesInfo?.seasons) {
+                                            const seasonPromises = Object.keys(progress.seasons || {}).map(async (seasonNum) => {
+                                                try {
+                                                    const response = await fetch(`/api/tv/${seriesId}/season/${seasonNum}`);
+                                                    if (response.ok) {
+                                                        const data = await response.json();
+                                                        return { seasonNumber: parseInt(seasonNum), data };
+                                                    }
+                                                } catch (error) {
+                                                    console.error(`Error fetching season ${seasonNum} for series ${seriesId}:`, error);
+                                                }
+                                                return null;
+                                            });
+                                            
+                                            const results = await Promise.all(seasonPromises);
+                                            const seasonDetailsMap = {};
+                                            results.forEach(result => {
+                                                if (result) {
+                                                    if (!seasonDetailsMap[seriesId]) {
+                                                        seasonDetailsMap[seriesId] = {};
+                                                    }
+                                                    seasonDetailsMap[seriesId][result.seasonNumber] = result.data;
+                                                }
+                                            });
+                                            
+                                            setSeriesSeasonDetails(prev => ({
+                                                ...prev,
+                                                ...seasonDetailsMap
+                                            }));
+                                        }
+                                    }
+                                };
+
+                                // Get season progress using shared utility
+                                const getSeasonProgress = (seasonNumber) => {
+                                    const seasonData = seriesSeasonDetails[seriesId]?.[seasonNumber];
+                                    return calculateSeasonProgress(parseInt(seasonNumber), progress, seasonData, seriesInfo?.seasons);
+                                };
 
                                 return (
                                     <div key={seriesId} className="futuristic-card p-6">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div>
+                                        <div 
+                                            className="flex items-center justify-between mb-4 cursor-pointer"
+                                            onClick={toggleSeries}
+                                        >
+                                            <div className="flex-1">
                                                 <h3 className="text-xl font-bold text-white">
-                                                    <a href={`/series/${seriesId}`} className="hover:text-amber-500 transition-colors">
-                                                        {seriesDetails[seriesId]?.name || `Series ID: ${seriesId}`}
+                                                    <a 
+                                                        href={`/series/${seriesId}`} 
+                                                        className="hover:text-amber-500 transition-colors"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        {seriesInfo?.name || `Series ID: ${seriesId}`}
                                                     </a>
                                                 </h3>
-                                                <p className="text-sm text-amber-500/80">
-                                                    {completedSeasons}/{totalSeasons} seasons • {totalEpisodes} episodes watched
-                                                </p>
-                                            </div>
-                                            <a 
-                                                href={`/series/${seriesId}`}
-                                                className="futuristic-button text-sm"
-                                            >
-                                                View Series
-                                            </a>
-                                        </div>
-                                        
-                                        <div className="space-y-2">
-                                            {Object.entries(progress.seasons || {}).map(([seasonNum, season]) => (
-                                                <div key={seasonNum} className="bg-charcoal-800/50 p-3 rounded">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-white font-semibold">Season {seasonNum}</span>
-                                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                                            season.completed 
-                                                                ? 'bg-amber-500 text-black' 
-                                                                : 'bg-charcoal-800 text-white'
-                                                        }`}>
-                                                            {season.completed ? 'Completed' : `${season.episodes?.length || 0} episodes watched`}
-                                                        </span>
-                                                    </div>
-                                                    {season.episodes && season.episodes.length > 0 && (
-                                                        <div className="text-xs text-amber-500/80">
-                                                            Episodes: {season.episodes.sort((a, b) => a - b).join(', ')}
-                                                        </div>
+                                                <div className="flex items-center gap-4 mt-2">
+                                                    <p className="text-sm text-amber-500/80">
+                                                        {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
+                                                        {specialsCount > 0 && (
+                                                            <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>
+                                                        )}
+                                                    </p>
+                                                    {overallProgress.total > 0 && (
+                                                        <>
+                                                            <span className="text-sm text-white/60">•</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-24 bg-charcoal-800 rounded-full h-2">
+                                                                    <div 
+                                                                        className="bg-amber-500 h-2 rounded-full transition-all"
+                                                                        style={{ width: `${overallProgress.percentage}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <span className="text-sm text-amber-500/80">{overallProgress.percentage}%</span>
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
-                                            ))}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <a 
+                                                    href={`/series/${seriesId}`}
+                                                    className="futuristic-button text-sm"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    View Series
+                                                </a>
+                                                <svg
+                                                    className={`w-6 h-6 text-amber-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
                                         </div>
+                                        
+                                        {isExpanded && (
+                                            <div className="space-y-3 mt-4 border-t border-charcoal-700 pt-4">
+                                                {/* Regular Seasons */}
+                                                {Object.entries(progress.seasons || {})
+                                                    .filter(([seasonNum]) => parseInt(seasonNum) > 0)
+                                                    .map(([seasonNum, season]) => {
+                                                    const seasonProgress = getSeasonProgress(parseInt(seasonNum));
+                                                    const seasonData = seriesSeasonDetails[seriesId]?.[parseInt(seasonNum)];
+                                                    const seasonFromSeries = seriesInfo?.seasons?.find(s => s.season_number === parseInt(seasonNum));
+                                                    const watchedEpisodes = season.episodes || [];
+                                                    
+                                                    return (
+                                                        <div key={seasonNum} className="bg-charcoal-800/50 p-4 rounded">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-white font-semibold">Season {seasonNum}</span>
+                                                                    {seasonProgress.total > 0 && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-20 bg-charcoal-900 rounded-full h-2">
+                                                                                <div 
+                                                                                    className="bg-amber-500 h-2 rounded-full transition-all"
+                                                                                    style={{ width: `${seasonProgress.percentage}%` }}
+                                                                                ></div>
+                                                                            </div>
+                                                                            <span className="text-xs text-amber-500/80">
+                                                                                {seasonProgress.watched}/{seasonProgress.total} ({seasonProgress.percentage}%)
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                                    season.completed 
+                                                                        ? 'bg-amber-500 text-black' 
+                                                                        : 'bg-charcoal-800 text-white'
+                                                                }`}>
+                                                                    {season.completed ? 'Completed' : `${watchedEpisodes.length} episodes watched`}
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            {/* Episodes List */}
+                                                            {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
+                                                                <div className="mt-3 space-y-1">
+                                                                    {seasonData.episodes.map((episode) => {
+                                                                        const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                                                        const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
+                                                                        const isUpcoming = !episodeIsReleased;
+                                                                        
+                                                                        return (
+                                                                            <div
+                                                                                key={episode.id || episode.episode_number}
+                                                                                className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${
+                                                                                    isWatched 
+                                                                                        ? 'bg-amber-500/20 text-amber-400' 
+                                                                                        : isUpcoming
+                                                                                            ? 'bg-red-500/10 text-red-400/70'
+                                                                                            : 'bg-charcoal-900/50 text-white/40'
+                                                                                }`}
+                                                                            >
+                                                                                <span className="font-semibold w-8">
+                                                                                    E{episode.episode_number}
+                                                                                </span>
+                                                                                <span className={`flex-1 ${isWatched ? '' : 'opacity-50'}`}>
+                                                                                    {episode.name || `Episode ${episode.episode_number}`}
+                                                                                </span>
+                                                                                {isWatched && (
+                                                                                    <span className="text-amber-500">✓</span>
+                                                                                )}
+                                                                                {isUpcoming && (
+                                                                                    <span className="text-red-400 text-[10px]">Upcoming</span>
+                                                                                )}
+                                                                                {episode.air_date && (
+                                                                                    <span className={`text-[10px] ${isWatched ? 'text-amber-500/70' : 'text-white/30'}`}>
+                                                                                        {formatDate(episode.air_date)}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-xs text-white/40 mt-2">
+                                                                    No episode data available
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                                
+                                                {/* Specials Section */}
+                                                {Object.entries(progress.seasons || {})
+                                                    .filter(([seasonNum]) => parseInt(seasonNum) === 0)
+                                                    .length > 0 && (
+                                                    <div className="mt-6 pt-4 border-t border-charcoal-700">
+                                                        <h4 className="text-lg font-bold text-amber-500 mb-3">Specials</h4>
+                                                        {Object.entries(progress.seasons || {})
+                                                            .filter(([seasonNum]) => parseInt(seasonNum) === 0)
+                                                            .map(([seasonNum, season]) => {
+                                                                const seasonProgress = getSeasonProgress(parseInt(seasonNum));
+                                                                const seasonData = seriesSeasonDetails[seriesId]?.[parseInt(seasonNum)];
+                                                                const seasonFromSeries = seriesInfo?.seasons?.find(s => s.season_number === parseInt(seasonNum));
+                                                                const watchedEpisodes = season.episodes || [];
+                                                                
+                                                                return (
+                                                                    <div key={seasonNum} className="bg-charcoal-800/50 p-4 rounded mb-3">
+                                                                        <div className="flex items-center justify-between mb-3">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <span className="text-white font-semibold">{seasonFromSeries?.name || seasonData?.name || 'Special'}</span>
+                                                                                {seasonProgress.total > 0 && (
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className="w-20 bg-charcoal-900 rounded-full h-2">
+                                                                                            <div 
+                                                                                                className="bg-amber-500 h-2 rounded-full transition-all"
+                                                                                                style={{ width: `${seasonProgress.percentage}%` }}
+                                                                                            ></div>
+                                                                                        </div>
+                                                                                        <span className="text-xs text-amber-500/80">
+                                                                                            {seasonProgress.watched}/{seasonProgress.total} ({seasonProgress.percentage}%)
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                                                season.completed 
+                                                                                    ? 'bg-amber-500 text-black' 
+                                                                                    : 'bg-charcoal-800 text-white'
+                                                                            }`}>
+                                                                                {season.completed ? 'Completed' : `${watchedEpisodes.length} episodes watched`}
+                                                                            </span>
+                                                                        </div>
+                                                                        
+                                                                        {/* Episodes List */}
+                                                                        {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
+                                                                            <div className="mt-3 space-y-1">
+                                                                                {seasonData.episodes.map((episode) => {
+                                                                                    const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                                                                    const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
+                                                                                    const isUpcoming = !episodeIsReleased;
+                                                                                    
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={episode.id || episode.episode_number}
+                                                                                            className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${
+                                                                                                isWatched 
+                                                                                                    ? 'bg-amber-500/20 text-amber-400' 
+                                                                                                    : isUpcoming
+                                                                                                        ? 'bg-red-500/10 text-red-400/70'
+                                                                                                        : 'bg-charcoal-900/50 text-white/40'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <span className="font-semibold w-8">
+                                                                                                E{episode.episode_number}
+                                                                                            </span>
+                                                                                            <span className={`flex-1 ${isWatched ? '' : 'opacity-50'}`}>
+                                                                                                {episode.name || `Episode ${episode.episode_number}`}
+                                                                                            </span>
+                                                                                            {isWatched && (
+                                                                                                <span className="text-amber-500">✓</span>
+                                                                                            )}
+                                                                                            {isUpcoming && (
+                                                                                                <span className="text-red-400 text-[10px]">Upcoming</span>
+                                                                                            )}
+                                                                                            {episode.air_date && (
+                                                                                                <span className={`text-[10px] ${isWatched ? 'text-amber-500/70' : 'text-white/30'}`}>
+                                                                                                    {formatDate(episode.air_date)}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-xs text-white/40 mt-2">
+                                                                                No episode data available
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
