@@ -173,9 +173,19 @@ export async function POST(req, { params }) {
                 if (updateError) throw updateError;
             }
         } else {
-            // If unmarking completion, just update the season status to not completed
-            // DO NOT delete episodes - individual episodes should remain marked as watched
-            // This allows users to unwatch individual episodes without losing all progress
+            // If unmarking completion, delete all episodes for this season
+            // This removes all episodes that were marked when the season was completed
+            const { error: deleteEpisodesError } = await supabase
+                .from('series_episodes')
+                .delete()
+                .eq('series_season_id', season.id);
+
+            if (deleteEpisodesError) {
+                console.error('Error deleting episodes when unmarking season:', deleteEpisodesError);
+                throw deleteEpisodesError;
+            }
+
+            // Update the season status to not completed
             const { error: updateError } = await supabase
                 .from('series_seasons')
                 .update({ completed: false })
