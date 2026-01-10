@@ -85,9 +85,11 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         const loadingKey = `${seasonNumber}-${episodeNumber}`;
         setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: true }));
 
-        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
+        // Check if episode is in the watched list (matches UI rendering logic)
         const isEpisodeInList = progress.seasons[seasonNumber]?.episodes?.includes(episodeNumber) || false;
-        const isWatched = isSeasonCompleted || isEpisodeInList;
+        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
+        // Use same logic as UI: only consider watched if episode is actually in the database
+        const isWatched = isEpisodeInList;
         
         // Check if episode is released (only when marking as watched)
         if (!isWatched) {
@@ -151,11 +153,12 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
         }
 
         // If season is completed and we're unmarking an episode, unmark season first
+        // Use deleteEpisodes: false to keep other episodes, only this one will be removed
         if (isWatched && isSeasonCompleted) {
             await fetch(`/api/series-progress/${seriesId}/seasons`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ seasonNumber, completed: false }),
+                body: JSON.stringify({ seasonNumber, completed: false, deleteEpisodes: false }),
             });
         }
 
@@ -665,8 +668,8 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                             )}
                         </div>
                     );
-                    })}
-                </div>
+                })}
+            </div>
             )}
 
             {/* Specials Section */}

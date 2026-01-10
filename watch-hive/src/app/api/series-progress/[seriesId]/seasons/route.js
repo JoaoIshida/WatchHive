@@ -52,7 +52,7 @@ export async function POST(req, { params }) {
 
         const { seriesId } = await params;
         const body = await req.json();
-        const { seasonNumber, completed, episodes } = body;
+        const { seasonNumber, completed, episodes, deleteEpisodes = true } = body;
 
         if (seasonNumber === undefined || completed === undefined) {
             return new Response(JSON.stringify({ error: 'seasonNumber and completed are required' }), {
@@ -173,16 +173,18 @@ export async function POST(req, { params }) {
                 if (updateError) throw updateError;
             }
         } else {
-            // If unmarking completion, delete all episodes for this season
-            // This removes all episodes that were marked when the season was completed
-            const { error: deleteEpisodesError } = await supabase
-                .from('series_episodes')
-                .delete()
-                .eq('series_season_id', season.id);
+            // If unmarking completion with deleteEpisodes=true, delete all episodes for this season
+            // deleteEpisodes=false is used when unmarking individual episodes (keeps other episodes)
+            if (deleteEpisodes) {
+                const { error: deleteEpisodesError } = await supabase
+                    .from('series_episodes')
+                    .delete()
+                    .eq('series_season_id', season.id);
 
-            if (deleteEpisodesError) {
-                console.error('Error deleting episodes when unmarking season:', deleteEpisodesError);
-                throw deleteEpisodesError;
+                if (deleteEpisodesError) {
+                    console.error('Error deleting episodes when unmarking season:', deleteEpisodesError);
+                    throw deleteEpisodesError;
+                }
             }
 
             // Update the season status to not completed
