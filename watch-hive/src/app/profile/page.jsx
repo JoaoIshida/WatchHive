@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ImageWithFallback from '../components/ImageWithFallback';
 import { formatDate } from '../utils/dateFormatter';
 import { isEpisodeReleased } from '../utils/releaseDateValidator';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
@@ -18,6 +19,9 @@ const ProfilePageContent = () => {
     const [wishlist, setWishlist] = useState([]);
     const [seriesProgress, setSeriesProgress] = useState({});
     const [loading, setLoading] = useState(true);
+    const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+    const [loadingWatchedDetails, setLoadingWatchedDetails] = useState(false);
+    const [loadingWishlistDetails, setLoadingWishlistDetails] = useState(false);
     const [activeTab, setActiveTab] = useState('stats');
     const [watchedDetails, setWatchedDetails] = useState([]);
     const [wishlistDetails, setWishlistDetails] = useState([]);
@@ -36,6 +40,7 @@ const ProfilePageContent = () => {
     const [expandedSeries, setExpandedSeries] = useState({});
     const [seriesSeasonDetails, setSeriesSeasonDetails] = useState({}); // { seriesId: { seasonNumber: seasonData } }
     const [watchedFilter, setWatchedFilter] = useState('all'); // 'all', 'movie', 'tv'
+    const [expandedUpcomingSeries, setExpandedUpcomingSeries] = useState({}); // For upcoming section dropdowns
 
     useEffect(() => {
         // Check URL params for tab
@@ -130,7 +135,7 @@ const ProfilePageContent = () => {
                 return;
             }
 
-            // Load from Supabase via API
+            // Load quick data first (stats, basic lists)
             const [watchedRes, wishlistRes, seriesProgressRes, statsRes, customListsRes] = await Promise.all([
                 fetch('/api/watched'),
                 fetch('/api/wishlist'),
@@ -150,31 +155,45 @@ const ProfilePageContent = () => {
             setSeriesProgress(seriesProgressData);
             setDbStats(statsData);
             setCustomLists(customListsData || []);
+            
+            // Mark quick data as loaded
+            setLoading(false);
+            
+            // Load slow data in parallel (don't block UI)
+            loadSlowData(watchedItems, wishlistItems, seriesProgressData);
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            setLoading(false);
+        }
+    };
 
-            // Load list details (items for each list)
-            if (customListsData && customListsData.length > 0) {
-                const listDetailsPromises = customListsData.map(async (list) => {
-                    try {
-                        const response = await fetch(`/api/custom-lists/${list.id}`);
-                        if (response.ok) {
-                            const { list: listWithItems } = await response.json();
-                            return { listId: list.id, items: listWithItems.items || [] };
-                        }
-                    } catch (error) {
-                        console.error(`Error fetching list ${list.id} details:`, error);
+    const loadSlowData = async (watchedItems, wishlistItems, seriesProgressData, customListsData) => {
+        // Load list details (items for each list)
+        if (customListsData && customListsData.length > 0) {
+            const listDetailsPromises = customListsData.map(async (list) => {
+                try {
+                    const response = await fetch(`/api/custom-lists/${list.id}`);
+                    if (response.ok) {
+                        const { list: listWithItems } = await response.json();
+                        return { listId: list.id, items: listWithItems.items || [] };
                     }
-                    return { listId: list.id, items: [] };
-                });
-                const details = await Promise.all(listDetailsPromises);
-                const detailsMap = {};
-                details.forEach(d => {
-                    detailsMap[d.listId] = d.items;
-                });
-                setListDetails(detailsMap);
-            }
+                } catch (error) {
+                    console.error(`Error fetching list ${list.id} details:`, error);
+                }
+                return { listId: list.id, items: [] };
+            });
+            const details = await Promise.all(listDetailsPromises);
+            const detailsMap = {};
+            details.forEach(d => {
+                detailsMap[d.listId] = d.items;
+            });
+            setListDetails(detailsMap);
+        }
 
-            // Fetch details for watched items
-            if (watchedItems.length > 0) {
+        // Load watched details (can be slow)
+        if (watchedItems.length > 0) {
+            setLoadingWatchedDetails(true);
+            try {
                 const watchedDetailsPromises = watchedItems.map(async (item) => {
                     try {
                         const response = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
@@ -195,10 +214,15 @@ const ProfilePageContent = () => {
                 });
                 const details = await Promise.all(watchedDetailsPromises);
                 setWatchedDetails(details.filter(item => item !== null));
+            } finally {
+                setLoadingWatchedDetails(false);
             }
+        }
 
-            // Fetch details for wishlist items
-            if (wishlistItems.length > 0) {
+        // Load wishlist details (can be slow)
+        if (wishlistItems.length > 0) {
+            setLoadingWishlistDetails(true);
+            try {
                 const wishlistDetailsPromises = wishlistItems.map(async (item) => {
                     try {
                         const response = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
@@ -218,11 +242,15 @@ const ProfilePageContent = () => {
                 });
                 const details = await Promise.all(wishlistDetailsPromises);
                 setWishlistDetails(details.filter(item => item !== null));
+            } finally {
+                setLoadingWishlistDetails(false);
             }
+        }
 
-            // Fetch series details for progress display
-            const seriesIds = Object.keys(seriesProgressData);
-            if (seriesIds.length > 0) {
+        // Load series details and upcoming data (slowest)
+        const seriesIds = Object.keys(seriesProgressData);
+        if (seriesIds.length > 0) {
+            try {
                 const seriesDetailsPromises = seriesIds.map(async (seriesId) => {
                     try {
                         const response = await fetch(`/api/content/tv/${seriesId}`);
@@ -241,162 +269,182 @@ const ProfilePageContent = () => {
                     seriesMap[item.id] = item;
                 });
                 setSeriesDetails(seriesMap);
+                
+                // Load upcoming data (episodes and movies)
+                loadUpcomingData(seriesMap, seriesProgressData, wishlistItems);
+            } catch (error) {
+                console.error('Error loading series details:', error);
+            }
+        } else {
+            // Still check for upcoming movies even if no series
+            loadUpcomingMovies(wishlistItems);
+        }
+    };
 
-                // Check for upcoming seasons
-                const upcomingSeasonsList = [];
-                for (const seriesId of seriesIds) {
+    const loadUpcomingData = async (seriesMap, seriesProgressData, wishlistItems) => {
+        setLoadingUpcoming(true);
+        try {
+            const seriesIds = Object.keys(seriesProgressData);
+            
+            // Check for upcoming episodes
+            const upcomingEpisodesList = [];
+            
+            // Helper function to check episodes for a series
+            const checkSeriesUpcomingEpisodes = async (seriesId, seriesData, progressData = null) => {
+                if (!seriesData || !seriesData.seasons) return;
+                
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                for (const season of seriesData.seasons) {
+                    if (season.season_number < 0) continue; // Skip specials
+                    
                     try {
-                        const response = await fetch(`/api/content/tv/${seriesId}`);
-                        if (response.ok) {
-                            const seriesData = await response.json();
-                            const progressData = seriesProgressData[seriesId];
-                            
-                            // Check for upcoming seasons
-                            if (seriesData.seasons) {
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
+                        const seasonResponse = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
+                        if (seasonResponse.ok) {
+                            const seasonData = await seasonResponse.json();
                                 
-                                seriesData.seasons.forEach(season => {
-                                    if (season.air_date) {
-                                        const airDate = new Date(season.air_date);
-                                        airDate.setHours(0, 0, 0, 0);
+                            if (seasonData.episodes && seasonData.episodes.length > 0) {
+                                const watchedEpisodes = progressData?.seasons?.[String(season.season_number)]?.episodes || [];
+                                
+                                seasonData.episodes.forEach(episode => {
+                                    const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                    
+                                    if (!episodeIsReleased && !watchedEpisodes.includes(episode.episode_number)) {
+                                        const episodeAirDate = episode.air_date || seasonData.air_date;
+                                        if (!episodeAirDate) return;
                                         
-                                        // Check if season is upcoming (future date) and not watched
-                                        if (airDate > today) {
-                                            const watchedSeasons = Object.keys(progressData?.seasons || {});
-                                            const isWatched = watchedSeasons.includes(String(season.season_number));
-                                            
-                                            if (!isWatched) {
-                                                upcomingSeasonsList.push({
-                                                    seriesId,
-                                                    seriesName: seriesData.name,
-                                                    seasonNumber: season.season_number,
-                                                    seasonName: season.name,
-                                                    airDate: season.air_date,
-                                                    episodeCount: season.episode_count,
-                                                });
-                                            }
-                                        }
+                                        upcomingEpisodesList.push({
+                                            seriesId,
+                                            seriesName: seriesData.name,
+                                            seasonNumber: season.season_number,
+                                            seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
+                                            episodeNumber: episode.episode_number,
+                                            episodeName: episode.name || `Episode ${episode.episode_number}`,
+                                            airDate: episodeAirDate,
+                                        });
                                     }
                                 });
                             }
                         }
                     } catch (error) {
-                        console.error(`Error checking upcoming seasons for series ${seriesId}:`, error);
+                        console.error(`Error fetching season ${season.season_number} episodes for series ${seriesId}:`, error);
                     }
                 }
-                
-                // Sort upcoming seasons by air date
-                upcomingSeasonsList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
-                setUpcomingSeasons(upcomingSeasonsList);
+            };
 
-                // Check for upcoming episodes from ALL series the user has watched
-                // Check ALL seasons from TMDB (even if season is marked as completed, episodes might be missing in Supabase)
-                const upcomingEpisodesList = [];
-                for (const seriesId of seriesIds) {
-                    try {
-                        const seriesData = seriesDetails[seriesId];
-                        if (!seriesData || !seriesData.seasons) continue;
-
-                        const progressData = seriesProgressData[seriesId];
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-
-                        // Check ALL seasons from TMDB (not just watched seasons)
-                        // This ensures we catch upcoming episodes even if season is marked as completed
-                        for (const season of seriesData.seasons) {
-                            if (season.season_number < 0) continue; // Skip specials
-                            
-                            try {
-                                // Fetch season episodes from TMDB to check each one individually
-                                const seasonResponse = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
-                                if (seasonResponse.ok) {
-                                    const seasonData = await seasonResponse.json();
-                                        
-                                    if (seasonData.episodes && seasonData.episodes.length > 0) {
-                                        // Get watched episodes from Supabase (may be incomplete even if season is marked complete)
-                                        const watchedEpisodes = progressData?.seasons?.[String(season.season_number)]?.episodes || [];
-                                        
-                                        // Check each episode individually using the same logic as SeriesSeasons
-                                        seasonData.episodes.forEach(episode => {
-                                            // Only show episodes that have their own air_date (not season fallback)
-                                            if (!episode.air_date) return;
-                                            
-                                            // Use isEpisodeReleased to check if episode is released (same logic as SeriesSeasons)
-                                            const episodeIsReleased = isEpisodeReleased(episode, seasonData);
-                                            
-                                            // If episode is NOT released (upcoming) and NOT watched, add to list
-                                            // This catches episodes even if season is marked as completed but episode is missing in Supabase
-                                            if (!episodeIsReleased && !watchedEpisodes.includes(episode.episode_number)) {
-                                                upcomingEpisodesList.push({
-                                                    seriesId,
-                                                    seriesName: seriesData.name,
-                                                    seasonNumber: season.season_number,
-                                                    seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
-                                                    episodeNumber: episode.episode_number,
-                                                    episodeName: episode.name || `Episode ${episode.episode_number}`,
-                                                    airDate: episode.air_date,
-                                                });
-                                            }
-                                        });
-                                    }
-                                }
-                            } catch (error) {
-                                console.error(`Error fetching season ${season.season_number} episodes for series ${seriesId}:`, error);
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Error checking upcoming episodes for series ${seriesId}:`, error);
+            // Check watched series
+            for (const seriesId of seriesIds) {
+                try {
+                    const seriesData = seriesMap[seriesId];
+                    const progressData = seriesProgressData[seriesId];
+                    
+                    if (!seriesData) {
+                        console.warn(`Series data not available for ${seriesId}, skipping upcoming episodes check`);
+                        continue;
                     }
+                    
+                    await checkSeriesUpcomingEpisodes(seriesId, seriesData, progressData);
+                } catch (error) {
+                    console.error(`Error checking upcoming episodes for series ${seriesId}:`, error);
                 }
-                
-                // Sort upcoming episodes by air date
-                upcomingEpisodesList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
-                setUpcomingEpisodes(upcomingEpisodesList);
             }
 
-            // Check for upcoming movies in wishlist
-            const upcomingMoviesList = [];
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // Check wishlist series
+            const wishlistSeriesItems = wishlistItems.filter(item => item.media_type === 'tv');
+            const wishlistSeriesIds = wishlistSeriesItems
+                .map(item => String(item.content_id))
+                .filter(id => !seriesIds.includes(id));
             
-            for (const item of wishlistItems) {
-                if (item.media_type === 'movie') {
-                    try {
-                        const response = await fetch(`/api/content/movie/${item.content_id}`);
-                        if (response.ok) {
-                            const movieData = await response.json();
-                            if (movieData.release_date) {
-                                const releaseDate = new Date(movieData.release_date);
-                                releaseDate.setHours(0, 0, 0, 0);
-                                
-                                // Check if movie is upcoming
-                                if (releaseDate > today) {
-                                    upcomingMoviesList.push({
-                                        movieId: item.content_id,
-                                        title: movieData.title,
-                                        releaseDate: movieData.release_date,
-                                        posterPath: movieData.poster_path,
-                                    });
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Error checking upcoming movie ${item.content_id}:`, error);
+            const wishlistSeriesDetailsPromises = wishlistSeriesIds.map(async (seriesId) => {
+                try {
+                    const seriesData = seriesDetails[seriesId];
+                    if (seriesData) {
+                        return { seriesId, seriesData };
                     }
+                    
+                    const response = await fetch(`/api/content/tv/${seriesId}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        return { seriesId, seriesData: data };
+                    }
+                } catch (error) {
+                    console.error(`Error fetching wishlist series ${seriesId}:`, error);
+                }
+                return null;
+            });
+            
+            const wishlistSeriesDetailsResults = await Promise.all(wishlistSeriesDetailsPromises);
+            const wishlistSeriesDetailsMap = {};
+            
+            wishlistSeriesDetailsResults.forEach(result => {
+                if (result) {
+                    wishlistSeriesDetailsMap[result.seriesId] = result.seriesData;
+                }
+            });
+            
+            if (Object.keys(wishlistSeriesDetailsMap).length > 0) {
+                setSeriesDetails(prev => ({ ...prev, ...wishlistSeriesDetailsMap }));
+            }
+            
+            // Check episodes for wishlist series
+            for (const seriesId of wishlistSeriesIds) {
+                try {
+                    const seriesData = wishlistSeriesDetailsMap[seriesId];
+                    if (seriesData) {
+                        await checkSeriesUpcomingEpisodes(seriesId, seriesData, null);
+                    }
+                } catch (error) {
+                    console.error(`Error checking upcoming episodes for wishlist series ${seriesId}:`, error);
                 }
             }
             
-            // Sort upcoming movies by release date
-            upcomingMoviesList.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
-            setUpcomingWishlistMovies(upcomingMoviesList);
+            // Sort upcoming episodes by air date
+            upcomingEpisodesList.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
+            setUpcomingEpisodes(upcomingEpisodesList);
             
-            // TODO: Load custom lists details from Supabase
+            // Load upcoming movies
+            loadUpcomingMovies(wishlistItems);
         } catch (error) {
-            console.error('Error loading user data:', error);
+            console.error('Error loading upcoming data:', error);
         } finally {
-            setLoading(false);
+            setLoadingUpcoming(false);
         }
+    };
+
+    const loadUpcomingMovies = async (wishlistItems) => {
+        const upcomingMoviesList = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        for (const item of wishlistItems) {
+            if (item.media_type === 'movie') {
+                try {
+                    const response = await fetch(`/api/content/movie/${item.content_id}`);
+                    if (response.ok) {
+                        const movieData = await response.json();
+                        if (movieData.release_date) {
+                            const releaseDate = new Date(movieData.release_date);
+                            releaseDate.setHours(0, 0, 0, 0);
+                            
+                            if (releaseDate > today) {
+                                upcomingMoviesList.push({
+                                    movieId: item.content_id,
+                                    title: movieData.title,
+                                    releaseDate: movieData.release_date,
+                                    posterPath: movieData.poster_path,
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error checking upcoming movie ${item.content_id}:`, error);
+                }
+            }
+        }
+        
+        upcomingMoviesList.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+        setUpcomingWishlistMovies(upcomingMoviesList);
     };
 
     const getStats = () => {
@@ -621,110 +669,185 @@ const ProfilePageContent = () => {
                         </div>
                     </div>
 
-                    {/* Upcoming Seasons Alert */}
-                    {upcomingSeasons.length > 0 && (
+                    {/* Upcoming Section - Combined */}
+                    {loadingUpcoming ? (
                         <div className="futuristic-card p-6 border-2 border-amber-500/50">
                             <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                Upcoming Seasons ({upcomingSeasons.length})
+                                Upcoming
                             </h2>
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {upcomingSeasons.slice(0, 10).map((upcoming, index) => (
-                                    <a
-                                        key={index}
-                                        href={`/series/${upcoming.seriesId}`}
-                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
-                                    >
-                                        <div className="flex-1">
-                                            <div className="text-white font-semibold">
-                                                {upcoming.seriesName}
-                                            </div>
-                                            <div className="text-sm text-amber-500/80">
-                                                {upcoming.seasonName || `Season ${upcoming.seasonNumber}`} • {upcoming.episodeCount} episodes
-                                            </div>
-                                        </div>
-                                        <div className="text-amber-500 font-semibold text-sm">
-                                            {formatDate(upcoming.airDate)}
-                                        </div>
-                                    </a>
-                                ))}
+                            <div className="flex justify-center py-8">
+                                <LoadingSpinner size="md" text="Loading upcoming content..." />
                             </div>
                         </div>
-                    )}
-
-                    {/* Upcoming Episodes Alert */}
-                    {upcomingEpisodes.length > 0 && (
-                        <div className="futuristic-card p-6 border-2 border-amber-500/50">
-                            <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                                Upcoming Episodes ({upcomingEpisodes.length})
-                            </h2>
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {upcomingEpisodes.slice(0, 10).map((upcoming, index) => (
-                                    <a
-                                        key={index}
-                                        href={`/series/${upcoming.seriesId}`}
-                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
-                                    >
-                                        <div className="flex-1">
-                                            <div className="text-white font-semibold">
-                                                {upcoming.seriesName}
-                                            </div>
-                                            <div className="text-sm text-amber-500/80">
-                                                {upcoming.seasonName} • {upcoming.episodeName}
-                                            </div>
-                                        </div>
-                                        <div className="text-amber-500 font-semibold text-sm">
-                                            {formatDate(upcoming.airDate)}
-                                        </div>
-                                    </a>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Upcoming Wishlist Movies Alert */}
-                    {upcomingWishlistMovies.length > 0 && (
-                        <div className="futuristic-card p-6 border-2 border-amber-500/50">
-                            <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                </svg>
-                                Upcoming Movies in Wishlist ({upcomingWishlistMovies.length})
-                            </h2>
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {upcomingWishlistMovies.slice(0, 10).map((movie, index) => (
-                                    <a
-                                        key={index}
-                                        href={`/movies/${movie.movieId}`}
-                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3 flex-1">
-                                            {movie.posterPath && (
-                                                <img
-                                                    src={`https://image.tmdb.org/t/p/w92${movie.posterPath}`}
-                                                    alt={movie.title}
-                                                    className="w-12 h-16 object-cover rounded"
-                                                />
-                                            )}
-                                            <div className="flex-1">
-                                                <div className="text-white font-semibold">
-                                                    {movie.title}
+                    ) : (upcomingEpisodes.length > 0 || upcomingWishlistMovies.length > 0) && (() => {
+                        // Group episodes by series
+                        const seriesMap = {};
+                        
+                        // Add episodes to series map
+                        upcomingEpisodes.forEach(episode => {
+                            if (!seriesMap[episode.seriesId]) {
+                                const seriesInfo = seriesDetails[episode.seriesId];
+                                seriesMap[episode.seriesId] = {
+                                    seriesId: episode.seriesId,
+                                    seriesName: episode.seriesName,
+                                    posterPath: seriesInfo?.poster_path || null,
+                                    episodes: []
+                                };
+                            }
+                            seriesMap[episode.seriesId].episodes.push(episode);
+                        });
+                        
+                        // Sort episodes within each series by air date
+                        Object.values(seriesMap).forEach(series => {
+                            series.episodes.sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
+                        });
+                        
+                        // Sort series by earliest upcoming episode
+                        const sortedSeries = Object.values(seriesMap).sort((a, b) => {
+                            const getEarliestDate = (series) => {
+                                const dates = series.episodes.map(e => new Date(e.airDate)).filter(d => !isNaN(d));
+                                return dates.length > 0 ? Math.min(...dates) : new Date(0);
+                            };
+                            return getEarliestDate(a) - getEarliestDate(b);
+                        });
+                        
+                        const totalUpcoming = upcomingEpisodes.length + upcomingWishlistMovies.length;
+                        
+                        return (
+                            <div className="futuristic-card p-6 border-2 border-amber-500/50">
+                                <h2 className="text-2xl font-bold mb-4 text-amber-500 flex items-center gap-2">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Upcoming ({totalUpcoming})
+                                </h2>
+                                <div className="space-y-4 max-h-96 overflow-y-auto">
+                                    {/* Series with episodes */}
+                                    {sortedSeries.map((series) => {
+                                        const isExpanded = expandedUpcomingSeries[series.seriesId];
+                                        const totalItems = series.episodes.length;
+                                        // Get series name from seriesDetails if not available in series object
+                                        const seriesInfo = seriesDetails[series.seriesId];
+                                        const displayName = series.seriesName || seriesInfo?.name;
+                                        
+                                        return (
+                                            <div key={series.seriesId} className="space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => setExpandedUpcomingSeries(prev => ({
+                                                            ...prev,
+                                                            [series.seriesId]: !prev[series.seriesId]
+                                                        }))}
+                                                        className="flex items-center gap-2 text-left group"
+                                                    >
+                                                        <svg
+                                                            className={`w-5 h-5 text-amber-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </button>
+                                                    {(series.posterPath || seriesInfo?.poster_path) && (
+                                                        <ImageWithFallback
+                                                            src={`https://image.tmdb.org/t/p/w92${series.posterPath || seriesInfo?.poster_path}`}
+                                                            alt={displayName || 'Series'}
+                                                            className="w-12 h-16 object-cover rounded"
+                                                        />
+                                                    )}
+                                                    <button
+                                                        onClick={() => setExpandedUpcomingSeries(prev => ({
+                                                            ...prev,
+                                                            [series.seriesId]: !prev[series.seriesId]
+                                                        }))}
+                                                        className="flex-1 text-left group"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-lg font-bold text-amber-500 group-hover:text-amber-400 transition-colors">
+                                                                {displayName || (
+                                                                    <span className="text-amber-500/60 animate-pulse">Loading series name...</span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-sm text-amber-500/60">
+                                                                ({totalItems} {totalItems === 1 ? 'item' : 'items'})
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                    <a
+                                                        href={`/series/${series.seriesId}`}
+                                                        className="futuristic-button text-sm px-3 py-1.5 whitespace-nowrap"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        View
+                                                    </a>
                                                 </div>
+                                                
+                                                {isExpanded && (
+                                                    <div className="space-y-2 ml-7">
+                                                        {/* Episodes */}
+                                                        {series.episodes.map((episode, index) => (
+                                                            <a
+                                                                key={`episode-${episode.seriesId}-${episode.seasonNumber}-${episode.episodeNumber}-${index}`}
+                                                                href={`/series/${episode.seriesId}`}
+                                                                className="flex items-center justify-between p-2 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="text-sm text-amber-500/80">
+                                                                        {episode.seasonName} • {episode.episodeName}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-amber-500 font-semibold text-xs">
+                                                                    {formatDate(episode.airDate)}
+                                                                </div>
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    
+                                    {/* Movies */}
+                                    {upcomingWishlistMovies.length > 0 && (
+                                        <div className="pt-2 border-t border-charcoal-700">
+                                            <h3 className="text-lg font-bold text-amber-500 mb-3">Movies</h3>
+                                            <div className="space-y-2">
+                                                {upcomingWishlistMovies.map((movie, index) => (
+                                                    <a
+                                                        key={`movie-${movie.movieId}-${index}`}
+                                                        href={`/movies/${movie.movieId}`}
+                                                        className="flex items-center justify-between p-2 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                                    >
+                                                        <div className="flex items-center gap-3 flex-1">
+                                                            {movie.posterPath && (
+                                                                <img
+                                                                    src={`https://image.tmdb.org/t/p/w92${movie.posterPath}`}
+                                                                    alt={movie.title}
+                                                                    className="w-12 h-16 object-cover rounded"
+                                                                />
+                                                            )}
+                                                            <div className="flex-1">
+                                                                <div className="text-white font-semibold text-sm">
+                                                                    {movie.title}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-amber-500 font-semibold text-xs">
+                                                            {formatDate(movie.releaseDate)}
+                                                        </div>
+                                                    </a>
+                                                ))}
                                             </div>
                                         </div>
-                                        <div className="text-amber-500 font-semibold text-sm">
-                                            {formatDate(movie.releaseDate)}
-                                        </div>
-                                    </a>
-                                ))}
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Series Progress Summary */}
                     {Object.keys(seriesProgress).length > 0 && (
@@ -767,7 +890,9 @@ const ProfilePageContent = () => {
                                         >
                                             <div className="flex-1">
                                                 <div className="text-white font-semibold">
-                                                    {seriesInfo?.name || `Series ID: ${seriesId}`}
+                                                    {seriesInfo?.name || (
+                                                        <span className="text-amber-500/60 animate-pulse">Loading series...</span>
+                                                    )}
                                                 </div>
                                                 <div className="text-sm text-amber-500/80 mt-1">
                                                     {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
@@ -909,7 +1034,11 @@ const ProfilePageContent = () => {
             {/* Wishlist Tab */}
             {activeTab === 'wishlist' && (
                 <div>
-                    {wishlistDetails.length === 0 ? (
+                    {loadingWishlistDetails ? (
+                        <div className="flex justify-center py-12">
+                            <LoadingSpinner size="lg" text="Loading wishlist content..." />
+                        </div>
+                    ) : wishlistDetails.length === 0 ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">Your wishlist is empty</p>
                             <p className="text-amber-500/80">Add movies and series to your wishlist to see them here!</p>
@@ -1053,7 +1182,9 @@ const ProfilePageContent = () => {
                                                         className="hover:text-amber-500 transition-colors"
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
-                                                        {seriesInfo?.name || `Series ID: ${seriesId}`}
+                                                        {seriesInfo?.name || (
+                                                            <span className="text-amber-500/60 animate-pulse">Loading series name...</span>
+                                                        )}
                                                     </a>
                                                 </h3>
                                                 <div className="flex items-center gap-4 mt-2">
