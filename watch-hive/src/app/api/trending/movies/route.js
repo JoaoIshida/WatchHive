@@ -9,7 +9,7 @@ export async function GET(req) {
             language: language,
         });
 
-        return new Response(JSON.stringify(data.results), {
+        return new Response(JSON.stringify(data.results ?? []), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',

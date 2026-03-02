@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import QuickSearch from './components/QuickSearch';
 import ContentCard from './components/ContentCard';
 import LoadingCard from './components/LoadingCard';
@@ -38,11 +39,11 @@ const Home = () => {
     const [loading, setLoading] = useState(true);
     
     const sections = [
-        { id: 'trending-movies', label: 'Trending Movies', icon: 'flame' },
-        { id: 'trending-series', label: 'Trending Series', icon: 'flame' },
-        { id: 'in-theaters', label: 'In Theaters', icon: 'clapperboard' },
-        { id: 'popular-movies', label: 'Popular Movies', icon: 'film' },
-        { id: 'popular-series', label: 'Popular Series', icon: 'tv' },
+        { id: 'trending-movies', label: 'Trending Movies', icon: 'flame', href: '/movies?trending=true' },
+        { id: 'trending-series', label: 'Trending Series', icon: 'flame', href: '/series?trending=true' },
+        { id: 'in-theaters', label: 'In Theaters', icon: 'clapperboard', href: '/movies?inTheaters=true' },
+        { id: 'popular-movies', label: 'Popular Movies', icon: 'film', href: '/movies' },
+        { id: 'popular-series', label: 'Popular Series', icon: 'tv', href: '/series' },
     ];
 
     const renderIcon = (iconType, className = "w-5 h-5") => {
@@ -102,20 +103,6 @@ const Home = () => {
 
         fetchHomeData();
     }, []);
-
-    const scrollToSection = (sectionId) => {
-        const element = document.getElementById(sectionId);
-        if (element) {
-            const offset = 100; // Offset for sticky nav
-            const elementPosition = element.getBoundingClientRect().top;
-            const offsetPosition = elementPosition + window.pageYOffset - offset;
-
-            window.scrollTo({
-                top: offsetPosition,
-                behavior: 'smooth'
-            });
-        }
-    };
 
     const ContentSection = ({ id, title, titleIcon, items, mediaType, href, loading: sectionLoading }) => {
         if (sectionLoading) {
@@ -203,14 +190,14 @@ const Home = () => {
                 <div className="horizontal-scroll pb-2">
                     <div className="flex gap-2 min-w-max">
                         {sections.map((section) => (
-                            <button
+                            <Link
                                 key={section.id}
-                                onClick={() => scrollToSection(section.id)}
+                                href={section.href}
                                 className="nav-button"
                             >
                                 <span className="text-amber-500">{renderIcon(section.icon, "w-4 h-4")}</span>
                                 <span>{section.label}</span>
-                            </button>
+                            </Link>
                         ))}
                     </div>
                 </div>
