@@ -70,43 +70,14 @@ async function getSerieTrailer(id) {
     }
 }
 
-async function getSerieRecommendations(id, name) {
+async function getSerieRecommendations(id, genres) {
     try {
-        // Get standard recommendations
-        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/recommendations`, {
-            headers: {
-                Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-            },
+        const { getDiscoverRecommendations } = await import('../../utils/recommendationEngine');
+        const results = await getDiscoverRecommendations(id, 'tv', {
+            existingGenres: genres,
+            limit: 10,
         });
-
-        let standardRecs = { results: [] };
-        if (res.ok) {
-            standardRecs = await res.json();
-        }
-
-        // Also get similar titles based on title search (server-side)
-        let similarTitles = [];
-        if (name) {
-            try {
-                const { findSimilarTitles } = await import('../../utils/similarTitles');
-                similarTitles = await findSimilarTitles(name, 'tv', 5);
-            } catch (error) {
-                console.error('Error fetching similar titles:', error);
-            }
-        }
-
-        // Combine and deduplicate
-        const allRecs = [...(standardRecs.results || [])];
-        const seenIds = new Set(allRecs.map(r => r.id));
-        
-        similarTitles.forEach(item => {
-            if (!seenIds.has(item.id)) {
-                seenIds.add(item.id);
-                allRecs.push(item);
-            }
-        });
-
-        return { results: allRecs };
+        return { results };
     } catch (error) {
         console.error('Error fetching series recommendations:', error);
         return { results: [] };
@@ -118,7 +89,7 @@ const SerieDetailPage = async ({ params }) => {
     const tv = await getSerieDetails(id);
     const tv_more = await getSerieMoreDetails(id);
     const tv_trailer = await getSerieTrailer(id);
-    const tv_recommendations = await getSerieRecommendations(id, tv.name);
+    const tv_recommendations = await getSerieRecommendations(id, tv.genres);
 
     const bestTrailer = getBestTrailer(tv_trailer);
 
