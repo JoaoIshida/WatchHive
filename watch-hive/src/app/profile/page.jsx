@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ListSettingsModal from '../components/ListSettingsModal';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { formatDate } from '../utils/dateFormatter';
 import { isEpisodeReleased } from '../utils/releaseDateValidator';
@@ -41,6 +42,15 @@ const ProfilePageContent = () => {
     const [seriesSeasonDetails, setSeriesSeasonDetails] = useState({}); // { seriesId: { seasonNumber: seasonData } }
     const [watchedFilter, setWatchedFilter] = useState('all'); // 'all', 'movie', 'tv'
     const [expandedUpcomingSeries, setExpandedUpcomingSeries] = useState({}); // For upcoming section dropdowns
+    // Create list form (Lists tab)
+    const [showCreateListForm, setShowCreateListForm] = useState(false);
+    const [newListName, setNewListName] = useState('');
+    const [newListDescription, setNewListDescription] = useState('');
+    const [newListIsPublic, setNewListIsPublic] = useState(false);
+    const [createListError, setCreateListError] = useState(null);
+    const [createListLoading, setCreateListLoading] = useState(false);
+    // List settings modal (per list)
+    const [listSettingsModalList, setListSettingsModalList] = useState(null);
 
     useEffect(() => {
         // Check URL params for tab
@@ -160,7 +170,7 @@ const ProfilePageContent = () => {
             setLoading(false);
             
             // Load slow data in parallel (don't block UI)
-            loadSlowData(watchedItems, wishlistItems, seriesProgressData);
+            loadSlowData(watchedItems, wishlistItems, seriesProgressData, customListsData);
         } catch (error) {
             console.error('Error loading user data:', error);
             setLoading(false);
@@ -168,14 +178,32 @@ const ProfilePageContent = () => {
     };
 
     const loadSlowData = async (watchedItems, wishlistItems, seriesProgressData, customListsData) => {
-        // Load list details (items for each list)
+        // Load list details (items for each list), enriched with full movie/series data
         if (customListsData && customListsData.length > 0) {
             const listDetailsPromises = customListsData.map(async (list) => {
                 try {
                     const response = await fetch(`/api/custom-lists/${list.id}`);
                     if (response.ok) {
                         const { list: listWithItems } = await response.json();
-                        return { listId: list.id, items: listWithItems.items || [] };
+                        const rawItems = listWithItems.items || [];
+                        const enrichedPromises = rawItems.map(async (item) => {
+                            try {
+                                const contentRes = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
+                                if (contentRes.ok) {
+                                    const data = await contentRes.json();
+                                    return {
+                                        ...data,
+                                        id: item.content_id,
+                                        media_type: item.media_type,
+                                    };
+                                }
+                            } catch (error) {
+                                console.error(`Error fetching ${item.media_type} ${item.content_id}:`, error);
+                            }
+                            return null;
+                        });
+                        const enriched = (await Promise.all(enrichedPromises)).filter(Boolean);
+                        return { listId: list.id, items: enriched };
                     }
                 } catch (error) {
                     console.error(`Error fetching list ${list.id} details:`, error);
@@ -1422,15 +1450,123 @@ const ProfilePageContent = () => {
             {/* Lists Tab */}
             {activeTab === 'lists' && (
                 <div>
-                    {customLists.length === 0 ? (
+                    {showCreateListForm && (
+                        <div className="futuristic-card p-6 mb-6">
+                            <h3 className="text-lg font-bold text-amber-500 mb-4">Create new list</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-white font-semibold mb-1">Name (required)</label>
+                                    <input
+                                        type="text"
+                                        value={newListName}
+                                        onChange={(e) => setNewListName(e.target.value)}
+                                        className="w-full px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500"
+                                        placeholder="List name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-white font-semibold mb-1">Description (optional)</label>
+                                    <textarea
+                                        value={newListDescription}
+                                        onChange={(e) => setNewListDescription(e.target.value)}
+                                        className="w-full px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500"
+                                        placeholder="Description"
+                                        rows={2}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="newListIsPublic"
+                                        checked={newListIsPublic}
+                                        onChange={(e) => setNewListIsPublic(e.target.checked)}
+                                        className="rounded border-charcoal-600 bg-charcoal-800 text-amber-500 focus:ring-amber-500"
+                                    />
+                                    <label htmlFor="newListIsPublic" className="text-white">Public (everyone can see)</label>
+                                </div>
+                                {createListError && <p className="text-red-400 text-sm">{createListError}</p>}
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            if (!newListName.trim()) {
+                                                setCreateListError('List name is required');
+                                                return;
+                                            }
+                                            setCreateListLoading(true);
+                                            setCreateListError(null);
+                                            try {
+                                                const res = await fetch('/api/custom-lists', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        name: newListName.trim(),
+                                                        description: newListDescription.trim() || null,
+                                                        isPublic: newListIsPublic,
+                                                    }),
+                                                });
+                                                if (!res.ok) {
+                                                    const data = await res.json().catch(() => ({}));
+                                                    throw new Error(data.error || 'Failed to create list');
+                                                }
+                                                setNewListName('');
+                                                setNewListDescription('');
+                                                setNewListIsPublic(false);
+                                                setShowCreateListForm(false);
+                                                await loadUserData();
+                                                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                                            } catch (err) {
+                                                setCreateListError(err.message || 'Failed to create list');
+                                            } finally {
+                                                setCreateListLoading(false);
+                                            }
+                                        }}
+                                        disabled={createListLoading}
+                                        className="futuristic-button-yellow px-4 py-2 disabled:opacity-50"
+                                    >
+                                        {createListLoading ? 'Creating...' : 'Create list'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowCreateListForm(false);
+                                            setNewListName('');
+                                            setNewListDescription('');
+                                            setNewListIsPublic(false);
+                                            setCreateListError(null);
+                                        }}
+                                        className="futuristic-button px-4 py-2"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {customLists.length === 0 && !showCreateListForm ? (
                         <div className="text-center py-12 futuristic-card">
                             <p className="text-xl text-white mb-2">No custom lists yet</p>
-                            <p className="text-amber-500/80">Create lists and add movies/series to organize your content!</p>
+                            <p className="text-amber-500/80 mb-4">Create lists and add movies/series to organize your content!</p>
+                            <button
+                                onClick={() => setShowCreateListForm(true)}
+                                className="futuristic-button-yellow px-6 py-3"
+                            >
+                                Create your first list
+                            </button>
                         </div>
                     ) : (
                         <div className="space-y-6">
+                            {!showCreateListForm && (
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={() => setShowCreateListForm(true)}
+                                        className="futuristic-button-yellow px-4 py-2"
+                                    >
+                                        New list
+                                    </button>
+                                </div>
+                            )}
                             {customLists.map((list) => {
                                 const items = listDetails[list.id] || [];
+                                const canEditSettings = list.user_id === user?.id || list.my_permission === 'admin';
                                 return (
                                     <div key={list.id} className="futuristic-card p-6">
                                         <div className="flex items-center justify-between mb-4">
@@ -1439,20 +1575,28 @@ const ProfilePageContent = () => {
                                                     {list.name}
                                                 </h3>
                                                 <p className="text-sm text-white/70 mt-1">
-                                                    {items.length} {items.length === 1 ? 'item' : 'items'} • Created {formatDate(list.createdAt)}
+                                                    {items.length} {items.length === 1 ? 'item' : 'items'} • Created {formatDate(list.created_at)}
+                                                    {list.is_public !== undefined && (
+                                                        <span className="ml-2 text-white/50">
+                                                            {list.is_public ? ' • Public' : ' • Private'}
+                                                        </span>
+                                                    )}
                                                 </p>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    if (confirm(`Delete "${list.name}"?`)) {
-                                                        // TODO: Delete list via API
-                                                        loadUserData();
-                                                    }
-                                                }}
-                                                className="futuristic-button text-sm bg-red-600 hover:bg-red-500"
-                                            >
-                                                Delete
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {canEditSettings && (
+                                                    <button
+                                                        onClick={() => setListSettingsModalList(list)}
+                                                        className="futuristic-button text-sm px-3 py-2"
+                                                        title="List settings"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         {items.length === 0 ? (
                                             <p className="text-white/60 text-center py-4">This list is empty</p>
@@ -1576,6 +1720,18 @@ const ProfilePageContent = () => {
                     </div>
                 </div>
             )}
+
+            {/* List Settings Modal */}
+            <ListSettingsModal
+                list={listSettingsModalList}
+                currentUserId={user?.id}
+                onClose={() => setListSettingsModalList(null)}
+                onSaved={() => {
+                    setListSettingsModalList(null);
+                    loadUserData();
+                    window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                }}
+            />
 
             {/* Confirmation Modals */}
             <ConfirmationModal

@@ -26,12 +26,21 @@ export async function GET(req, { params }) {
 
         if (listError) throw listError;
 
-        // Check if user can view this list
+        // Check if user can view this list: owner, or public, or collaborator
         if (list.user_id !== user.id && !list.is_public) {
-            return new Response(JSON.stringify({ error: 'Forbidden' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            const { data: collaborator } = await supabase
+                .from('list_collaborators')
+                .select('id')
+                .eq('list_id', listId)
+                .eq('user_id', user.id)
+                .single();
+
+            if (!collaborator) {
+                return new Response(JSON.stringify({ error: 'Forbidden' }), {
+                    status: 403,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
         }
 
         // Get list items

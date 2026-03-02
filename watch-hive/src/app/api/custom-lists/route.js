@@ -19,16 +19,51 @@ export async function GET(req) {
         const includePublic = searchParams.get('includePublic') === 'true';
 
         // Get user's lists
-        // Uses index: idx_custom_lists_user_id, idx_custom_lists_created_at
-        let query = supabase
+        const { data: userLists, error: userError } = await supabase
             .from('custom_lists')
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
+        if (userError) throw userError;
+
+        // Get lists where user is collaborator (private lists shared with user) with permission
+        const { data: collabRows, error: collabError } = await supabase
+            .from('list_collaborators')
+            .select('list_id, permission')
+            .eq('user_id', user.id);
+
+        if (collabError) throw collabError;
+
+        const collabPermissionByListId = new Map(
+            (collabRows || []).map((r) => [r.list_id, r.permission])
+        );
+
+        let allLists = [...(userLists || [])].map((l) => ({ ...l, my_permission: 'owner' }));
+        const userListIds = new Set((userLists || []).map((l) => l.id));
+
+        if (collabRows && collabRows.length > 0) {
+            const collabListIds = collabRows.map((r) => r.list_id).filter(Boolean);
+            if (collabListIds.length > 0) {
+                const { data: collabLists, error: collabListsError } = await supabase
+                    .from('custom_lists')
+                    .select('*')
+                    .in('id', collabListIds);
+
+                if (!collabListsError && collabLists) {
+                    for (const list of collabLists) {
+                        if (!userListIds.has(list.id)) {
+                            const perm = collabPermissionByListId.get(list.id) || 'viewer';
+                            allLists.push({ ...list, my_permission: perm });
+                        }
+                    }
+                    allLists.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                }
+            }
+        }
+
         // Optionally include public lists from other users
         if (includePublic) {
-            // Uses index: idx_custom_lists_public (partial index for public lists)
             const { data: publicLists, error: publicError } = await supabase
                 .from('custom_lists')
                 .select('*')
@@ -38,21 +73,17 @@ export async function GET(req) {
 
             if (publicError) throw publicError;
 
-            const { data: userLists, error: userError } = await query;
-            if (userError) throw userError;
-
-            return new Response(JSON.stringify({ 
-                lists: [...(userLists || []), ...(publicLists || [])] 
-            }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' },
-            });
+            const existingIds = new Set(allLists.map((l) => l.id));
+            for (const list of publicLists || []) {
+                if (!existingIds.has(list.id)) {
+                    allLists.push({ ...list, my_permission: null });
+                    existingIds.add(list.id);
+                }
+            }
+            allLists.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         }
 
-        const { data: lists, error } = await query;
-        if (error) throw error;
-
-        return new Response(JSON.stringify({ lists: lists || [] }), {
+        return new Response(JSON.stringify({ lists: allLists }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
         });
