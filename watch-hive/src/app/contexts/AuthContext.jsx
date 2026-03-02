@@ -85,8 +85,6 @@ export const AuthProvider = ({ children }) => {
 
     const signUp = async (email, password, displayName) => {
         try {
-            // For now, use Supabase Auth for signup since we need to create the auth user
-            // TODO: Create custom signup endpoint that creates both auth user and profile
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
                 headers: {
