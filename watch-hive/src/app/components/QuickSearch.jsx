@@ -3,12 +3,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageWithFallback from './ImageWithFallback';
 import { highlightText } from '../utils/highlightText';
+import { recentSearchesStorage } from '../lib/localStorage';
 
 const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const [recentSearches, setRecentSearches] = useState([]);
     const searchRef = useRef(null);
     const resultsRef = useRef(null);
     const inputRef = useRef(null);
@@ -36,8 +38,10 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
         if (!query.trim()) {
             setResults([]);
             setShowResults(false);
+            setRecentSearches(recentSearchesStorage.getAll());
             return;
         }
+        setRecentSearches([]);
 
         // Reduced debounce for faster results (150ms instead of 300ms)
         const debounceTimer = setTimeout(() => {
@@ -47,8 +51,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
         return () => clearTimeout(debounceTimer);
     }, [query]);
 
-    // Browser natively handles autofocus attribute when element is added to DOM
-    // This works reliably on mobile within user gesture context (similar to GT's dialog approach)
+    // Autofocus is reliable on mobile when within user gesture context.
 
     const searchContent = async (searchQuery) => {
         if (!searchQuery.trim()) return;
@@ -92,12 +95,25 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && query.trim()) {
+            recentSearchesStorage.add(query);
             router.push(`/search?q=${encodeURIComponent(query)}`);
             setShowResults(false);
             setQuery('');
-            // Only call onClose if it exists (for toggle-based search)
             if (onClose) onClose();
         }
+    };
+
+    const handleRecentClick = (recentQuery) => {
+        router.push(`/search?q=${encodeURIComponent(recentQuery)}`);
+        setShowResults(false);
+        setQuery('');
+        if (onClose) onClose();
+    };
+
+    const handleRemoveRecent = (e, recentQuery) => {
+        e.stopPropagation();
+        recentSearchesStorage.remove(recentQuery);
+        setRecentSearches(recentSearchesStorage.getAll());
     };
 
     return (
@@ -117,6 +133,9 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => {
                         if (results.length > 0 || query.trim()) {
+                            setShowResults(true);
+                        } else {
+                            setRecentSearches(recentSearchesStorage.getAll());
                             setShowResults(true);
                         }
                     }}
@@ -139,12 +158,36 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                 )}
             </div>
 
-            {showResults && results.length > 0 && (
+            {showResults && (results.length > 0 || (recentSearches.length > 0 && !query.trim())) && (
                 <div
                     ref={resultsRef}
                     className={`absolute z-50 ${isNavbar ? 'w-[600px] left-1/2 -translate-x-1/2' : 'w-full'} mt-2 bg-charcoal-900 border border-charcoal-500/50 rounded-lg shadow-subtle-lg max-h-96 overflow-y-auto`}
                 >
-                    {results.map((item) => {
+                    {recentSearches.length > 0 && !query.trim() && (
+                        <div className="p-2 border-b border-charcoal-800/50">
+                            <p className="text-xs font-semibold text-white/60 uppercase tracking-wide px-2 py-1">Recent searches</p>
+                            {recentSearches.map((entry) => (
+                                <div
+                                    key={entry.query + (entry.timestamp || '')}
+                                    onClick={() => handleRecentClick(entry.query)}
+                                    className="flex items-center justify-between gap-2 px-3 py-2 rounded hover:bg-charcoal-700 cursor-pointer group"
+                                >
+                                    <span className="text-white truncate flex-1">{entry.query}</span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleRemoveRecent(e, entry.query)}
+                                        className="flex-shrink-0 p-1 rounded text-white/50 hover:text-white hover:bg-charcoal-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        aria-label={`Remove ${entry.query} from recent`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {results.length > 0 && results.map((item) => {
                         const title = item.title || item.name;
                         const mediaType = item.media_type === 'movie' ? 'Movie' : 'TV';
                         const releaseDate = item.release_date || item.first_air_date;
@@ -193,6 +236,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                     {query.trim() && (
                         <div
                             onClick={() => {
+                                recentSearchesStorage.add(query);
                                 router.push(`/search?q=${encodeURIComponent(query)}`);
                                 setShowResults(false);
                                 if (onClose) onClose();
