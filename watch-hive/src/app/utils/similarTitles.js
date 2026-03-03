@@ -3,7 +3,7 @@ import { fetchTMDB } from '../api/utils';
 /**
  * Extract base title from a title (e.g., "Zootopia 2" -> "Zootopia")
  */
-function extractBaseTitle(title) {
+export function extractBaseTitle(title) {
     if (!title) return '';
     
     // Remove common suffixes/sequels
@@ -18,7 +18,7 @@ function extractBaseTitle(title) {
 /**
  * Calculate similarity between two titles
  */
-function calculateSimilarity(title1, title2) {
+export function calculateSimilarity(title1, title2) {
     if (!title1 || !title2) return 0;
     
     const t1 = title1.toLowerCase().trim();

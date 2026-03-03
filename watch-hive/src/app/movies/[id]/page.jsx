@@ -40,14 +40,36 @@ async function getMovieTrailer(id) {
     return res.json();
 }
 
-async function getMovieRecommendations(id, genres) {
+function getRecommendationsBaseUrl() {
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+}
+
+async function getMovieCollection(movie) {
+    if (!movie.belongs_to_collection?.id) return null;
     try {
-        const { getDiscoverRecommendations } = await import('../../utils/recommendationEngine');
-        const results = await getDiscoverRecommendations(id, 'movie', {
-            existingGenres: genres,
-            limit: 10,
-        });
-        return { results };
+        const base = getRecommendationsBaseUrl();
+        const res = await fetch(
+            `${base}/api/collections/${movie.belongs_to_collection.id}`,
+            { next: { revalidate: 86400 } }
+        );
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}
+
+async function getMovieRecommendations(id) {
+    try {
+        const base = getRecommendationsBaseUrl();
+        const res = await fetch(
+            `${base}/api/recommendations?titleId=${id}&mediaType=movie&limit=10`,
+            { next: { revalidate: 86400 } }
+        );
+        if (!res.ok) return { results: [] };
+        const data = await res.json();
+        return { results: data.recommendations || [] };
     } catch (error) {
         console.error('Error fetching movie recommendations:', error);
         return { results: [] };
@@ -71,9 +93,16 @@ const MovieDetailPage = async ({ params }) => {
     const movie = await getMovieDetails(id);
     const movie_more = await getMovieMoreDetails(id);
     const movie_trailer = await getMovieTrailer(id);
-    const movie_recommendations = await getMovieRecommendations(id, movie.genres);
+    const [movie_recommendations, movie_collection] = await Promise.all([
+        getMovieRecommendations(id),
+        getMovieCollection(movie),
+    ]);
 
     const bestTrailer = getBestTrailer(movie_trailer);
+    const collectionOtherParts = movie_collection?.parts
+        ?.filter(p => p.id !== movie.id)
+        ?.sort((a, b) => (a.release_date || '').localeCompare(b.release_date || ''))
+        || [];
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -202,6 +231,67 @@ const MovieDetailPage = async ({ params }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Collection Section */}
+            {movie_collection && collectionOtherParts.length > 0 && (
+                <div className="mt-12 border-t border-charcoal-700 pt-8">
+                    <div className="futuristic-card p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            {movie_collection.poster_path && (
+                                <ImageWithFallback
+                                    src={`https://image.tmdb.org/t/p/w92${movie_collection.poster_path}`}
+                                    alt={movie_collection.name}
+                                    className="w-12 h-18 rounded-lg object-cover"
+                                />
+                            )}
+                            <div>
+                                <p className="text-white/70 text-sm">Part of</p>
+                                <a
+                                    href={`/collections/${movie_collection.id}`}
+                                    className="text-amber-500 hover:text-amber-400 font-bold text-xl transition-colors"
+                                >
+                                    {movie_collection.name}
+                                </a>
+                            </div>
+                        </div>
+                        <p className="text-white/80 text-sm mb-4">
+                            Also includes{' '}
+                            {collectionOtherParts.length <= 2
+                                ? collectionOtherParts.map((p, i) => (
+                                    <span key={p.id}>
+                                        <a href={`/movies/${p.id}`} className="text-amber-500 hover:text-amber-400 transition-colors font-medium">
+                                            {p.title}
+                                        </a>
+                                        {i < collectionOtherParts.length - 1 && (collectionOtherParts.length === 2 ? ' and ' : ', ')}
+                                    </span>
+                                ))
+                                : <>
+                                    {collectionOtherParts.slice(0, 2).map((p, i) => (
+                                        <span key={p.id}>
+                                            <a href={`/movies/${p.id}`} className="text-amber-500 hover:text-amber-400 transition-colors font-medium">
+                                                {p.title}
+                                            </a>
+                                            {i < 1 && ', '}
+                                        </span>
+                                    ))}
+                                    <a href={`/collections/${movie_collection.id}`} className="text-amber-500/80 hover:text-amber-400 transition-colors">
+                                        {' '}and {collectionOtherParts.length - 2} more...
+                                    </a>
+                                </>
+                            }
+                        </p>
+                        <a
+                            href={`/collections/${movie_collection.id}`}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500 rounded-lg text-amber-500 text-sm font-medium transition-all"
+                        >
+                            View Full Collection
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Section: Recommendations */}
             {movie_recommendations?.results && movie_recommendations.results.length > 0 && (

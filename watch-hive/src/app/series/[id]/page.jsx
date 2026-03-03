@@ -70,14 +70,21 @@ async function getSerieTrailer(id) {
     }
 }
 
-async function getSerieRecommendations(id, genres) {
+function getRecommendationsBaseUrl() {
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+}
+
+async function getSerieRecommendations(id) {
     try {
-        const { getDiscoverRecommendations } = await import('../../utils/recommendationEngine');
-        const results = await getDiscoverRecommendations(id, 'tv', {
-            existingGenres: genres,
-            limit: 10,
-        });
-        return { results };
+        const base = getRecommendationsBaseUrl();
+        const res = await fetch(
+            `${base}/api/recommendations?titleId=${id}&mediaType=tv&limit=10`,
+            { next: { revalidate: 86400 } }
+        );
+        if (!res.ok) return { results: [] };
+        const data = await res.json();
+        return { results: data.recommendations || [] };
     } catch (error) {
         console.error('Error fetching series recommendations:', error);
         return { results: [] };
@@ -89,7 +96,7 @@ const SerieDetailPage = async ({ params }) => {
     const tv = await getSerieDetails(id);
     const tv_more = await getSerieMoreDetails(id);
     const tv_trailer = await getSerieTrailer(id);
-    const tv_recommendations = await getSerieRecommendations(id, tv.genres);
+    const tv_recommendations = await getSerieRecommendations(id);
 
     const bestTrailer = getBestTrailer(tv_trailer);
 

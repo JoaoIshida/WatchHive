@@ -91,13 +91,24 @@ const RecommendationsPage = () => {
     const handleRecommendation = async () => {
         const validItems = selectedItems.filter(item => item !== null);
         
-        if (validItems.length < 2) {
-            alert('Please select at least 2 movies or series');
+        if (validItems.length < 1) {
+            alert('Please select at least 1 movie or series');
             return;
         }
 
         setLoading(true);
         try {
+            if (validItems.length === 1) {
+                const item = validItems[0];
+                const type = item.media_type === 'movie' ? 'movie' : 'tv';
+                const recommendationResponse = await fetch(
+                    `/api/recommendations?titleId=${item.id}&mediaType=${type}&limit=20`
+                );
+                const recommendationData = await recommendationResponse.json();
+                setRecommendations(recommendationData.recommendations || []);
+                return;
+            }
+
             const movieIds = validItems
                 .filter(item => item.media_type === 'movie')
                 .map(item => item.id);
