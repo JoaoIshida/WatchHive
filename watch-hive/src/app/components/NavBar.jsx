@@ -358,12 +358,15 @@ const Navbar = () => {
                         
                         {/* Collections & Lists */}
                         <div className="flex flex-col gap-2">
+                            <p className="text-amber-500 font-semibold text-sm mb-1 pl-4">
+                                Collections & Lists
+                            </p>
                             <a
                                 href="/browse"
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                                className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
-                                Collections & Lists
+                                Browse collections
                             </a>
                         </div>
 
@@ -390,6 +393,7 @@ const Navbar = () => {
                                     </svg>
                                     <span>Settings</span>
                                 </a>
+                                <div className="border-t border-charcoal-600 my-2" aria-hidden />
                                 <button
                                     onClick={() => {
                                         handleSignOut();

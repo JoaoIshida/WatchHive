@@ -43,4 +43,9 @@ export const recentSearchesStorage = {
         );
         localStorage.setItem(STORAGE_KEYS.RECENT_SEARCHES, JSON.stringify(list));
     },
+
+    clearAll: () => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem(STORAGE_KEYS.RECENT_SEARCHES, JSON.stringify([]));
+    },
 };

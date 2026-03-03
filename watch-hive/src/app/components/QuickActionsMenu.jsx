@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserData } from '../contexts/UserDataContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
 import { getSeriesWatchProgress } from '../utils/watchProgressHelper';
@@ -10,13 +11,11 @@ import UnreleasedNotification from './UnreleasedNotification';
 
 export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
     const { user } = useAuth();
+    const { watched, wishlist, seriesProgress, customLists, refreshUserData } = useUserData();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
-    const [isWatched, setIsWatched] = useState(false);
-    const [isInWishlist, setIsInWishlist] = useState(false);
-    const [itemLists, setItemLists] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [loadingAction, setLoadingAction] = useState(null); // 'watched', 'wishlist', 'list'
+    const [loadingAction, setLoadingAction] = useState(null);
     const [showNotification, setShowNotification] = useState(false);
     const [skippedItems, setSkippedItems] = useState([]);
     const [seriesSummary, setSeriesSummary] = useState(null);
@@ -24,7 +23,6 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [missingEpisodes, setMissingEpisodes] = useState(0);
     const [showListModal, setShowListModal] = useState(false);
-    const [lists, setLists] = useState([]);
     const [listModalItemLists, setListModalItemLists] = useState([]);
     const [newListName, setNewListName] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
@@ -37,114 +35,46 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         setMounted(true);
     }, []);
 
+    // Derive watched/wishlist/list state from context
+    const isWatched = (() => {
+        if (!user) return false;
+        const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
+        if (watchedItem) return true;
+        if (mediaType === 'tv') {
+            const progress = seriesProgress[itemId];
+            return progress?.completed || false;
+        }
+        return false;
+    })();
+
+    const isInWishlist = (() => {
+        if (!user) return false;
+        return wishlist.some(w => w.content_id === itemId && w.media_type === mediaType);
+    })();
+
+    const itemLists = (() => {
+        // Placeholder derived from context where possible; exact membership loaded on demand
+        return [];
+    })();
+
+    // Calculate missing episodes from context
     useEffect(() => {
-        // Check initial states from API
-        const checkStates = async () => {
-            if (!user) {
-                setIsWatched(false);
-                setIsInWishlist(false);
-                setItemLists([]);
-                return;
-            }
-
+        if (!user || mediaType !== 'tv' || !itemData) {
+            setMissingEpisodes(0);
+            return;
+        }
+        const progress = seriesProgress[itemId];
+        if (progress && itemData) {
             try {
-                // For series, also check series progress
-                let watchedRes, progressRes, wishlistRes, listsRes;
-                
-                if (mediaType === 'tv') {
-                    [watchedRes, progressRes, wishlistRes, listsRes] = await Promise.all([
-                        fetch('/api/watched'),
-                        fetch(`/api/series-progress/${itemId}`),
-                        fetch('/api/wishlist'),
-                        fetch('/api/custom-lists'),
-                    ]);
-
-                    if (watchedRes.ok) {
-                        const { watched } = await watchedRes.json();
-                        const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
-                        
-                        // Also check if series is marked as complete in progress
-                        let isComplete = false;
-                        let progress = null;
-                        if (progressRes.ok) {
-                            progress = await progressRes.json();
-                            isComplete = progress.completed || false;
-                        }
-                        
-                        // Series is watched if it's in watched_content OR marked as complete in progress
-                        setIsWatched(!!watchedItem || isComplete);
-                        
-                        // Calculate missing episodes
-                        if (itemData && progress) {
-                            try {
-                                // Fetch full series details if needed
-                                let seriesData = itemData;
-                                if (!seriesData.seasons || seriesData.seasons.length === 0) {
-                                    const seriesRes = await fetch(`/api/tv/${itemId}`);
-                                    if (seriesRes.ok) {
-                                        seriesData = await seriesRes.json();
-                                    }
-                                }
-                                
-                                const watchProgress = getSeriesWatchProgress(itemId, seriesData, progress, !!watchedItem);
-                                const missing = Math.max(0, watchProgress.totalEpisodes - watchProgress.watchedEpisodes);
-                                setMissingEpisodes(missing);
-                            } catch (error) {
-                                console.error('Error calculating missing episodes:', error);
-                            }
-                        }
-                    }
-                } else {
-                    [watchedRes, wishlistRes, listsRes] = await Promise.all([
-                        fetch('/api/watched'),
-                        fetch('/api/wishlist'),
-                        fetch('/api/custom-lists'),
-                    ]);
-
-                    if (watchedRes.ok) {
-                        const { watched } = await watchedRes.json();
-                        const watchedItem = watched.find(w => w.content_id === itemId && w.media_type === mediaType);
-                        setIsWatched(!!watchedItem);
-                    }
-                }
-
-                if (wishlistRes.ok) {
-                    const { wishlist } = await wishlistRes.json();
-                    const wishlistItem = wishlist.find(w => w.content_id === itemId && w.media_type === mediaType);
-                    setIsInWishlist(!!wishlistItem);
-                }
-
-                if (listsRes.ok) {
-                    const { lists } = await listsRes.json();
-                    const listIds = [];
-                    for (const list of lists || []) {
-                        const listRes = await fetch(`/api/custom-lists/${list.id}`);
-                        if (listRes.ok) {
-                            const { list: listWithItems } = await listRes.json();
-                            const hasItem = (listWithItems.items || []).some(item => 
-                                item.content_id === itemId && item.media_type === mediaType
-                            );
-                            if (hasItem) {
-                                listIds.push(list.id);
-                            }
-                        }
-                    }
-                    setItemLists(listIds);
-                }
-            } catch (error) {
-                console.error('Error checking states:', error);
+                const watchProgress = getSeriesWatchProgress(itemId, itemData, progress, isWatched);
+                setMissingEpisodes(Math.max(0, watchProgress.totalEpisodes - watchProgress.watchedEpisodes));
+            } catch {
+                setMissingEpisodes(0);
             }
-        };
-        checkStates();
-        
-        // Listen for data updates
-        const handleUpdate = () => checkStates();
-        window.addEventListener('watchhive-data-updated', handleUpdate);
-        
-        return () => {
-            window.removeEventListener('watchhive-data-updated', handleUpdate);
-        };
-    }, [itemId, mediaType, user]);
+        } else {
+            setMissingEpisodes(0);
+        }
+    }, [user, mediaType, itemId, itemData, seriesProgress, isWatched]);
 
     // Calculate menu position when opening
     useEffect(() => {
@@ -152,7 +82,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             const rect = buttonRef.current.getBoundingClientRect();
             setMenuPosition({
                 top: rect.bottom + 4,
-                left: rect.right - 180, // Menu width is 180px
+                left: rect.right - 180,
             });
         }
     }, [isOpen]);
@@ -179,12 +109,25 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         };
     }, [isOpen]);
 
-    // Load lists when modal opens
+    // Load membership when list modal opens
+    const loadMembershipForModal = useCallback(async () => {
+        if (!user || !itemId || !mediaType) return;
+        try {
+            const res = await fetch(`/api/custom-lists/membership?contentId=${itemId}&mediaType=${mediaType}`);
+            if (res.ok) {
+                const { listIds } = await res.json();
+                setListModalItemLists(listIds || []);
+            }
+        } catch (e) {
+            console.error('Error loading list membership:', e);
+        }
+    }, [user, itemId, mediaType]);
+
     useEffect(() => {
         if (showListModal && user) {
-            loadListsForModal();
+            loadMembershipForModal();
         }
-    }, [showListModal, user, itemId, mediaType]);
+    }, [showListModal, user, loadMembershipForModal]);
 
     const handleToggleWatched = async () => {
         if (!user) {
@@ -193,10 +136,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             return;
         }
 
-        // Check if item is released before marking as watched
         if (!isWatched) {
             if (mediaType === 'movie' && itemData) {
-                // Check if movie is released - also treat movies without release_date as unreleased
                 const hasReleaseDate = itemData.release_date && itemData.release_date.trim() !== '';
                 const isReleased = hasReleaseDate && isMovieReleased(itemData);
                 
@@ -231,8 +172,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 const response = await fetch(`/api/watched?itemId=${itemId}&mediaType=${mediaType}`, {
                     method: 'DELETE',
                 });
-                if (response.ok) {
-                    setIsWatched(false);
+                if (!response.ok) {
+                    console.error('Failed to remove from watched');
                 }
             } else {
                 const response = await fetch('/api/watched', {
@@ -242,13 +183,10 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 });
                 if (response.ok) {
                     const data = await response.json();
-                    setIsWatched(true);
                     
-                    // For series, check if there were skipped items
                     if (mediaType === 'tv' && data.seriesProgress) {
                         const skipped = [];
                         
-                        // Add skipped seasons
                         if (data.seriesProgress.skippedSeasons) {
                             data.seriesProgress.skippedSeasons.forEach(s => {
                                 skipped.push({
@@ -260,10 +198,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                             });
                         }
                         
-                        // Add skipped episodes
                         if (data.seriesProgress.skippedEpisodes) {
                             data.seriesProgress.skippedEpisodes.forEach(ep => {
-                                // Handle episode name - check multiple possible fields
                                 const episodeName = ep.name || ep.episodeName || 
                                     (ep.episode_number ? `Episode ${ep.episode_number}` : 
                                      ep.episodeNumber ? `Episode ${ep.episodeNumber}` : 'Episode');
@@ -275,8 +211,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                                 skipped.push({
                                     type: 'episode',
                                     seriesName: itemData?.name || 'Series',
-                                    seasonName: seasonName,
-                                    episodeName: episodeName,
+                                    seasonName,
+                                    episodeName,
                                     releaseDate: releaseDate !== 'N/A' ? formatDate(releaseDate) : 'N/A'
                                 });
                             });
@@ -293,7 +229,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     }
                 }
             }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            refreshUserData();
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error toggling watched:', error);
@@ -315,23 +251,15 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         setLoadingAction('wishlist');
         try {
             if (isInWishlist) {
-                const response = await fetch(`/api/wishlist?itemId=${itemId}&mediaType=${mediaType}`, {
-                    method: 'DELETE',
-                });
-                if (response.ok) {
-                    setIsInWishlist(false);
-                }
+                await fetch(`/api/wishlist?itemId=${itemId}&mediaType=${mediaType}`, { method: 'DELETE' });
             } else {
-                const response = await fetch('/api/wishlist', {
+                await fetch('/api/wishlist', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ itemId, mediaType }),
                 });
-                if (response.ok) {
-                    setIsInWishlist(true);
-                }
             }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            refreshUserData();
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error toggling wishlist:', error);
@@ -349,47 +277,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             return;
         }
 
-        // Close quick actions menu and open list selection modal
         setIsOpen(false);
         setShowListModal(true);
-        loadListsForModal();
-    };
-
-    const loadListsForModal = async () => {
-        if (!user) return;
-
-        try {
-            const response = await fetch('/api/custom-lists');
-            if (response.ok) {
-                const { lists: allLists } = await response.json();
-                setLists(allLists || []);
-
-                // Find which lists contain this item
-                const listsWithItem = [];
-                const listPromises = (allLists || []).map(async (list) => {
-                    try {
-                        const listResponse = await fetch(`/api/custom-lists/${list.id}`);
-                        if (listResponse.ok) {
-                            const { list: listWithItems } = await listResponse.json();
-                            const hasItem = (listWithItems.items || []).some(item => 
-                                item.content_id === itemId && item.media_type === mediaType
-                            );
-                            if (hasItem) {
-                                return list.id;
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Error checking list ${list.id}:`, error);
-                    }
-                    return null;
-                });
-
-                const results = await Promise.all(listPromises);
-                setListModalItemLists(results.filter(id => id !== null));
-            }
-        } catch (error) {
-            console.error('Error loading lists:', error);
-        }
     };
 
     const handleToggleListInModal = async (listId) => {
@@ -398,7 +287,6 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             return;
         }
 
-        // Validate itemTitle - provide fallback if missing
         const validTitle = (itemData?.title || itemData?.name || 'Untitled')?.trim() || 'Untitled';
         if (!itemId || !mediaType) {
             setListError('Missing required item information');
@@ -413,43 +301,33 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             const isInList = listModalItemLists.includes(listId);
 
             if (isInList) {
-                // Remove from list via API
                 const response = await fetch(`/api/custom-lists/${listId}/items?contentId=${itemId}&mediaType=${mediaType}`, {
                     method: 'DELETE',
                 });
                 if (response.ok) {
                     setListModalItemLists(prev => prev.filter(id => id !== listId));
-                    setItemLists(prev => prev.filter(id => id !== listId));
                     setListSuccess('Removed from list');
                     setTimeout(() => setListSuccess(null), 2000);
-                    await loadListsForModal();
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Failed to remove from list');
                 }
             } else {
-                // Add to list via API
                 const response = await fetch(`/api/custom-lists/${listId}/items`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contentId: itemId,
-                        mediaType,
-                        title: validTitle,
-                    }),
+                    body: JSON.stringify({ contentId: itemId, mediaType, title: validTitle }),
                 });
                 if (response.ok) {
                     setListModalItemLists(prev => [...prev, listId]);
-                    setItemLists(prev => [...prev, listId]);
                     setListSuccess('Added to list');
                     setTimeout(() => setListSuccess(null), 2000);
-                    await loadListsForModal();
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Failed to add to list');
                 }
             }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            refreshUserData();
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error toggling list:', error);
@@ -472,7 +350,6 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             return;
         }
 
-        // Validate itemTitle - provide fallback if missing
         const validTitle = (itemData?.title || itemData?.name || 'Untitled')?.trim() || 'Untitled';
         if (!itemId || !mediaType) {
             setListError('Missing required item information');
@@ -484,13 +361,10 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         setListError(null);
         setListSuccess(null);
         try {
-            // Create list via API
             const response = await fetch('/api/custom-lists', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newListName.trim(),
-                }),
+                body: JSON.stringify({ name: newListName.trim() }),
             });
 
             if (!response.ok) {
@@ -499,16 +373,11 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             }
 
             const { list } = await response.json();
-            
-            // Add current item to the new list
+
             const addResponse = await fetch(`/api/custom-lists/${list.id}/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contentId: itemId,
-                    mediaType,
-                    title: validTitle,
-                }),
+                body: JSON.stringify({ contentId: itemId, mediaType, title: validTitle }),
             });
 
             if (!addResponse.ok) {
@@ -520,10 +389,9 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             setShowCreateForm(false);
             setListSuccess('List created and item added');
             setTimeout(() => setListSuccess(null), 2000);
-            
-            // Refresh lists and item lists state
-            await loadListsForModal();
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+
+            refreshUserData();
+            await loadMembershipForModal();
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error creating list:', error);
@@ -553,7 +421,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
             style={{ 
                 zIndex: 99998,
                 top: menuPosition.top,
-                left: Math.max(8, menuPosition.left), // Ensure menu doesn't go off-screen
+                left: Math.max(8, menuPosition.left),
             }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -667,26 +535,24 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                 </svg>
             </button>
 
-            {/* Portal the menu to body for proper z-index stacking */}
             {mounted && menuContent && createPortal(menuContent, document.body)}
             
-            {/* List Selection Modal */}
-            {showListModal && mounted && (
-                <>
+            {showListModal && mounted && createPortal(
+                <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+                    style={{ zIndex: 100002 }}
+                    onClick={() => {
+                        setShowListModal(false);
+                        setShowCreateForm(false);
+                        setNewListName('');
+                        setListError(null);
+                        setListSuccess(null);
+                    }}
+                >
                     <div 
-                        className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4"
-                        onClick={() => {
-                            setShowListModal(false);
-                            setShowCreateForm(false);
-                            setNewListName('');
-                            setListError(null);
-                            setListSuccess(null);
-                        }}
+                        className="bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 w-full max-w-sm max-h-[calc(100vh-2rem)] flex flex-col"
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <div 
-                            className="bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 w-full max-w-sm max-h-[calc(100vh-2rem)] flex flex-col"
-                            onClick={(e) => e.stopPropagation()}
-                        >
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-amber-400 font-bold">Your Lists</h3>
                                 <button
@@ -716,12 +582,12 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                                 </div>
                             )}
 
-                            {lists.length === 0 && !showCreateForm && (
+                            {customLists.length === 0 && !showCreateForm && (
                                 <p className="text-white/70 text-sm mb-3">No lists yet. Create one!</p>
                             )}
 
                             <div className="space-y-2 flex-1 overflow-y-auto mb-3 min-h-0">
-                                {lists.map(list => {
+                                {customLists.map(list => {
                                     const isInList = listModalItemLists.includes(list.id);
                                     return (
                                         <button
@@ -794,8 +660,8 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                                 </button>
                             )}
                         </div>
-                    </div>
-                </>
+                    </div>,
+                document.body
             )}
             
             <UnreleasedNotification

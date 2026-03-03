@@ -116,6 +116,19 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
         setRecentSearches(recentSearchesStorage.getAll());
     };
 
+    const handleClearAllRecent = () => {
+        recentSearchesStorage.clearAll();
+        setRecentSearches([]);
+    };
+
+    const handleClearSearch = () => {
+        setQuery('');
+        setResults([]);
+        setShowResults(false);
+        setRecentSearches(recentSearchesStorage.getAll());
+        if (onClose) onClose();
+    };
+
     return (
         <div className="relative w-full" ref={searchRef}>
             <div className="relative">
@@ -165,7 +178,16 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                 >
                     {recentSearches.length > 0 && !query.trim() && (
                         <div className="p-2 border-b border-charcoal-800/50">
-                            <p className="text-xs font-semibold text-white/60 uppercase tracking-wide px-2 py-1">Recent searches</p>
+                            <div className="flex items-center justify-between px-2 py-1">
+                                <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">Recent searches</p>
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleClearAllRecent(); }}
+                                    className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                                >
+                                    Clear all
+                                </button>
+                            </div>
                             {recentSearches.map((entry) => (
                                 <div
                                     key={entry.query + (entry.timestamp || '')}
@@ -187,7 +209,19 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                             ))}
                         </div>
                     )}
-                    {results.length > 0 && results.map((item) => {
+                    {results.length > 0 && (
+                        <>
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-charcoal-800/50 bg-charcoal-800/30">
+                                <span className="text-xs font-semibold text-white/60 uppercase tracking-wide">Search results</span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleClearSearch(); }}
+                                    className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                                >
+                                    Clear search
+                                </button>
+                            </div>
+                            {results.map((item) => {
                         const title = item.title || item.name;
                         const mediaType = item.media_type === 'movie' ? 'Movie' : 'TV';
                         const releaseDate = item.release_date || item.first_air_date;
@@ -233,6 +267,8 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                             </div>
                         );
                     })}
+                        </>
+                    )}
                     {query.trim() && (
                         <div
                             onClick={() => {

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -18,22 +18,25 @@ const SearchPageContent = () => {
     const [loading, setLoading] = useState(false);
     const [initialLoad, setInitialLoad] = useState(true);
     const [recentSearches, setRecentSearches] = useState([]);
+    const lastSearchQueryRef = useRef(null);
 
-    // Function to handle the search
-    const handleSearch = useCallback(async (searchQuery, updateURL = true) => {
+    // Function to handle the search. Only addToRecent when user commits (Enter or landed with URL), not on every keystroke.
+    const handleSearch = useCallback(async (searchQuery, updateURL = true, addToRecent = false) => {
         if (!searchQuery) {
             setResults([]); // Clear results if input is empty
-            // Update URL to remove query parameter
             if (updateURL) {
                 router.replace(pathname);
             }
+            lastSearchQueryRef.current = null;
             return;
         }
 
-        setLoading(true); // Set loading to true while fetching results
+        setLoading(true);
+        if (updateURL) {
+            lastSearchQueryRef.current = searchQuery;
+        }
 
         try {
-            // Update URL with search query
             if (updateURL) {
                 const params = new URLSearchParams();
                 params.set('q', searchQuery);
@@ -45,39 +48,45 @@ const SearchPageContent = () => {
                 throw new Error('Failed to fetch search results');
             }
             const data = await response.json();
-            setResults(data); // Set search results
-            recentSearchesStorage.add(searchQuery);
+            setResults(data);
+            if (addToRecent) {
+                recentSearchesStorage.add(searchQuery);
+            }
         } catch (error) {
             console.error('Error fetching search results:', error);
-            setResults([]); // Clear results on error
+            setResults([]);
         } finally {
-            setLoading(false); // Set loading to false after fetching
+            setLoading(false);
         }
     }, [router, pathname]);
 
-    // Sync with URL: when q param changes (e.g. from navbar search), update local state and run search
+    // Sync with URL: when q param changes (e.g. from navbar or initial load), update local state and run search.
+    // Do NOT overwrite query when the URL was just set by our own debounced search (avoids input reverting / missing letters).
     const urlQuery = searchParams.get('q') || '';
     const decodedUrlQuery = urlQuery ? decodeURIComponent(urlQuery) : '';
 
     useEffect(() => {
+        if (decodedUrlQuery === lastSearchQueryRef.current) {
+            lastSearchQueryRef.current = null;
+            return;
+        }
         setQuery(decodedUrlQuery);
         if (decodedUrlQuery) {
-            handleSearch(decodedUrlQuery, false);
+            handleSearch(decodedUrlQuery, false, true); // Add to recent when landing with URL (e.g. from navbar)
         } else {
             setResults([]);
         }
         setInitialLoad(false);
-    }, [decodedUrlQuery, handleSearch]); // Re-run when URL q changes (navbar search or in-page navigation)
+    }, [decodedUrlQuery, handleSearch]);
 
-    // Effect to call handleSearch on local query change (user typing in page input), debounced.
-    // Skip when query matches URL (e.g. just synced from navbar) to avoid double fetch.
+    // Debounced search when user types; longer delay to avoid partial queries and jank. Do not add to recent here.
     useEffect(() => {
         if (initialLoad) return;
         if (query === decodedUrlQuery) return;
 
         const delayDebounceFn = setTimeout(() => {
-            handleSearch(query, true);
-        }, 300);
+            handleSearch(query, true, false); // false = don't add to recent on every keystroke
+        }, 600);
 
         return () => clearTimeout(delayDebounceFn);
     }, [query, initialLoad, handleSearch, decodedUrlQuery]);
@@ -100,6 +109,18 @@ const SearchPageContent = () => {
         setRecentSearches(recentSearchesStorage.getAll());
     };
 
+    const handleClearAllRecent = () => {
+        recentSearchesStorage.clearAll();
+        setRecentSearches([]);
+    };
+
+    const handleClearSearch = () => {
+        setQuery('');
+        setResults([]);
+        router.replace(pathname);
+        setRecentSearches(recentSearchesStorage.getAll());
+    };
+
     return (
         <div className="container mx-auto p-4 py-8">
             <h1 className="text-4xl font-bold mb-6 text-amber-500">Search</h1>
@@ -107,13 +128,28 @@ const SearchPageContent = () => {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && query.trim()) {
+                        e.preventDefault();
+                        handleSearch(query.trim(), true, true); // Commit search and add to recent
+                    }
+                }}
                 placeholder="Search for movies and series..."
                 className="bg-charcoal-900/80 border-2 border-charcoal-700 rounded-lg p-4 w-full text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none transition-all text-lg"
             />
 
             {!query.trim() && recentSearches.length > 0 && (
                 <div className="mt-3 p-3 bg-charcoal-900/50 border border-charcoal-700/50 rounded-lg">
-                    <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Recent searches</p>
+                    <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">Recent searches</p>
+                        <button
+                            type="button"
+                            onClick={handleClearAllRecent}
+                            className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                        >
+                            Clear all
+                        </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                         {recentSearches.map((entry) => (
                             <div
@@ -147,7 +183,16 @@ const SearchPageContent = () => {
 
             {results.length > 0 && !loading && (
                 <div className="mt-6">
-                    <h2 className="text-2xl font-bold mb-4 text-amber-500">Search Results:</h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold text-amber-500">Search Results:</h2>
+                        <button
+                            type="button"
+                            onClick={handleClearSearch}
+                            className="text-sm text-amber-500 hover:text-amber-400 transition-colors"
+                        >
+                            Clear search
+                        </button>
+                    </div>
                     <div className="flex flex-col space-y-3">
                         {results.map((item) => {
                             const title = item.title || item.name;
