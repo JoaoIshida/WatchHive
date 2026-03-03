@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserData } from '../contexts/UserDataContext';
 
 export default function AddToListButton({ itemId, mediaType, itemTitle }) {
     const { user } = useAuth();
+    const { customLists, refreshUserData } = useUserData();
     const [isOpen, setIsOpen] = useState(false);
-    const [lists, setLists] = useState([]);
     const [itemLists, setItemLists] = useState([]);
     const [newListName, setNewListName] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
@@ -13,51 +14,25 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
 
-    useEffect(() => {
-        loadLists();
-    }, [itemId, mediaType]);
-
-    const loadLists = async () => {
-        if (!user) {
-            setLists([]);
+    const loadMembership = useCallback(async () => {
+        if (!user || !itemId || !mediaType) {
             setItemLists([]);
             return;
         }
-
         try {
-
-            const response = await fetch('/api/custom-lists');
-            if (response.ok) {
-                const { lists: allLists } = await response.json();
-                setLists(allLists || []);
-
-                // Find which lists contain this item by fetching each list with items
-                const listsWithItem = [];
-                const listPromises = (allLists || []).map(async (list) => {
-                    try {
-                        const listResponse = await fetch(`/api/custom-lists/${list.id}`);
-                        if (listResponse.ok) {
-                            const { list: listWithItems } = await listResponse.json();
-                            const hasItem = (listWithItems.items || []).some(item => 
-                                item.content_id === itemId && item.media_type === mediaType
-                            );
-                            if (hasItem) {
-                                return list.id;
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Error checking list ${list.id}:`, error);
-                    }
-                    return null;
-                });
-
-                const results = await Promise.all(listPromises);
-                setItemLists(results.filter(id => id !== null));
+            const res = await fetch(`/api/custom-lists/membership?contentId=${itemId}&mediaType=${mediaType}`);
+            if (res.ok) {
+                const { listIds } = await res.json();
+                setItemLists(listIds || []);
             }
-        } catch (error) {
-            console.error('Error loading lists:', error);
+        } catch (e) {
+            console.error('Error loading list membership:', e);
         }
-    };
+    }, [user, itemId, mediaType]);
+
+    useEffect(() => {
+        loadMembership();
+    }, [loadMembership]);
 
     const handleToggleList = async (listId) => {
         if (!user) {
@@ -65,7 +40,6 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
             return;
         }
 
-        // Validate itemTitle - provide fallback if missing
         const validTitle = itemTitle?.trim() || 'Untitled';
         if (!itemId || !mediaType) {
             setError('Missing required item information');
@@ -80,7 +54,6 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
             const isInList = itemLists.includes(listId);
 
             if (isInList) {
-                // Remove from list via API
                 const response = await fetch(`/api/custom-lists/${listId}/items?contentId=${itemId}&mediaType=${mediaType}`, {
                     method: 'DELETE',
                 });
@@ -88,33 +61,26 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                     setItemLists(prev => prev.filter(id => id !== listId));
                     setSuccess('Removed from list');
                     setTimeout(() => setSuccess(null), 2000);
-                    await loadLists(); // Refresh to ensure state is in sync
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Failed to remove from list');
                 }
             } else {
-                // Add to list via API
                 const response = await fetch(`/api/custom-lists/${listId}/items`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contentId: itemId,
-                        mediaType,
-                        title: validTitle,
-                    }),
+                    body: JSON.stringify({ contentId: itemId, mediaType, title: validTitle }),
                 });
                 if (response.ok) {
                     setItemLists(prev => [...prev, listId]);
                     setSuccess('Added to list');
                     setTimeout(() => setSuccess(null), 2000);
-                    await loadLists(); // Refresh to ensure state is in sync
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Failed to add to list');
                 }
             }
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            refreshUserData();
         } catch (error) {
             console.error('Error toggling list:', error);
             setError(error.message || 'An error occurred');
@@ -136,7 +102,6 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
             return;
         }
 
-        // Validate itemTitle - provide fallback if missing
         const validTitle = itemTitle?.trim() || 'Untitled';
         if (!itemId || !mediaType) {
             setError('Missing required item information');
@@ -148,13 +113,10 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
         setError(null);
         setSuccess(null);
         try {
-            // Create list via API
             const response = await fetch('/api/custom-lists', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newListName.trim(),
-                }),
+                body: JSON.stringify({ name: newListName.trim() }),
             });
 
             if (!response.ok) {
@@ -163,16 +125,11 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
             }
 
             const { list } = await response.json();
-            
-            // Add current item to the new list
+
             const addResponse = await fetch(`/api/custom-lists/${list.id}/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contentId: itemId,
-                    mediaType,
-                    title: validTitle,
-                }),
+                body: JSON.stringify({ contentId: itemId, mediaType, title: validTitle }),
             });
 
             if (!addResponse.ok) {
@@ -184,10 +141,9 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
             setShowCreateForm(false);
             setSuccess('List created and item added');
             setTimeout(() => setSuccess(null), 2000);
-            
-            // Refresh lists and item lists state
-            await loadLists();
-            window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+
+            refreshUserData();
+            await loadMembership();
         } catch (error) {
             console.error('Error creating list:', error);
             setError(error.message || 'Failed to create list');
@@ -238,12 +194,12 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                             </div>
                         )}
 
-                        {lists.length === 0 && !showCreateForm && (
+                        {customLists.length === 0 && !showCreateForm && (
                             <p className="text-white/70 text-sm mb-3">No lists yet. Create one!</p>
                         )}
 
                         <div className="space-y-2 flex-1 overflow-y-auto mb-3 min-h-0">
-                            {lists.map(list => {
+                            {customLists.map(list => {
                                 const isInList = itemLists.includes(list.id);
                                 return (
                                     <button
@@ -321,4 +277,3 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
         </div>
     );
 }
-

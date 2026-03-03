@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserData } from '../contexts/UserDataContext';
 import ImageWithFallback from './ImageWithFallback';
 import NewReleaseBadge from './NewReleaseBadge';
 import UpcomingBadge from './UpcomingBadge';
@@ -15,6 +16,7 @@ import { isSeriesReleased, isMovieReleased } from '../utils/releaseDateValidator
 
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const { user } = useAuth();
+    const { watched, seriesProgress, seriesDetails: contextSeriesDetails } = useUserData();
     const title = item.title || item.name;
     const releaseDate = item.release_date || item.first_air_date;
     const posterPath = item.poster_path || item.backdrop_path;
@@ -23,106 +25,69 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const [watchStatus, setWatchStatus] = useState(null);
     
     useEffect(() => {
-        const updateWatchStatus = async () => {
-            if (!user) {
-                setWatchStatus(null);
-                return;
-            }
+        if (!user) {
+            setWatchStatus(null);
+            return;
+        }
 
-            try {
-                if (isSeries) {
-                    // Fetch series progress
-                    const [watchedRes, progressRes] = await Promise.all([
-                        fetch('/api/watched'),
-                        fetch(`/api/series-progress/${item.id}`),
-                    ]);
+        if (isSeries) {
+            const isWatched = watched.some(w => w.content_id === item.id && w.media_type === 'tv');
+            const progress = seriesProgress[item.id] || null;
 
-                    const watched = watchedRes.ok ? (await watchedRes.json()).watched : [];
-                    const isWatched = watched.some(w => w.content_id === item.id && w.media_type === 'tv');
-                    const progress = progressRes.ok ? await progressRes.json() : null;
+            // Use context series details if available, otherwise fall back to prop item
+            const contextData = contextSeriesDetails[item.id];
+            let seriesDataForProgress = contextData || item;
+            const needsDetailsFetch = progress && !contextData && (!item.seasons || !item.seasons.some(s => s.episode_count));
 
-                    // Always fetch full series details to get accurate episode counts for percentage calculation
-                    // The item from list views might not have complete season data with episode_count
-                    let seriesDataForProgress = item;
-                    // Fetch series details if we have progress OR if item doesn't have seasons/episode_count
-                    const needsSeriesDetails = progress || !item.seasons || !item.seasons.some(s => s.episode_count);
-                    if (needsSeriesDetails) {
-                        try {
-                            const detailsRes = await fetch(`/api/tv/${item.id}`);
-                            if (detailsRes.ok) {
-                                seriesDataForProgress = await detailsRes.json();
-                                
-                                // Fetch season details for all seasons with progress to get accurate episode counts
-                                // This ensures we count all episodes (released + unreleased) correctly
-                                if (seriesDataForProgress.seasons && progress && progress.seasons) {
-                                    const seasonPromises = Object.keys(progress.seasons).map(async (seasonNum) => {
-                                        try {
-                                            const seasonRes = await fetch(`/api/tv/${item.id}/season/${seasonNum}`);
-                                            if (seasonRes.ok) {
-                                                const seasonData = await seasonRes.json();
-                                                // Find and update the season in seriesDataForProgress with full episode data
-                                                const seasonIndex = seriesDataForProgress.seasons.findIndex(
-                                                    s => s.season_number === parseInt(seasonNum)
-                                                );
-                                                if (seasonIndex !== -1) {
-                                                    // Update with full season data including episodes
-                                                    seriesDataForProgress.seasons[seasonIndex] = {
-                                                        ...seriesDataForProgress.seasons[seasonIndex],
-                                                        ...seasonData,
-                                                        // Ensure episode_count is set (use from seasonData or calculate from episodes)
-                                                        episode_count: seasonData.episode_count || 
-                                                                      seriesDataForProgress.seasons[seasonIndex]?.episode_count || 
-                                                                      (seasonData.episodes?.length || 0)
-                                                    };
-                                                }
+            if (needsDetailsFetch) {
+                // Only fetch when we have progress but no season data anywhere
+                const fetchAndCalc = async () => {
+                    try {
+                        const detailsRes = await fetch(`/api/tv/${item.id}`);
+                        if (detailsRes.ok) {
+                            const data = await detailsRes.json();
+                            seriesDataForProgress = data;
+
+                            if (data.seasons && progress?.seasons) {
+                                const seasonPromises = Object.keys(progress.seasons).map(async (seasonNum) => {
+                                    try {
+                                        const seasonRes = await fetch(`/api/tv/${item.id}/season/${seasonNum}`);
+                                        if (seasonRes.ok) {
+                                            const seasonData = await seasonRes.json();
+                                            const idx = seriesDataForProgress.seasons.findIndex(
+                                                s => s.season_number === parseInt(seasonNum)
+                                            );
+                                            if (idx !== -1) {
+                                                seriesDataForProgress.seasons[idx] = {
+                                                    ...seriesDataForProgress.seasons[idx],
+                                                    ...seasonData,
+                                                    episode_count: seasonData.episode_count || 
+                                                                  seriesDataForProgress.seasons[idx]?.episode_count || 
+                                                                  (seasonData.episodes?.length || 0)
+                                                };
                                             }
-                                        } catch (err) {
-                                            // Silently fail - we'll use episode_count as fallback
                                         }
-                                    });
-                                    await Promise.all(seasonPromises);
-                                }
+                                    } catch {
+                                        // fallback to episode_count
+                                    }
+                                });
+                                await Promise.all(seasonPromises);
                             }
-                        } catch (err) {
-                            console.error('Error fetching series details for progress:', err);
                         }
+                    } catch (err) {
+                        console.error('Error fetching series details for progress:', err);
                     }
-
-                    const calculatedStatus = getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched);
-                    // console.log(`[ContentCard] Series ${item.id} (${item.name || item.title}):`, {
-                    //     watchStatus: calculatedStatus,
-                    //     hasPercentage: calculatedStatus.percentage > 0,
-                    //     willShowPercentage: calculatedStatus.percentage > 0,
-                    //     seriesDataHasSeasons: !!seriesDataForProgress?.seasons,
-                    //     seriesDataSeasonsCount: seriesDataForProgress?.seasons?.length || 0,
-                    //     progressHasSeasons: !!progress?.seasons,
-                    //     progressSeasonsCount: progress?.seasons ? Object.keys(progress.seasons).length : 0
-                    // });
-                    setWatchStatus(calculatedStatus);
-                } else {
-                    // Fetch watched status
-                    const watchedRes = await fetch('/api/watched');
-                    if (watchedRes.ok) {
-                        const { watched } = await watchedRes.json();
-                        const watchedItem = watched.find(w => w.content_id === item.id && w.media_type === 'movie');
-                        setWatchStatus(getMovieWatchStatus(item.id, watchedItem));
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading watch status:', error);
+                    setWatchStatus(getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched));
+                };
+                fetchAndCalc();
+            } else {
+                setWatchStatus(getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched));
             }
-        };
-        
-        updateWatchStatus();
-        
-        // Listen for watch status changes
-        const handleUpdate = () => updateWatchStatus();
-        window.addEventListener('watchhive-data-updated', handleUpdate);
-        
-        return () => {
-            window.removeEventListener('watchhive-data-updated', handleUpdate);
-        };
-    }, [item.id, item, isSeries, user]);
+        } else {
+            const watchedItem = watched.find(w => w.content_id === item.id && w.media_type === 'movie');
+            setWatchStatus(getMovieWatchStatus(item.id, watchedItem));
+        }
+    }, [item.id, item, isSeries, user, watched, seriesProgress, contextSeriesDetails]);
 
     // Only show watched border if content is released
     const isReleased = isSeries ? isSeriesReleased(item) : isMovieReleased(item);
@@ -139,13 +104,10 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             className="object-cover w-full h-full hover:scale-110 transition-transform duration-300"
                         />
                         
-                        {/* New Release Badge */}
                         <NewReleaseBadge releaseDate={releaseDate} />
                         
-                        {/* Upcoming Badge */}
                         {!isSeries && <UpcomingBadge releaseDate={releaseDate} />}
                         
-                        {/* Series Notification Badge */}
                         {isSeries && (
                             <SeriesNotificationBadge
                                 seriesId={item.id}
@@ -155,12 +117,10 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             />
                         )}
                         
-                        {/* Content Type Badge - Left side (opposite to 3-dot menu) */}
                         <div className="absolute top-1 left-1 bg-charcoal-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-subtle z-10">
                             {getContentType(item, mediaType)}
                         </div>
                         
-                        {/* Rating Badge - Circular */}
                         {item.vote_average && item.vote_average > 0 && (
                             <div className="absolute bottom-2 left-2 w-10 h-10 bg-amber-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-subtle z-10 border-2 border-black/20">
                                 {item.vote_average.toFixed(1)}
@@ -168,7 +128,6 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                         )}
                         
                     </div>
-                    {/* Card Info Section - Fixed height for consistent card sizes */}
                     <div className="p-2 bg-charcoal-900 min-h-[72px] flex flex-col justify-between">
                         <div className="flex items-start gap-2 mb-1">
                             <h2 className="text-xs font-semibold text-white line-clamp-2 flex-1">{title}</h2>
@@ -184,27 +143,16 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             {isSeries && getSeriesInfo(item) && (
                                 <p className="text-[10px] text-amber-500/80">• {getSeriesInfo(item)}</p>
                             )}
-                            {/* Watch Status with Eye Icon - Now left-aligned */}
                             {isSeries && watchStatus && isReleased && watchStatus.percentage > 0 && (
-                                <>
-                                    {/* DEBUG: Temporary UI element to show raw percentage value */}
-                                    {/* {process.env.NODE_ENV === 'development' && watchStatus.totalEpisodes > 0 && (
-                                        <div className="text-[8px] text-red-400 bg-black/50 px-1 rounded" title={`Debug: percentage=${watchStatus.percentage}, watched=${watchStatus.watchedEpisodes}, total=${watchStatus.totalEpisodes}`}>
-                                            {watchStatus.percentage}% ({watchStatus.watchedEpisodes}/{watchStatus.totalEpisodes})
-                                        </div>
-                                    )} */}
-                                    {watchStatus.percentage > 0 && (
-                                        <div className="flex items-center gap-1 bg-amber-500/30 border border-amber-500/40 px-1.5 py-0.5 rounded shadow-sm">
-                                            <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                            </svg>
-                                            <span className="text-[10px] text-amber-400 font-bold">
-                                                {watchStatus.percentage}%
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
+                                <div className="flex items-center gap-1 bg-amber-500/30 border border-amber-500/40 px-1.5 py-0.5 rounded shadow-sm">
+                                    <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-[10px] text-amber-400 font-bold">
+                                        {watchStatus.percentage}%
+                                    </span>
+                                </div>
                             )}
                             {!isSeries && watchStatus?.isWatched && (
                                 <div className="flex items-center gap-1 bg-amber-500/30 border border-amber-500/40 px-1.5 py-0.5 rounded shadow-sm">
@@ -222,7 +170,6 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                 </div>
             </a>
             
-            {/* Quick Actions Menu - Always visible */}
             <div className="absolute top-0 right-0 z-20">
                 <QuickActionsMenu 
                     itemId={item.id} 
@@ -235,4 +182,3 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
 };
 
 export default ContentCard;
-
