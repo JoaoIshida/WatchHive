@@ -218,6 +218,14 @@ const Navbar = () => {
                         items={seriesQuickFilters}
                     />
                     
+                    {/* Collections & Lists */}
+                    <a
+                        href="/browse"
+                        className="px-4 py-2 text-sm font-bold text-white hover:text-amber-500 transition-colors border-b-2 border-transparent hover:border-amber-500 pb-1 whitespace-nowrap"
+                    >
+                        Collections
+                    </a>
+
                     {/* Inline Search Bar */}
                     <div className="flex-1 max-w-md">
                         <QuickSearch isNavbar={true} />
@@ -348,6 +356,17 @@ const Navbar = () => {
                             ))}
                         </div>
                         
+                        {/* Collections & Lists */}
+                        <div className="flex flex-col gap-2">
+                            <a
+                                href="/browse"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                Collections & Lists
+                            </a>
+                        </div>
+
                         {loading ? null : (user && user.id) ? (
                             <>
                                 <a 

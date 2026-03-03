@@ -29,6 +29,7 @@ const ProfilePageContent = () => {
     const [seriesDetails, setSeriesDetails] = useState({});
     const [customLists, setCustomLists] = useState([]);
     const [listDetails, setListDetails] = useState({});
+    const [expandedListIds, setExpandedListIds] = useState([]);
     const [upcomingSeasons, setUpcomingSeasons] = useState([]);
     const [upcomingEpisodes, setUpcomingEpisodes] = useState([]);
     const [upcomingWishlistMovies, setUpcomingWishlistMovies] = useState([]);
@@ -1567,23 +1568,51 @@ const ProfilePageContent = () => {
                             {customLists.map((list) => {
                                 const items = listDetails[list.id] || [];
                                 const canEditSettings = list.user_id === user?.id || list.my_permission === 'admin';
+                                const isExpanded = expandedListIds.includes(list.id);
+                                const toggleExpanded = () => {
+                                    setExpandedListIds((prev) =>
+                                        prev.includes(list.id) ? prev.filter((id) => id !== list.id) : [...prev, list.id]
+                                    );
+                                };
                                 return (
                                     <div key={list.id} className="futuristic-card p-6">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div>
-                                                <h3 className="text-xl font-bold text-amber-500">
-                                                    {list.name}
-                                                </h3>
-                                                <p className="text-sm text-white/70 mt-1">
-                                                    {items.length} {items.length === 1 ? 'item' : 'items'} • Created {formatDate(list.created_at)}
-                                                    {list.is_public !== undefined && (
-                                                        <span className="ml-2 text-white/50">
-                                                            {list.is_public ? ' • Public' : ' • Private'}
-                                                        </span>
-                                                    )}
-                                                </p>
+                                        <div
+                                            className="flex items-center justify-between cursor-pointer select-none group"
+                                            onClick={toggleExpanded}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    toggleExpanded();
+                                                }
+                                            }}
+                                            aria-expanded={isExpanded}
+                                        >
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                <svg
+                                                    className={`w-5 h-5 text-amber-500/80 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                                <div className="min-w-0">
+                                                    <h3 className="text-xl font-bold text-amber-500 group-hover:text-amber-400 transition-colors">
+                                                        {list.name}
+                                                    </h3>
+                                                    <p className="text-sm text-white/70 mt-1">
+                                                        {items.length} {items.length === 1 ? 'item' : 'items'} • Created {formatDate(list.created_at)}
+                                                        {list.is_public !== undefined && (
+                                                            <span className="ml-2 text-white/50">
+                                                                {list.is_public ? ' • Public' : ' • Private'}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                                 {canEditSettings && (
                                                     <button
                                                         onClick={() => setListSettingsModalList(list)}
@@ -1598,26 +1627,30 @@ const ProfilePageContent = () => {
                                                 )}
                                             </div>
                                         </div>
-                                        {items.length === 0 ? (
-                                            <p className="text-white/60 text-center py-4">This list is empty</p>
-                                        ) : (
-                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                                {items.map((item) => {
-                                                    const href = item.media_type === 'movie' 
-                                                        ? `/movies/${item.id}` 
-                                                        : `/series/${item.id}`;
-                                                    
-                                                    return (
-                                                        <div key={`${item.media_type}-${item.id}`} className="relative">
-                                                            <ContentCard
-                                                                item={item}
-                                                                mediaType={item.media_type}
-                                                                href={href}
-                                                            />
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                        {isExpanded && (
+                                            <>
+                                                {items.length === 0 ? (
+                                                    <p className="text-white/60 text-center py-4 mt-4">This list is empty</p>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
+                                                        {items.map((item) => {
+                                                            const href = item.media_type === 'movie'
+                                                                ? `/movies/${item.id}`
+                                                                : `/series/${item.id}`;
+
+                                                            return (
+                                                                <div key={`${item.media_type}-${item.id}`} className="relative">
+                                                                    <ContentCard
+                                                                        item={item}
+                                                                        mediaType={item.media_type}
+                                                                        href={href}
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 );
