@@ -12,6 +12,7 @@ import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
 import { fetchTMDB } from '../../api/utils';
+import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
 
 async function getSerieDetails(id) {
     // Directly call TMDB API (like movie page) to avoid server-side fetch issues
@@ -70,21 +71,10 @@ async function getSerieTrailer(id) {
     }
 }
 
-function getRecommendationsBaseUrl() {
-    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-}
-
 async function getSerieRecommendations(id) {
     try {
-        const base = getRecommendationsBaseUrl();
-        const res = await fetch(
-            `${base}/api/recommendations?titleId=${id}&mediaType=tv&limit=10`,
-            { next: { revalidate: 86400 } }
-        );
-        if (!res.ok) return { results: [] };
-        const data = await res.json();
-        return { results: data.recommendations || [] };
+        const recommendations = await getDiscoverRecommendations(id, 'tv', { limit: 10 });
+        return { results: recommendations || [] };
     } catch (error) {
         console.error('Error fetching series recommendations:', error);
         return { results: [] };

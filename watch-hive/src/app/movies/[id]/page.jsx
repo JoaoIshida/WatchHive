@@ -62,14 +62,8 @@ async function getMovieCollection(movie) {
 
 async function getMovieRecommendations(id) {
     try {
-        const base = getRecommendationsBaseUrl();
-        const res = await fetch(
-            `${base}/api/recommendations?titleId=${id}&mediaType=movie&limit=10`,
-            { next: { revalidate: 86400 } }
-        );
-        if (!res.ok) return { results: [] };
-        const data = await res.json();
-        return { results: data.recommendations || [] };
+        const recommendations = await getDiscoverRecommendations(id, 'movie', { limit: 10 });
+        return { results: recommendations || [] };
     } catch (error) {
         console.error('Error fetching movie recommendations:', error);
         return { results: [] };
@@ -84,6 +78,7 @@ import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import WatchProvidersSection from '../../components/WatchProvidersSection';
 import ContentRatingBadge from '../../components/ContentRatingBadge';
+import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { formatRuntime } from '../../utils/runtimeFormatter';
