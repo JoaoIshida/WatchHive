@@ -25,6 +25,13 @@ const FilterDropdownMenu = ({ label, basePath, items }) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleScroll = () => setIsOpen(false);
+        window.addEventListener('scroll', handleScroll, true);
+        return () => window.removeEventListener('scroll', handleScroll, true);
+    }, [isOpen]);
+
     const handleMouseEnter = () => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
@@ -97,6 +104,13 @@ const ProfileDropdown = ({ onSignOut, user }) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleScroll = () => setIsOpen(false);
+        window.addEventListener('scroll', handleScroll, true);
+        return () => window.removeEventListener('scroll', handleScroll, true);
+    }, [isOpen]);
+
     const displayName = user?.display_name || user?.email || 'User';
 
     return (
@@ -135,7 +149,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                        Profile Menu (Dashboard)
+                        Profile
                     </a>
                     <a 
                         href="/profile?tab=settings"
@@ -194,6 +208,11 @@ const Navbar = () => {
         { href: '/series?dateRange=thisYear', label: 'This Year' },
     ];
 
+    const discoverMenuItems = [
+        { href: '/tools', label: 'Overview' },
+        { href: '/recommendations', label: 'Get Recommendations' },
+    ];
+
     return (
         <nav className="bg-charcoal-950/95 backdrop-blur-md border-b border-charcoal-700 shadow-subtle p-4 sticky top-0 z-[120] max-h-screen overflow-visible">
             <div className="container mx-auto flex items-center justify-between gap-4">
@@ -225,6 +244,13 @@ const Navbar = () => {
                     >
                         Collections
                     </a>
+
+                    {/* Discover Dropdown */}
+                    <FilterDropdownMenu
+                        label="Discover"
+                        basePath="/tools"
+                        items={discoverMenuItems}
+                    />
 
                     {/* Inline Search Bar */}
                     <div className="flex-1 max-w-md">
@@ -370,6 +396,26 @@ const Navbar = () => {
                             </a>
                         </div>
 
+                        {/* Discover Section */}
+                        <div className="flex flex-col gap-2">
+                            <a
+                                href="/tools"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                            >
+                                Discover
+                            </a>
+                            {discoverMenuItems.map((item, index) => (
+                                <a
+                                    key={index}
+                                    href={item.href}
+                                    className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    {item.label}
+                                </a>
+                            ))}
+                        </div>
+
                         {loading ? null : (user && user.id) ? (
                             <>
                                 <a 
@@ -380,7 +426,7 @@ const Navbar = () => {
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                     </svg>
-                                    <span>Profile Menu (Dashboard)</span>
+                                    <span>Profile</span>
                                 </a>
                                 <a 
                                     href="/profile?tab=settings" 
