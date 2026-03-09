@@ -5,11 +5,6 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { highlightText } from '../utils/highlightText';
 
-function matchesQuery(text, q) {
-    if (!text || !q?.trim()) return false;
-    return String(text).toLowerCase().includes(q.trim().toLowerCase());
-}
-
 const BrowsePage = () => {
     const [query, setQuery] = useState('');
     const [showCollections, setShowCollections] = useState(true);
@@ -142,13 +137,7 @@ const BrowsePage = () => {
                         Collections ({collections.length})
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {collections.map((collection) => {
-                            const matchInName = matchesQuery(collection.name, query);
-                            const matchInOverview = matchesQuery(collection.overview, query);
-                            const matchLabels = [];
-                            if (matchInName) matchLabels.push('name');
-                            if (matchInOverview) matchLabels.push('description');
-                            return (
+                        {collections.map((collection) => (
                                 <a
                                     key={collection.id}
                                     href={`/collections/${collection.id}`}
@@ -162,11 +151,6 @@ const BrowsePage = () => {
                                         />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        {matchLabels.length > 0 && (
-                                            <p className="text-amber-500/80 text-xs mb-1">
-                                                Matches in: {matchLabels.join(' & ')}
-                                            </p>
-                                        )}
                                         <h3 className="text-white font-semibold group-hover:text-amber-500 transition-colors truncate">
                                             {query.trim() ? highlightText(collection.name || '', query) : (collection.name || '')}
                                         </h3>
@@ -182,8 +166,7 @@ const BrowsePage = () => {
                                         </svg>
                                     </div>
                                 </a>
-                            );
-                        })}
+                            ))}
                     </div>
                 </div>
             )}
@@ -195,13 +178,7 @@ const BrowsePage = () => {
                         Public Lists ({lists.length})
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {lists.map((list) => {
-                            const matchInName = matchesQuery(list.name, query);
-                            const matchInDesc = matchesQuery(list.description, query);
-                            const matchLabels = [];
-                            if (matchInName) matchLabels.push('name');
-                            if (matchInDesc) matchLabels.push('description');
-                            return (
+                        {lists.map((list) => (
                                 <a
                                     key={list.id}
                                     href={`/lists/${list.id}`}
@@ -213,11 +190,6 @@ const BrowsePage = () => {
                                         </svg>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        {matchLabels.length > 0 && (
-                                            <p className="text-amber-500/80 text-xs mb-1">
-                                                Matches in: {matchLabels.join(' & ')}
-                                            </p>
-                                        )}
                                         <h3 className="text-white font-semibold group-hover:text-amber-500 transition-colors truncate">
                                             {query.trim() ? highlightText(list.name || '', query) : (list.name || '')}
                                         </h3>
@@ -236,8 +208,7 @@ const BrowsePage = () => {
                                         </svg>
                                     </div>
                                 </a>
-                            );
-                        })}
+                            ))}
                     </div>
                 </div>
             )}
