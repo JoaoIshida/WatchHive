@@ -314,29 +314,34 @@ const RecommendationsPage = () => {
                     </div>
                 </div>
             )}
-            {recommendations.length > 0 && !loading && (
-                <div className="mt-8">
-                    <h2 className="text-2xl font-bold mb-4 text-amber-500">
-                        Recommended {mediaType === 'movie' ? 'Movies' : mediaType === 'tv' ? 'Series' : 'Content'} ({recommendations.length})
-                    </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {recommendations.map((item) => {
-                            const link = item.media_type === 'movie' 
-                                ? `/movies/${item.id}` 
-                                : `/series/${item.id}`;
-                            
-                            return (
-                                <ContentCard
-                                    key={`${item.media_type}-${item.id}`}
-                                    item={item}
-                                    mediaType={item.media_type}
-                                    href={link}
-                                />
-                            );
-                        })}
+            {recommendations.length > 0 && !loading && (() => {
+                const filtered = mediaType === 'movie' || mediaType === 'tv'
+                    ? recommendations.filter(item => (item.media_type || item.mediaType) === mediaType)
+                    : recommendations;
+                return (
+                    <div className="mt-8">
+                        <h2 className="text-2xl font-bold mb-4 text-amber-500">
+                            Recommended {mediaType === 'movie' ? 'Movies' : mediaType === 'tv' ? 'Series' : 'Content'} ({filtered.length})
+                        </h2>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            {filtered.map((item) => {
+                                const type = item.media_type || item.mediaType;
+                                const link = type === 'movie'
+                                    ? `/movies/${item.id}`
+                                    : `/series/${item.id}`;
+                                return (
+                                    <ContentCard
+                                        key={`${type}-${item.id}`}
+                                        item={item}
+                                        mediaType={type || 'movie'}
+                                        href={link}
+                                    />
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {recommendations.length === 0 && !loading && selectedItems.filter(item => item !== null).length >= 2 && (
                 <div className="text-center py-8 text-white">

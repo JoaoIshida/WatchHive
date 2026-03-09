@@ -55,10 +55,11 @@ export async function POST(req) {
         } else if ((movieIds && movieIds.length > 0) || (seriesIds && seriesIds.length > 0)) {
             const sortedMovieIds = [...(movieIds || [])].sort((a, b) => a - b);
             const sortedSeriesIds = [...(seriesIds || [])].sort((a, b) => a - b);
-            const cacheKey = `rec:mix:${sortedMovieIds.join(',')}:${sortedSeriesIds.join(',')}:${limit}`;
+            const filterType = mediaType === 'movie' || mediaType === 'tv' ? mediaType : 'both';
+            const cacheKey = `rec:mix:${sortedMovieIds.join(',')}:${sortedSeriesIds.join(',')}:${limit}:${filterType}`;
             recommendations = await unstable_cache(
                 async () => {
-                    return getMultiTitleRecommendations(movieIds || [], seriesIds || [], { limit });
+                    return getMultiTitleRecommendations(movieIds || [], seriesIds || [], { limit, mediaType: filterType === 'both' ? undefined : filterType });
                 },
                 [cacheKey],
                 { revalidate: 3600 }

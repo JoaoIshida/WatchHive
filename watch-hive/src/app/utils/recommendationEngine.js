@@ -265,7 +265,7 @@ export async function getDiscoverRecommendations(
 export async function getMultiTitleRecommendations(
     movieIds = [],
     seriesIds = [],
-    { limit = 20 } = {}
+    { limit = 20, mediaType: filterMediaType } = {}
 ) {
     const profilePromises = [
         ...movieIds.map(id => fetchTitleProfile(id, 'movie')),
@@ -276,8 +276,10 @@ export async function getMultiTitleRecommendations(
     const merged = mergeProfiles(profiles);
     const excludeSet = new Set([...movieIds, ...seriesIds].map(Number));
 
-    const discoverTypes = [];
-    if (movieIds.length > 0 && seriesIds.length === 0) {
+    let discoverTypes = [];
+    if (filterMediaType === 'movie' || filterMediaType === 'tv') {
+        discoverTypes = [filterMediaType];
+    } else if (movieIds.length > 0 && seriesIds.length === 0) {
         discoverTypes.push('movie');
     } else if (seriesIds.length > 0 && movieIds.length === 0) {
         discoverTypes.push('tv');
@@ -317,8 +319,14 @@ export async function getMultiTitleRecommendations(
 
     const scored = scoreResults(unique, merged);
 
-    return scored.slice(0, limit).map(item => ({
+    let results = scored.map(item => ({
         ...item,
         media_type: item.media_type || (discoverTypes.length === 1 ? discoverTypes[0] : undefined),
     }));
+
+    if (filterMediaType === 'movie' || filterMediaType === 'tv') {
+        results = results.filter(item => (item.media_type || item.mediaType) === filterMediaType);
+    }
+
+    return results.slice(0, limit);
 }
