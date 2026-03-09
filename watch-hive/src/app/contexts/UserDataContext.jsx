@@ -248,25 +248,28 @@ export function UserDataProvider({ children }) {
             if (!force && loadedForUserRef.current === user.id) return;
             setLoading(true);
             try {
-                const [watchedRes, wishlistRes, seriesProgressRes, statsRes, customListsRes] = await Promise.all([
+                // First wave: critical data for initial paint (no series progress to keep load fast)
+                const [watchedRes, wishlistRes, statsRes, customListsRes] = await Promise.all([
                     fetch('/api/watched'),
                     fetch('/api/wishlist'),
-                    fetch('/api/series-progress'),
                     fetch('/api/user/stats'),
                     fetch('/api/custom-lists'),
                 ]);
                 const watchedItems = watchedRes.ok ? (await watchedRes.json()).watched : [];
                 const wishlistItems = wishlistRes.ok ? (await wishlistRes.json()).wishlist : [];
-                const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
                 const statsData = statsRes.ok ? (await statsRes.json()).stats : null;
                 const customListsData = customListsRes.ok ? (await customListsRes.json()).lists : [];
                 setWatched(watchedItems);
                 setWishlist(wishlistItems);
-                setSeriesProgress(seriesProgressData);
                 setDbStats(statsData);
                 setCustomLists(customListsData || []);
                 loadedForUserRef.current = user.id;
                 setLoading(false);
+
+                // Second wave: series progress and slow data in background (does not block UI)
+                const seriesProgressRes = await fetch('/api/series-progress');
+                const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
+                setSeriesProgress(seriesProgressData);
                 loadSlowData(watchedItems, wishlistItems, seriesProgressData);
             } catch (e) {
                 console.error('Error loading user data:', e);

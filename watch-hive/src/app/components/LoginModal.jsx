@@ -49,7 +49,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
             if (isSignUp) {
                 // Validate display name (required, 2+ characters)
                 if (!displayName || displayName.trim().length < 2) {
-                    setError('Display name must be at least 2 characters long');
+                    setError('Username must be at least 2 characters long');
                     setLoading(false);
                     return;
                 }
@@ -224,7 +224,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                     {isSignUp && (
                         <div>
                             <label htmlFor="modal-display-name" className="block text-white mb-2">
-                                Display Name
+                                Username
                             </label>
                             <input
                                 id="modal-display-name"
@@ -232,7 +232,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, initialMode = '
                                 value={displayName}
                                 onChange={(e) => setDisplayName(e.target.value)}
                                 className="w-full px-4 py-2 bg-charcoal-800 border border-amber-500/50 rounded text-white placeholder-white/50 focus:outline-none focus:border-amber-500"
-                                placeholder="Your display name"
+                                placeholder="Your username"
                             />
                         </div>
                     )}

@@ -233,7 +233,7 @@ const ListSettingsModal = ({ list, currentUserId, onClose, onSaved }) => {
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                            placeholder="Search by display name"
+                                            placeholder="Search by username"
                                             className="flex-1 px-3 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white text-sm focus:outline-none focus:border-amber-500"
                                         />
                                         <button type="button" onClick={handleSearch} disabled={searching} className="futuristic-button px-3 py-2 text-sm">

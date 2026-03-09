@@ -57,7 +57,7 @@ export async function GET(request) {
     // We'll get email from JWT payload (userPayload.email)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, display_name, created_at')
+      .select('id, display_name, created_at, preferences')
       .eq('id', userPayload.userId)
       .single();
 
@@ -76,14 +76,17 @@ export async function GET(request) {
 
     // Return user data (without sensitive information)
     // Email comes from JWT payload (auth.users), not from profiles table
+    const visibility = profile.preferences?.profile_visibility || 'anyone';
+
     return NextResponse.json({
       success: true,
       user: {
         id: profile.id,
-        email: userPayload.email, // Email from JWT (auth.users)
+        email: userPayload.email,
         role: userPayload.role || 'user',
         display_name: profile.display_name || userPayload.email,
         created_at: profile.created_at,
+        profile_visibility: visibility,
       }
     });
 

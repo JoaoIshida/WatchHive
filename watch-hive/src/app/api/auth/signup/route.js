@@ -82,7 +82,7 @@ export async function POST(request) {
 
     if (existingProfile) {
       return NextResponse.json(
-        { error: 'This display name is already taken. Please choose another.' },
+        { error: 'This username is already taken. Please choose another.' },
         { status: 400 }
       );
     }
@@ -314,7 +314,7 @@ export async function POST(request) {
             }
             
             return NextResponse.json(
-              { error: 'This display name is already taken. Please choose another.' },
+              { error: 'This username is already taken. Please choose another.' },
               { status: 400 }
             );
           }

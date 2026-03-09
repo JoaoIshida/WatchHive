@@ -109,6 +109,14 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         };
     }, [isOpen]);
 
+    // Close menu on scroll so it doesn't stay fixed over wrong content
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleScroll = () => setIsOpen(false);
+        window.addEventListener('scroll', handleScroll, true);
+        return () => window.removeEventListener('scroll', handleScroll, true);
+    }, [isOpen]);
+
     // Load membership when list modal opens
     const loadMembershipForModal = useCallback(async () => {
         if (!user || !itemId || !mediaType) return;

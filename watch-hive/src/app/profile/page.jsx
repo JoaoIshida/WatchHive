@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -10,7 +10,8 @@ import ListSettingsModal from '../components/ListSettingsModal';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { formatDate } from '../utils/dateFormatter';
 import { isEpisodeReleased } from '../utils/releaseDateValidator';
-import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
+import { calculateSeriesProgress, calculateSeasonProgress, isSeriesCompletedByEpisodes } from '../utils/seriesProgressCalculator';
+import ProfileFriendsSection from './ProfileFriendsSection';
 
 // Component that uses useSearchParams - must be wrapped in Suspense
 const ProfilePageContent = () => {
@@ -47,6 +48,8 @@ const ProfilePageContent = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [profileVisibility, setProfileVisibility] = useState('anyone');
+    const [savingVisibility, setSavingVisibility] = useState(false);
     const [expandedSeries, setExpandedSeries] = useState({});
     const [seriesSeasonDetails, setSeriesSeasonDetails] = useState({}); // { seriesId: { seasonNumber: seasonData } }
     const [watchedFilter, setWatchedFilter] = useState('all'); // 'all', 'movie', 'tv'
@@ -60,22 +63,24 @@ const ProfilePageContent = () => {
     const [createListLoading, setCreateListLoading] = useState(false);
     // List settings modal (per list)
     const [listSettingsModalList, setListSettingsModalList] = useState(null);
+    const friendsFetchRef = useRef(null);
+    const [seriesSummaryExpanded, setSeriesSummaryExpanded] = useState(false);
 
     useEffect(() => {
         // Check URL params for tab
         const tab = searchParams.get('tab');
-        if (tab === 'settings') {
-            setActiveTab('settings');
-        }
+        if (tab === 'settings') setActiveTab('settings');
+        else if (tab === 'friends') setActiveTab('friends');
     }, [searchParams]);
 
     // Series tab now uses context data directly (seriesProgress + seriesDetails).
     // No automatic refetch on tab switch. Use the global "Refresh" button instead.
 
-    // Sync display name from user (data loading is handled by UserDataContext)
+    // Sync display name and profile visibility from user
     useEffect(() => {
         if (user) {
             setDisplayName(user.display_name || user.email || '');
+            if (user.profile_visibility) setProfileVisibility(user.profile_visibility);
         }
     }, [user]);
 
@@ -86,17 +91,23 @@ const ProfilePageContent = () => {
         const wishlistMovies = wishlist.filter(w => w.media_type === 'movie').length;
         const wishlistSeries = wishlist.filter(w => w.media_type === 'tv').length;
 
-        // Use database function stats when available
-        const seriesInProgress = dbStats?.series_in_progress ?? 
-            Object.keys(seriesProgress).filter(seriesId => {
+        // Prefer episode-based completion (not DB flag): in progress = not all episodes watched
+        const seriesIds = Object.keys(seriesProgress);
+        let seriesInProgressCount = dbStats?.series_in_progress ?? 0;
+        let completedSeriesCount = dbStats?.completed_series ?? 0;
+        if (seriesIds.length > 0) {
+            let inProgress = 0;
+            let completed = 0;
+            seriesIds.forEach(seriesId => {
                 const progress = seriesProgress[seriesId];
-                return !progress.completed && Object.keys(progress.seasons || {}).length > 0;
-            }).length;
-        
-        const completedSeries = dbStats?.completed_series ?? 
-            Object.keys(seriesProgress).filter(seriesId => {
-                return seriesProgress[seriesId]?.completed || false;
-            }).length;
+                const seasons = seriesDetails[seriesId]?.seasons;
+                const completedByEpisodes = isSeriesCompletedByEpisodes(progress, seasons || [], {});
+                if (completedByEpisodes) completed++;
+                else if (Object.keys(progress?.seasons || {}).length > 0) inProgress++;
+            });
+            seriesInProgressCount = inProgress;
+            completedSeriesCount = completed;
+        }
 
         const totalEpisodesWatched = dbStats?.total_episodes_watched ?? 
             Object.values(seriesProgress).reduce((total, progress) => {
@@ -115,8 +126,8 @@ const ProfilePageContent = () => {
             totalWishlist: dbStats?.wishlist_count ?? wishlist.length,
             wishlistMovies,
             wishlistSeries,
-            seriesInProgress,
-            completedSeries,
+            seriesInProgress: seriesInProgressCount,
+            completedSeries: completedSeriesCount,
             totalEpisodesWatched,
             totalLists,
             totalListItems,
@@ -243,6 +254,16 @@ const ProfilePageContent = () => {
                     }`}
                 >
                     Lists ({stats.totalLists})
+                </button>
+                <button
+                    onClick={() => setActiveTab('friends')}
+                    className={`px-4 py-2 font-semibold transition-colors ${
+                        activeTab === 'friends'
+                            ? 'text-amber-500 border-b-2 border-amber-500'
+                            : 'text-white hover:text-amber-500'
+                    }`}
+                >
+                    Friends
                 </button>
                 <button
                     onClick={() => setActiveTab('settings')}
@@ -481,72 +502,103 @@ const ProfilePageContent = () => {
                         );
                     })()}
 
-                    {/* Series Progress Summary */}
+                    {/* Series Progress Summary - expandable, loads only when expanded */}
                     {Object.keys(seriesProgress).length > 0 && (
                         <div className="futuristic-card p-6">
-                            <h2 className="text-2xl font-bold mb-4 text-amber-500">
-                                Series Progress Summary
-                            </h2>
-                            <div className="space-y-3">
-                                {Object.entries(seriesProgress).map(([seriesId, progress]) => {
-                                    const seriesInfo = seriesDetails[seriesId];
-                                    
-                                    // Get total seasons from TMDB (exclude specials - only season_number > 0)
-                                    const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
-                                    // Get watched seasons (seasons user has progress on, exclude specials)
-                                    const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
-                                    // Use TMDB total if available, otherwise fallback to watched count
-                                    const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
-                                    
-                                    // Count specials separately
-                                    const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
-                                    const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
-                                    
-                                    const completedSeasons = Object.values(progress.seasons || {}).filter(
-                                        season => season.completed
-                                    ).length;
-                                    
-                                    // Calculate total episodes watched (exclude specials)
-                                    const totalEpisodesWatched = Object.entries(progress.seasons || {})
-                                        .filter(([seasonNum]) => parseInt(seasonNum) > 0) // Exclude specials
-                                        .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
-                                    
-                                    // Calculate progress using shared utility (excludes specials automatically)
-                                    const seriesProgressData = calculateSeriesProgress(progress, seriesInfo?.seasons, {});
-                                    
-                                    return (
-                                        <a 
-                                            key={seriesId} 
-                                            href={`/series/${seriesId}`}
-                                            className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
-                                        >
-                                            <div className="flex-1">
-                                                <div className="text-white font-semibold">
-                                                    {seriesInfo?.name || (
-                                                        <span className="text-amber-500/60 animate-pulse">Loading series...</span>
-                                                    )}
-                                                </div>
-                                                <div className="text-sm text-amber-500/80 mt-1">
-                                                    {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
-                                                    {specialsCount > 0 && (
-                                                        <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>
-                                                    )}
-                                                    {seriesProgressData.total > 0 && (
-                                                        <span className="ml-2">• {seriesProgressData.percentage}%</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className={`px-3 py-1 rounded font-semibold ${
-                                                progress.completed 
-                                                    ? 'bg-amber-500 text-black' 
-                                                    : 'bg-charcoal-800 text-white'
-                                            }`}>
-                                                {progress.completed ? 'Completed' : 'In Progress'}
-                                            </div>
-                                        </a>
-                                    );
-                                })}
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSeriesSummaryExpanded(prev => !prev)}
+                                className="w-full flex items-center justify-between text-left"
+                            >
+                                <h2 className="text-2xl font-bold text-amber-500">
+                                    Series Progress Summary
+                                </h2>
+                                <span className="text-white/70 text-sm">
+                                    {Object.keys(seriesProgress).length} series
+                                </span>
+                                <svg
+                                    className={`w-5 h-5 text-white/70 transition-transform ${seriesSummaryExpanded ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {seriesSummaryExpanded && (
+                                <div className="mt-4 space-y-3">
+                                    {(() => {
+                                        const entries = Object.entries(seriesProgress);
+                                        const withCompleted = entries.map(([seriesId, progress]) => ({
+                                            seriesId,
+                                            progress,
+                                            completedByEpisodes: isSeriesCompletedByEpisodes(progress, seriesDetails[seriesId]?.seasons || [], {}),
+                                        }));
+                                        const sorted = withCompleted.sort((a, b) => (a.completedByEpisodes === b.completedByEpisodes ? 0 : a.completedByEpisodes ? 1 : -1));
+                                        const latest = sorted.slice(0, 10);
+                                        return (
+                                            <>
+                                                {latest.map(({ seriesId, progress, completedByEpisodes }) => {
+                                                    const seriesInfo = seriesDetails[seriesId];
+                                                    const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
+                                                    const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
+                                                    const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
+                                                    const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
+                                                    const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
+                                                    const completedSeasons = Object.values(progress.seasons || {}).filter(s => s.completed).length;
+                                                    const totalEpisodesWatched = Object.entries(progress.seasons || {})
+                                                        .filter(([seasonNum]) => parseInt(seasonNum) > 0)
+                                                        .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
+                                                    const seriesProgressData = calculateSeriesProgress(progress, seriesInfo?.seasons, {});
+                                                    return (
+                                                        <a
+                                                            key={seriesId}
+                                                            href={`/series/${seriesId}`}
+                                                            className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                                        >
+                                                            <div className="flex-1">
+                                                                <div className="text-white font-semibold">
+                                                                    {seriesInfo?.name || <span className="text-amber-500/60 animate-pulse">Loading series...</span>}
+                                                                </div>
+                                                                <div className="text-sm text-amber-500/80 mt-1">
+                                                                    {watchedSeasonsCount}/{totalSeasons} seasons • {totalEpisodesWatched} episodes watched
+                                                                    {specialsCount > 0 && <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>}
+                                                                    {seriesProgressData.total > 0 && <span className="ml-2">• {seriesProgressData.percentage}%</span>}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`px-3 py-1 rounded font-semibold ${completedByEpisodes ? 'bg-amber-500 text-black' : 'bg-charcoal-800 text-white'}`}>
+                                                                {completedByEpisodes ? 'Completed' : 'In Progress'}
+                                                            </div>
+                                                        </a>
+                                                    );
+                                                })}
+                                                {entries.length > 10 && (
+                                                    <div className="pt-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveTab('series')}
+                                                            className="text-amber-500 hover:text-amber-400 font-semibold"
+                                                        >
+                                                            View more ({entries.length - 10} more) →
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {entries.length <= 10 && (
+                                                    <div className="pt-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveTab('series')}
+                                                            className="text-amber-500 hover:text-amber-400 font-semibold"
+                                                        >
+                                                            View all in Series tab →
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1271,10 +1323,15 @@ const ProfilePageContent = () => {
                 </div>
             )}
 
+            {/* Friends Tab */}
+            {activeTab === 'friends' && (
+                <ProfileFriendsSection userId={user?.id} fetchFriendsRef={friendsFetchRef} />
+            )}
+
             {/* Settings Tab */}
             {activeTab === 'settings' && (
                 <div className="space-y-6">
-                    {/* Change Display Name */}
+                    {/* Change Username */}
                     <div className="futuristic-card p-6">
                         <h2 className="text-2xl font-bold mb-4 text-amber-500">
                             Profile Settings
@@ -1282,7 +1339,7 @@ const ProfilePageContent = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-white font-semibold mb-2">
-                                    Display Name (Tag)
+                                    Username
                                 </label>
                                 <div className="flex gap-4">
                                     <input
@@ -1290,12 +1347,12 @@ const ProfilePageContent = () => {
                                         value={displayName}
                                         onChange={(e) => setDisplayName(e.target.value)}
                                         className="flex-1 px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/50"
-                                        placeholder="Enter your display name"
+                                        placeholder="Enter your username"
                                     />
                                     <button
                                         onClick={async () => {
                                             if (!displayName.trim()) {
-                                                alert('Display name cannot be empty');
+                                                alert('Username cannot be empty');
                                                 return;
                                             }
                                             setIsUpdating(true);
@@ -1311,14 +1368,14 @@ const ProfilePageContent = () => {
 
                                                 if (response.ok) {
                                                     await checkAuthStatus();
-                                                    alert('Display name updated successfully!');
+                                                    alert('Username updated successfully!');
                                                 } else {
                                                     const error = await response.json();
-                                                    alert(error.error || 'Failed to update display name');
+                                                    alert(error.error || 'Failed to update username');
                                                 }
                                             } catch (error) {
                                                 console.error('Error updating display name:', error);
-                                                alert('Error updating display name');
+                                                alert('Error updating username');
                                             } finally {
                                                 setIsUpdating(false);
                                             }
@@ -1331,6 +1388,53 @@ const ProfilePageContent = () => {
                                 </div>
                                 <p className="text-sm text-amber-500/80 mt-2">
                                     This is how your name will appear on your profile
+                                </p>
+                            </div>
+                            <div className="mt-6 pt-4 border-t border-charcoal-700">
+                                <label className="block text-white font-semibold mb-2">
+                                    Who can see my profile
+                                </label>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <select
+                                        value={profileVisibility}
+                                        onChange={(e) => setProfileVisibility(e.target.value)}
+                                        className="px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500"
+                                    >
+                                        <option value="anyone">Anyone</option>
+                                        <option value="friends">Friends only</option>
+                                        <option value="no_one">No one (private)</option>
+                                    </select>
+                                    <button
+                                        onClick={async () => {
+                                            setSavingVisibility(true);
+                                            try {
+                                                const response = await fetch('/api/user/profile', {
+                                                    method: 'PUT',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    credentials: 'include',
+                                                    body: JSON.stringify({ profile_visibility: profileVisibility }),
+                                                });
+                                                if (response.ok) {
+                                                    await checkAuthStatus();
+                                                    alert('Visibility updated.');
+                                                } else {
+                                                    const err = await response.json();
+                                                    alert(err.error || 'Failed to update');
+                                                }
+                                            } catch (e) {
+                                                alert('Failed to update visibility');
+                                            } finally {
+                                                setSavingVisibility(false);
+                                            }
+                                        }}
+                                        disabled={savingVisibility}
+                                        className="futuristic-button-yellow px-4 py-2 disabled:opacity-50"
+                                    >
+                                        {savingVisibility ? 'Saving...' : 'Save'}
+                                    </button>
+                                </div>
+                                <p className="text-sm text-amber-500/80 mt-2">
+                                    Controls who can view your profile when they open your profile link.
                                 </p>
                             </div>
                         </div>

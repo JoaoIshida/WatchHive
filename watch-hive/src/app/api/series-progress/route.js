@@ -28,7 +28,10 @@ export async function GET(req) {
         if (!allProgress || allProgress.length === 0) {
             return new Response(JSON.stringify({}), {
                 status: 200,
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+                },
             });
         }
 
@@ -83,7 +86,10 @@ export async function GET(req) {
 
         return new Response(JSON.stringify(progressMap), {
             status: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+            },
         });
     } catch (error) {
         console.error('Error fetching all series progress:', error);

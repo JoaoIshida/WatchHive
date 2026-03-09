@@ -40,6 +40,18 @@ export const calculateSeriesProgress = (progress, seasons, seasonDetails = {}) =
 };
 
 /**
+ * Whether a series is completed based on episode progress (all episodes watched), not DB completed flag.
+ * @param {Object} progress - Progress data from API
+ * @param {Array} seasons - Seasons array from series info (TMDB)
+ * @param {Object} seasonDetails - Fetched season details (optional)
+ * @returns {boolean}
+ */
+export const isSeriesCompletedByEpisodes = (progress, seasons, seasonDetails = {}) => {
+    const { watched, total, percentage } = calculateSeriesProgress(progress, seasons, seasonDetails);
+    return total > 0 && percentage === 100;
+};
+
+/**
  * Calculate season progress
  * @param {number} seasonNumber - Season number
  * @param {Object} progress - Progress data from API
