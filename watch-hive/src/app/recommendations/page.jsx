@@ -5,6 +5,7 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
+import { RecommendationsSkeleton } from '../components/Skeleton';
 
 const RecommendationsPage = () => {
     const [inputs, setInputs] = useState(['', '', '', '']);
@@ -309,9 +310,7 @@ const RecommendationsPage = () => {
                     <h2 className="text-2xl font-bold mb-4 text-amber-500">
                         Finding Recommendations...
                     </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        <LoadingCard count={12} />
-                    </div>
+                    <RecommendationsSkeleton />
                 </div>
             )}
             {recommendations.length > 0 && !loading && (() => {

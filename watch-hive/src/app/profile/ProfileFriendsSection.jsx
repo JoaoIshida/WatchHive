@@ -2,10 +2,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ConfirmationModal from '../components/ConfirmationModal';
+import { SkeletonListRow } from '../components/Skeleton';
+import { MOCK_FRIEND_USER_ID, isLocalhost, getMockFriendProfile } from '../utils/mockUser';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
+export default function ProfileFriendsSection({ userId, fetchFriendsRef, onFriendsChanged }) {
     const [friends, setFriends] = useState([]);
     const [pendingReceived, setPendingReceived] = useState([]);
     const [pendingSent, setPendingSent] = useState([]);
@@ -21,7 +24,15 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
         const res = await fetch('/api/friends');
         if (!res.ok) return;
         const data = await res.json();
-        setFriends(data.friends || []);
+        let friendList = data.friends || [];
+        if (isLocalhost()) {
+            const mock = getMockFriendProfile();
+            friendList = [
+                { requestId: 'mock-1', userId: mock.id, display_name: mock.display_name, avatar_url: mock.avatar_url },
+                ...friendList,
+            ];
+        }
+        setFriends(friendList);
         setPendingReceived(data.pendingReceived || []);
         setPendingSent(data.pendingSent || []);
     }, []);
@@ -77,6 +88,7 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
                 return;
             }
             await fetchFriends();
+            onFriendsChanged?.();
         } finally {
             setActionLoading(null);
         }
@@ -85,6 +97,40 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
     const handleAccept = (requestId) => doAction('/api/friends/accept', { requestId }, requestId);
     const handleDecline = (requestId) => doAction('/api/friends/decline', { requestId }, requestId);
     const handleCancel = (requestId) => doAction('/api/friends/cancel', { requestId }, requestId);
+
+    const [removeFriendTarget, setRemoveFriendTarget] = useState(null);
+
+    const handleRemoveClick = (f) => {
+        setRemoveFriendTarget({ userId: f.userId, display_name: f.display_name || 'this friend' });
+    };
+
+    const handleRemoveConfirm = async () => {
+        if (!removeFriendTarget) return;
+        const friendUserId = removeFriendTarget.userId;
+        setRemoveFriendTarget(null);
+        setActionLoading(`remove-${friendUserId}`);
+        try {
+            if (friendUserId === MOCK_FRIEND_USER_ID) {
+                setFriends((prev) => prev.filter((x) => x.userId !== friendUserId));
+                onFriendsChanged?.();
+                return;
+            }
+            const res = await fetch('/api/friends/remove', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: friendUserId }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Failed to remove friend');
+                return;
+            }
+            await fetchFriends();
+            onFriendsChanged?.();
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     const sendRequest = async (targetUserId) => {
         setActionLoading(`send-${targetUserId}`);
@@ -96,7 +142,10 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
             });
             const data = await res.json();
             if (!res.ok) alert(data.error || 'Failed to send request');
-            else await fetchFriends();
+            else {
+                await fetchFriends();
+                onFriendsChanged?.();
+            }
         } finally {
             setActionLoading(null);
         }
@@ -110,14 +159,34 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
 
     if (loading) {
         return (
-            <div className="flex justify-center py-12">
-                <LoadingSpinner />
+            <div className="space-y-6">
+                <div className="futuristic-card p-4">
+                    <div className="h-4 w-32 animate-pulse bg-charcoal-800/60 rounded mb-2" />
+                    <div className="h-10 w-full animate-pulse bg-charcoal-800/60 rounded" />
+                </div>
+                <div className="space-y-2">
+                    <div className="h-6 w-40 animate-pulse bg-charcoal-800/60 rounded mb-3" />
+                    {[1, 2, 3, 4].map((i) => (
+                        <SkeletonListRow key={i} className="futuristic-card" />
+                    ))}
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <>
+            <ConfirmationModal
+                isOpen={!!removeFriendTarget}
+                onClose={() => setRemoveFriendTarget(null)}
+                onConfirm={handleRemoveConfirm}
+                title="Remove friend"
+                message={removeFriendTarget ? `Remove ${removeFriendTarget.display_name} as a friend?` : ''}
+                confirmText="Remove"
+                cancelText="Cancel"
+                isDanger
+            />
+            <div className="space-y-6">
             {/* People search */}
             <div className="futuristic-card p-4">
                 <label className="block text-white font-semibold mb-2">Search people</label>
@@ -275,17 +344,28 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef }) {
                                 <span className="text-white font-medium truncate">
                                     {f.display_name || 'Unknown'}
                                 </span>
-                                <Link
-                                    href={`/profile/${f.userId}`}
-                                    className="text-amber-500 hover:text-amber-400 text-sm ml-auto"
-                                >
-                                    View profile
-                                </Link>
+                                <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+                                    <Link
+                                        href={`/profile/${f.userId}`}
+                                        className="text-amber-500 hover:text-amber-400 text-sm"
+                                    >
+                                        View profile
+                                    </Link>
+                                    <button
+                                        onClick={() => handleRemoveClick(f)}
+                                        disabled={actionLoading === `remove-${f.userId}`}
+                                        className="px-2 py-1 bg-charcoal-700 text-white/80 hover:text-white hover:bg-red-500/20 text-red-400 rounded text-sm disabled:opacity-50"
+                                        title="Remove friend"
+                                    >
+                                        {actionLoading === `remove-${f.userId}` ? '…' : 'Remove'}
+                                    </button>
+                                </div>
                             </li>
                         ))}
                     </ul>
                 )}
             </section>
-        </div>
+            </div>
+        </>
     );
 }

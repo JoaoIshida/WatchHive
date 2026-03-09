@@ -1,10 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Film, Tv, LayoutList, Compass, ChevronDown, User, Users, Settings, LogOut, Search, X, Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import QuickSearch from './QuickSearch';
 
-const FilterDropdownMenu = ({ label, basePath, items }) => {
+const FilterDropdownMenu = ({ label, basePath, items, labelIcon: LabelIcon }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
     const timeoutRef = useRef(null);
@@ -57,37 +58,35 @@ const FilterDropdownMenu = ({ label, basePath, items }) => {
                 href={basePath}
                 className="inline-flex items-center px-4 py-2 text-sm font-bold text-white hover:text-amber-500 transition-colors border-b-2 border-transparent hover:border-amber-500 pb-1"
             >
+                {LabelIcon && <LabelIcon className="w-4 h-4 mr-1.5" />}
                 {label}
-                <svg
-                    className={`w-4 h-4 ml-1 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <ChevronDown className={`w-4 h-4 ml-1 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </a>
 
             {isOpen && (
                 <div 
                     className="absolute left-0 z-10 mt-1 w-56 py-2 bg-charcoal-900/95 backdrop-blur-sm border border-charcoal-700 rounded-lg shadow-subtle-lg"
                 >
-                    {items.map((item, index) => (
-                        <a 
-                            key={index} 
-                            href={item.href} 
-                            className="block px-4 py-2 text-white hover:bg-charcoal-800 hover:text-amber-500 transition-colors text-sm"
-                        >
-                            {item.label}
-                        </a>
-                    ))}
+                    {items.map((item, index) => {
+                        const ItemIcon = item.icon;
+                        return (
+                            <a 
+                                key={index} 
+                                href={item.href} 
+                                className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-800 hover:text-amber-500 transition-colors text-sm"
+                            >
+                                {ItemIcon && <ItemIcon className="w-4 h-4 flex-shrink-0" />}
+                                {item.label}
+                            </a>
+                        );
+                    })}
                 </div>
             )}
         </div>
     );
 };
 
-const ProfileDropdown = ({ onSignOut, user }) => {
+const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -123,18 +122,14 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                 className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors p-2"
                 title="Profile"
             >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+                <User className="w-5 h-5" />
                 <span className="hidden md:inline">{displayName}</span>
-                <svg
-                    className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <span className="relative inline-flex">
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                    {pendingInvitesCount > 0 && (
+                        <span className="absolute -top-1.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950" aria-label={`${pendingInvitesCount} pending invitation${pendingInvitesCount !== 1 ? 's' : ''}`} />
+                    )}
+                </span>
             </button>
 
             {isOpen && (
@@ -146,20 +141,28 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                         onClick={() => setIsOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+                        <User className="w-4 h-4" />
                         Profile
                     </a>
                     <a 
-                        href="/profile?tab=settings"
+                        href="/profile/friends"
                         onClick={() => setIsOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                        <Users className="w-4 h-4" />
+                        <span>Friends</span>
+                        {pendingInvitesCount > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center">
+                                {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                            </span>
+                        )}
+                    </a>
+                    <a 
+                        href="/profile/settings"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
+                    >
+                        <Settings className="w-4 h-4" />
                         Settings
                     </a>
                     <button
@@ -169,9 +172,7 @@ const ProfileDropdown = ({ onSignOut, user }) => {
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm text-left"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
+                        <LogOut className="w-4 h-4" />
                         Sign Out
                     </button>
                 </div>
@@ -184,8 +185,33 @@ const Navbar = () => {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+    const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
     const { user, loading, signOut } = useAuth();
 
+    const fetchPendingCount = useCallback(() => {
+        if (!user?.id) {
+            setPendingInvitesCount(0);
+            return;
+        }
+        fetch('/api/friends/pending-count', { credentials: 'include' })
+            .then((res) => res.ok ? res.json() : { count: 0 })
+            .then((data) => setPendingInvitesCount(data?.count ?? 0))
+            .catch(() => setPendingInvitesCount(0));
+    }, [user?.id]);
+
+    useEffect(() => {
+        fetchPendingCount();
+    }, [fetchPendingCount]);
+
+    useEffect(() => {
+        const handleRefreshPendingInvites = (e) => {
+            const count = e.detail?.count;
+            if (typeof count === 'number') setPendingInvitesCount(count);
+            else fetchPendingCount();
+        };
+        window.addEventListener('refreshPendingInvites', handleRefreshPendingInvites);
+        return () => window.removeEventListener('refreshPendingInvites', handleRefreshPendingInvites);
+    }, [fetchPendingCount]);
 
     const handleSignOut = async () => {
         await signOut();
@@ -228,6 +254,7 @@ const Navbar = () => {
                         label="Movies"
                         basePath="/movies"
                         items={movieQuickFilters}
+                        labelIcon={Film}
                     />
                     
                     {/* Series Dropdown */}
@@ -235,13 +262,15 @@ const Navbar = () => {
                         label="Series"
                         basePath="/series"
                         items={seriesQuickFilters}
+                        labelIcon={Tv}
                     />
                     
                     {/* Collections & Lists */}
                     <a
                         href="/browse"
-                        className="px-4 py-2 text-sm font-bold text-white hover:text-amber-500 transition-colors border-b-2 border-transparent hover:border-amber-500 pb-1 whitespace-nowrap"
+                        className="inline-flex items-center px-4 py-2 text-sm font-bold text-white hover:text-amber-500 transition-colors border-b-2 border-transparent hover:border-amber-500 pb-1 whitespace-nowrap"
                     >
+                        <LayoutList className="w-4 h-4 mr-1.5" />
                         Collections
                     </a>
 
@@ -250,6 +279,7 @@ const Navbar = () => {
                         label="Discover"
                         basePath="/tools"
                         items={discoverMenuItems}
+                        labelIcon={Compass}
                     />
 
                     {/* Inline Search Bar */}
@@ -261,7 +291,7 @@ const Navbar = () => {
                 {/* Desktop Auth Links */}
                 <div className="hidden md:flex items-center gap-4 flex-shrink-0">
                     {loading ? null : (user && user.id) ? (
-                        <ProfileDropdown onSignOut={handleSignOut} user={user} />
+                        <ProfileDropdown onSignOut={handleSignOut} user={user} pendingInvitesCount={pendingInvitesCount} />
                     ) : (
                         <button
                             onClick={() => {
@@ -284,32 +314,19 @@ const Navbar = () => {
                         className="text-white hover:text-amber-500 transition-colors p-2"
                         aria-label="Toggle search"
                     >
-                        {isMobileSearchOpen ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        ) : (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        )}
+                        {isMobileSearchOpen ? <X className="w-6 h-6" /> : <Search className="w-6 h-6" />}
                     </button>
                     <button
                         onClick={() => {
                             setIsMobileMenuOpen(!isMobileMenuOpen);
                             setIsMobileSearchOpen(false);
                         }}
-                        className="text-white hover:text-amber-500 transition-colors p-2"
+                        className="relative inline-flex text-white hover:text-amber-500 transition-colors p-2"
                         aria-label="Toggle menu"
                     >
-                        {isMobileMenuOpen ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        ) : (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
+                        {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        {!isMobileMenuOpen && pendingInvitesCount > 0 && (
+                            <span className="absolute -top-1.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950" aria-label={`${pendingInvitesCount} pending invitation${pendingInvitesCount !== 1 ? 's' : ''}`} />
                         )}
                     </button>
                 </div>
@@ -346,8 +363,10 @@ const Navbar = () => {
                         <div className="flex flex-col gap-2">
                             <a 
                                 href="/movies" 
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2"
+                                onClick={() => setIsMobileMenuOpen(false)}
                             >
+                                <Film className="w-4 h-4" />
                                 Movies
                             </a>
                             {movieQuickFilters.map((filter, index) => (
@@ -366,8 +385,10 @@ const Navbar = () => {
                         <div className="flex flex-col gap-2">
                             <a 
                                 href="/series" 
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2"
+                                onClick={() => setIsMobileMenuOpen(false)}
                             >
+                                <Tv className="w-4 h-4" />
                                 Series
                             </a>
                             {seriesQuickFilters.map((filter, index) => (
@@ -384,9 +405,10 @@ const Navbar = () => {
                         
                         {/* Collections & Lists */}
                         <div className="flex flex-col gap-2">
-                            <p className="text-amber-500 font-semibold text-sm mb-1 pl-4">
+                            <div className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2">
+                                <LayoutList className="w-4 h-4" />
                                 Collections & Lists
-                            </p>
+                            </div>
                             <a
                                 href="/browse"
                                 className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
@@ -400,8 +422,10 @@ const Navbar = () => {
                         <div className="flex flex-col gap-2">
                             <a
                                 href="/tools"
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4"
+                                className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2"
+                                onClick={() => setIsMobileMenuOpen(false)}
                             >
+                                <Compass className="w-4 h-4" />
                                 Discover
                             </a>
                             {discoverMenuItems.map((item, index) => (
@@ -423,20 +447,28 @@ const Navbar = () => {
                                     className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
+                                    <User className="w-5 h-5" />
                                     <span>Profile</span>
                                 </a>
                                 <a 
-                                    href="/profile?tab=settings" 
+                                    href="/profile/friends" 
                                     className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
+                                    <Users className="w-5 h-5" />
+                                    <span>Friends</span>
+                                    {pendingInvitesCount > 0 && (
+                                        <span className="ml-auto bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center">
+                                            {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
+                                        </span>
+                                    )}
+                                </a>
+                                <a 
+                                    href="/profile/settings" 
+                                    className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    <Settings className="w-5 h-5" />
                                     <span>Settings</span>
                                 </a>
                                 <div className="border-t border-charcoal-600 my-2" aria-hidden />
@@ -447,9 +479,7 @@ const Navbar = () => {
                                     }}
                                     className="flex items-center gap-2 text-white/70 hover:text-white transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4 text-left"
                                 >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                    </svg>
+                                    <LogOut className="w-5 h-5" />
                                     <span>Sign Out</span>
                                 </button>
                             </>
