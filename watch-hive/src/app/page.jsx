@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from './contexts/AuthContext';
 import QuickSearch from './components/QuickSearch';
 import ContentCard from './components/ContentCard';
 import LoadingCard from './components/LoadingCard';
@@ -31,6 +32,7 @@ const TvIcon = ({ className = "w-5 h-5" }) => (
 );
 
 const Home = () => {
+    const { user, loading: authLoading } = useAuth();
     const [trendingMovies, setTrendingMovies] = useState([]);
     const [trendingSeries, setTrendingSeries] = useState([]);
     const [popularMovies, setPopularMovies] = useState([]);
@@ -173,7 +175,11 @@ const Home = () => {
             {/* Hero Section with Search */}
             <div className="hero-section text-center">
                 <h1 className="text-4xl md:text-6xl font-bold mb-4 text-amber-500 ">
-                    Welcome to WatchHive
+                    {!authLoading && user ? (
+                        <>Welcome{", " + user.display_name || ' back!'}</>
+                    ) : (
+                        'Welcome to WatchHive'
+                    )}
                 </h1>
                 <p className="text-xl md:text-2xl text-white mb-8">
                     Discover, Track, and Share Your Favorite Movies & Series
