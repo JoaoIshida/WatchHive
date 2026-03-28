@@ -5,6 +5,7 @@ import { useUserData } from '../contexts/UserDataContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
 import UnreleasedNotification from './UnreleasedNotification';
+import ReminderPickerModal from './ReminderPickerModal';
 
 export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = null, itemData = null }) {
     const { user } = useAuth();
@@ -14,6 +15,7 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
     const [skippedItems, setSkippedItems] = useState([]);
     const [error, setError] = useState(null);
     const [seriesSummary, setSeriesSummary] = useState(null);
+    const [reminderOpen, setReminderOpen] = useState(false);
 
     // Derive watched state from context
     const watchedItem = user
@@ -82,7 +84,8 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                 
                 if (response.ok) {
                     const data = await response.json();
-                    
+                    let openedReminder = false;
+
                     if (mediaType === 'tv' && data.seriesProgress) {
                         const skipped = [];
                         
@@ -116,7 +119,13 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                                 markedEpisodes: data.seriesProgress.markedEpisodes || 0
                             });
                             setShowNotification(true);
+                        } else {
+                            setReminderOpen(true);
+                            openedReminder = true;
                         }
+                    }
+                    if (mediaType === 'tv' && !openedReminder && !data.seriesProgress) {
+                        setReminderOpen(true);
                     }
                 } else {
                     const errorData = await response.json().catch(() => ({}));
@@ -155,6 +164,14 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
 
     return (
         <>
+            <ReminderPickerModal
+                open={reminderOpen}
+                onClose={() => setReminderOpen(false)}
+                contentId={itemId}
+                mediaType="tv"
+                variant="watching"
+                title="Episode / air-date reminder"
+            />
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                     <button

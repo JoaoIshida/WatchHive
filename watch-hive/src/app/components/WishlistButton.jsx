@@ -2,11 +2,13 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
+import ReminderPickerModal from './ReminderPickerModal';
 
 export default function WishlistButton({ itemId, mediaType, onUpdate }) {
     const { user } = useAuth();
     const { wishlist, refreshUserData } = useUserData();
     const [loading, setLoading] = useState(false);
+    const [reminderOpen, setReminderOpen] = useState(false);
 
     const isInWishlist = user
         ? wishlist.some(w => w.content_id === itemId && w.media_type === mediaType)
@@ -25,11 +27,15 @@ export default function WishlistButton({ itemId, mediaType, onUpdate }) {
                     method: 'DELETE',
                 });
             } else {
-                await fetch('/api/wishlist', {
+                const res = await fetch('/api/wishlist', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ itemId, mediaType }),
                 });
+                if (res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    if (!data.alreadyExisted) setReminderOpen(true);
+                }
             }
             if (onUpdate) onUpdate();
             refreshUserData();
@@ -42,6 +48,14 @@ export default function WishlistButton({ itemId, mediaType, onUpdate }) {
 
     return (
         <>
+            <ReminderPickerModal
+                open={reminderOpen}
+                onClose={() => setReminderOpen(false)}
+                contentId={itemId}
+                mediaType={mediaType}
+                variant="wishlist"
+                title="Wishlist release reminder"
+            />
             <button
                 onClick={handleToggle}
                 disabled={loading}

@@ -64,8 +64,14 @@ export async function POST(req) {
             .single();
 
         if (existing) {
-            // Already in wishlist
-            return new Response(JSON.stringify({ wishlist: existing, success: true }), {
+            const { error: remErr } = await supabase.from('wishlist_reminders').insert({
+                wishlist_id: existing.id,
+                use_global_default: true,
+            });
+            if (remErr && remErr.code !== '23505') {
+                console.error('wishlist_reminders insert:', remErr);
+            }
+            return new Response(JSON.stringify({ wishlist: existing, success: true, alreadyExisted: true }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
             });
@@ -85,7 +91,15 @@ export async function POST(req) {
 
         if (error) throw error;
 
-        return new Response(JSON.stringify({ wishlist: data, success: true }), {
+        const { error: remErr } = await supabase.from('wishlist_reminders').insert({
+            wishlist_id: data.id,
+            use_global_default: true,
+        });
+        if (remErr && remErr.code !== '23505') {
+            console.error('wishlist_reminders insert:', remErr);
+        }
+
+        return new Response(JSON.stringify({ wishlist: data, success: true, alreadyExisted: false }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
         });

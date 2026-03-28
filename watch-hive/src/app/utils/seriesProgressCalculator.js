@@ -10,17 +10,35 @@
  * @param {Object} seasonDetails - Fetched season details (optional, for more accurate counts)
  * @returns {Object} { watched, total, percentage }
  */
+function watchedCountFromProgressSeasons(progress) {
+    let watched = 0;
+    const map = progress?.seasons || {};
+    for (const key of Object.keys(map)) {
+        const seasonNumber = Number(key);
+        if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) continue;
+        watched += (map[key]?.episodes || []).length;
+    }
+    return watched;
+}
+
 export const calculateSeriesProgress = (progress, seasons, seasonDetails = {}) => {
+    const catalogTotal = progress?.catalogTotalEpisodes;
+    if (typeof catalogTotal === 'number' && catalogTotal > 0) {
+        const watchedEpisodes = watchedCountFromProgressSeasons(progress);
+        const percentage = Math.round((watchedEpisodes / catalogTotal) * 100);
+        return { watched: watchedEpisodes, total: catalogTotal, percentage };
+    }
+
     let totalEpisodes = 0;
     let watchedEpisodes = 0;
-    
+
     // Only count regular seasons (exclude specials)
     const regularSeasons = seasons?.filter(season => season.season_number > 0) || [];
-    
+
     regularSeasons.forEach(season => {
         const seasonNumber = season.season_number;
         const watchedEpisodesList = progress?.seasons?.[seasonNumber]?.episodes || [];
-        
+
         // Try to get accurate episode count from season details first
         if (seasonDetails[seasonNumber] && seasonDetails[seasonNumber].episodes) {
             // Use actual episode count from fetched season data (includes all episodes, released + unreleased)
@@ -29,13 +47,13 @@ export const calculateSeriesProgress = (progress, seasons, seasonDetails = {}) =
             // Fallback to episode_count from series info
             totalEpisodes += season.episode_count;
         }
-        
+
         // Count watched episodes (only those in database)
         watchedEpisodes += watchedEpisodesList.length;
     });
-    
+
     const percentage = totalEpisodes > 0 ? Math.round((watchedEpisodes / totalEpisodes) * 100) : 0;
-    
+
     return { watched: watchedEpisodes, total: totalEpisodes, percentage };
 };
 

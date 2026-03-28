@@ -134,6 +134,16 @@ export async function POST(req) {
             result = data;
         }
 
+        if (mediaType === 'tv' && result?.id) {
+            const { error: wrErr } = await supabase.from('watching_reminders').insert({
+                watched_content_id: result.id,
+                use_global_default: true,
+            });
+            if (wrErr && wrErr.code !== '23505') {
+                console.error('watching_reminders insert:', wrErr);
+            }
+        }
+
         // Early return for movies - no series processing needed
         if (mediaType === 'movie') {
             return new Response(JSON.stringify({ watched: result, success: true }), {

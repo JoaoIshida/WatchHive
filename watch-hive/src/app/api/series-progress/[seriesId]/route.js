@@ -86,7 +86,9 @@ export async function GET(req, { params }) {
             series_id: seriesProgress.series_id,
             completed: seriesProgress.completed,
             last_watched: seriesProgress.last_watched,
-            seasons: seasonsMap
+            seasons: seasonsMap,
+            catalogTotalEpisodes: seriesProgress.catalog_total_episodes ?? null,
+            catalogRefreshedAt: seriesProgress.catalog_refreshed_at ?? null,
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },

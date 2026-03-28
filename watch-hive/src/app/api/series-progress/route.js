@@ -80,7 +80,9 @@ export async function GET(req) {
             progressMap[progress.series_id] = {
                 seasons: seasonsMap,
                 completed: progress.completed,
-                lastWatched: progress.last_watched
+                lastWatched: progress.last_watched,
+                catalogTotalEpisodes: progress.catalog_total_episodes ?? null,
+                catalogRefreshedAt: progress.catalog_refreshed_at ?? null,
             };
         });
 

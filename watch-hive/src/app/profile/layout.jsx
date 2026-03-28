@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { BarChart3, Eye, Heart, Tv, List, Users, Settings, RefreshCw } from 'lucide-react';
+import { BarChart3, Eye, Heart, Tv, List, Users, Settings, RefreshCw, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { usePathname } from 'next/navigation';
@@ -14,6 +14,7 @@ const TABS = [
     { href: '/profile/series', label: 'Series Progress', icon: Tv },
     { href: '/profile/lists', label: 'Lists', icon: List, countKey: 'lists' },
     { href: '/profile/friends', label: 'Friends', icon: Users, hasBadge: true },
+    { href: '/profile/notifications', label: 'Notifications', icon: Bell },
     { href: '/profile/settings', label: 'Settings', icon: Settings },
 ];
 

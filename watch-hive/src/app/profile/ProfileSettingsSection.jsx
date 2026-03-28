@@ -1,5 +1,6 @@
 "use client";
-import { LogOut, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Trash2, Bell, Inbox } from 'lucide-react';
 
 export default function ProfileSettingsSection({
     displayName,
@@ -20,6 +21,22 @@ export default function ProfileSettingsSection({
                 <h2 className="text-2xl font-bold mb-4 text-amber-500">
                     Profile Settings
                 </h2>
+                <div className="flex flex-col gap-2 mb-6">
+                    <Link
+                        href="/profile/settings/notifications"
+                        className="inline-flex items-center gap-2 text-amber-500 hover:underline text-sm font-semibold"
+                    >
+                        <Bell className="w-4 h-4" />
+                        Notification preferences (reminders &amp; push)
+                    </Link>
+                    <Link
+                        href="/profile/notifications"
+                        className="inline-flex items-center gap-2 text-amber-500/90 hover:underline text-sm"
+                    >
+                        <Inbox className="w-4 h-4" />
+                        Your notification feed
+                    </Link>
+                </div>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-white font-semibold mb-2">

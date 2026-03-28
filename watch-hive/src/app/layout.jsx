@@ -5,12 +5,20 @@ import Footer from "./components/Footer";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserDataProvider } from "./contexts/UserDataContext";
 import GlobalAuthModal from "./components/GlobalAuthModal";
+import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: "WatchHive",
   description: "Movies and TV Shows",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "WatchHive",
+    statusBarStyle: "black-translucent",
+  },
+  themeColor: "#0a0a0a",
   icons: {
     icon: {
       url: '/watchhive-icon.png',
@@ -40,6 +48,7 @@ export default function RootLayout({ children }) {
             </main>
             <Footer />
             <GlobalAuthModal />
+            <ServiceWorkerRegister />
           </UserDataProvider>
         </AuthProvider>
       </body>

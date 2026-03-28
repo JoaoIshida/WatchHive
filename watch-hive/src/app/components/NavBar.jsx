@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Film, Tv, LayoutList, Compass, ChevronDown, User, Users, Settings, LogOut, Search, X, Menu } from 'lucide-react';
+import { Film, Tv, LayoutList, Compass, ChevronDown, User, Users, Settings, LogOut, Search, X, Menu, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import QuickSearch from './QuickSearch';
 
@@ -156,6 +156,14 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
                                 {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
                             </span>
                         )}
+                    </a>
+                    <a 
+                        href="/profile/notifications"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
+                    >
+                        <Bell className="w-4 h-4" />
+                        Notifications
                     </a>
                     <a 
                         href="/profile/settings"
@@ -462,6 +470,14 @@ const Navbar = () => {
                                             {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
                                         </span>
                                     )}
+                                </a>
+                                <a 
+                                    href="/profile/notifications" 
+                                    className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    <Bell className="w-5 h-5" />
+                                    <span>Notifications</span>
                                 </a>
                                 <a 
                                     href="/profile/settings" 
