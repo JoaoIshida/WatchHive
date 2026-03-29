@@ -9,10 +9,10 @@ import { ProfilePageSkeleton } from '../components/Skeleton';
 
 const TABS = [
     { href: '/profile', label: 'Statistics', icon: BarChart3, exact: true },
-    { href: '/profile/watched', label: 'Watched', icon: Eye, countKey: 'watched' },
-    { href: '/profile/wishlist', label: 'Wishlist', icon: Heart, countKey: 'wishlist' },
+    { href: '/profile/watched', label: 'Watched', icon: Eye },
+    { href: '/profile/wishlist', label: 'Wishlist', icon: Heart },
     { href: '/profile/series', label: 'Series Progress', icon: Tv },
-    { href: '/profile/lists', label: 'Lists', icon: List, countKey: 'lists' },
+    { href: '/profile/lists', label: 'Lists', icon: List },
     { href: '/profile/friends', label: 'Friends', icon: Users, hasBadge: true },
     { href: '/profile/notifications', label: 'Notifications', icon: Bell },
     { href: '/profile/settings', label: 'Settings', icon: Settings },
@@ -20,7 +20,7 @@ const TABS = [
 
 export default function ProfileLayout({ children }) {
     const { user, loading: authLoading } = useAuth();
-    const { watched, wishlist, customLists, dbStats, refreshUserData, loading } = useUserData();
+    const { refreshUserData, loading } = useUserData();
     const pathname = usePathname();
     const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
@@ -64,12 +64,6 @@ export default function ProfileLayout({ children }) {
         );
     }
 
-    const counts = {
-        watched: dbStats?.watched_count ?? watched.length,
-        wishlist: dbStats?.wishlist_count ?? wishlist.length,
-        lists: dbStats?.custom_lists_count ?? customLists.length,
-    };
-
     return (
         <div className="page-container max-w-7xl">
             <div className="flex items-center justify-between mb-6">
@@ -84,7 +78,6 @@ export default function ProfileLayout({ children }) {
                 {TABS.map((tab) => {
                     const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
                     const TabIcon = tab.icon;
-                    const count = tab.countKey ? counts[tab.countKey] : null;
                     return (
                         <Link
                             key={tab.href}
@@ -92,7 +85,7 @@ export default function ProfileLayout({ children }) {
                             className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 relative ${isActive ? 'text-amber-500 border-b-2 border-amber-500' : 'text-white hover:text-amber-500'}`}
                         >
                             <TabIcon className="w-4 h-4" />
-                            {tab.label}{count != null ? ` (${count})` : ''}
+                            {tab.label}
                             {tab.hasBadge && pendingInvitesCount > 0 && (
                                 <span className="bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center">
                                     {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUserData } from '../contexts/UserDataContext';
 import { isSeriesCompletedByEpisodes } from '../utils/seriesProgressCalculator';
 import ProfileStatsSection from './ProfileStatsSection';
@@ -15,7 +15,16 @@ export default function ProfileStatsPage() {
         upcomingEpisodes,
         upcomingWishlistMovies,
         loadingUpcoming,
+        loading,
+        loadDbStats,
+        loadProfileContentEnrichment,
     } = useUserData();
+
+    useEffect(() => {
+        if (loading) return;
+        loadDbStats();
+        void loadProfileContentEnrichment();
+    }, [loading, loadDbStats, loadProfileContentEnrichment]);
 
     const [expandedUpcomingSeries, setExpandedUpcomingSeries] = useState({});
     const [seriesSummaryExpanded, setSeriesSummaryExpanded] = useState(false);

@@ -29,7 +29,10 @@ export function UserDataProvider({ children }) {
     const [loadingWatchedDetails, setLoadingWatchedDetails] = useState(false);
     const [loadingWishlistDetails, setLoadingWishlistDetails] = useState(false);
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+    const [loadingProfileEnrichment, setLoadingProfileEnrichment] = useState(false);
     const loadedForUserRef = useRef(null);
+    /** True after TMDB/content enrichment ran for this session (cleared on refresh / user change). */
+    const profileEnrichmentLoadedRef = useRef(false);
 
     const clearUserData = useCallback(() => {
         setWatched([]);
@@ -48,7 +51,9 @@ export function UserDataProvider({ children }) {
         setLoadingWatchedDetails(false);
         setLoadingWishlistDetails(false);
         setLoadingUpcoming(false);
+        setLoadingProfileEnrichment(false);
         loadedForUserRef.current = null;
+        profileEnrichmentLoadedRef.current = false;
     }, []);
 
     const loadUpcomingMovies = useCallback(async (wishlistItems) => {
@@ -242,48 +247,78 @@ export function UserDataProvider({ children }) {
         [loadUpcomingData, loadUpcomingMovies]
     );
 
+    const loadDbStats = useCallback(async () => {
+        if (!user?.id) return;
+        try {
+            const statsRes = await fetch('/api/user/stats');
+            const statsData = statsRes.ok ? (await statsRes.json()).stats : null;
+            setDbStats(statsData);
+        } catch (e) {
+            console.error('Error loading user stats:', e);
+            setDbStats(null);
+        }
+    }, [user?.id]);
+
+    /**
+     * Heavy TMDB fetches (/api/content, /api/tv, seasons). Only call from Statistics / Watched / Wishlist / Series.
+     * Friends, lists, notifications, settings skip this — avoids N+1 calls when you only need friends.
+     */
+    const loadProfileContentEnrichment = useCallback(async () => {
+        if (!user?.id) return;
+        if (profileEnrichmentLoadedRef.current) return;
+        profileEnrichmentLoadedRef.current = true;
+        setLoadingProfileEnrichment(true);
+        try {
+            await loadSlowData(watched, wishlist, seriesProgress);
+        } catch (e) {
+            profileEnrichmentLoadedRef.current = false;
+            console.error('Error loading profile content enrichment:', e);
+        } finally {
+            setLoadingProfileEnrichment(false);
+        }
+    }, [user?.id, watched, wishlist, seriesProgress, loadSlowData]);
+
     const loadUserData = useCallback(
         async (force = false) => {
             if (!user?.id) return;
             if (!force && loadedForUserRef.current === user.id) return;
             setLoading(true);
             try {
-                // First wave: critical data for initial paint (no series progress to keep load fast)
-                const [watchedRes, wishlistRes, statsRes, customListsRes] = await Promise.all([
+                const [watchedRes, wishlistRes, customListsRes] = await Promise.all([
                     fetch('/api/watched'),
                     fetch('/api/wishlist'),
-                    fetch('/api/user/stats'),
                     fetch('/api/custom-lists'),
                 ]);
                 const watchedItems = watchedRes.ok ? (await watchedRes.json()).watched : [];
                 const wishlistItems = wishlistRes.ok ? (await wishlistRes.json()).wishlist : [];
-                const statsData = statsRes.ok ? (await statsRes.json()).stats : null;
                 const customListsData = customListsRes.ok ? (await customListsRes.json()).lists : [];
                 setWatched(watchedItems);
                 setWishlist(wishlistItems);
-                setDbStats(statsData);
                 setCustomLists(customListsData || []);
-                loadedForUserRef.current = user.id;
-                setLoading(false);
 
-                // Second wave: series progress and slow data in background (does not block UI)
                 const seriesProgressRes = await fetch('/api/series-progress');
                 const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
                 setSeriesProgress(seriesProgressData);
-                loadSlowData(watchedItems, wishlistItems, seriesProgressData);
+
+                loadedForUserRef.current = user.id;
             } catch (e) {
                 console.error('Error loading user data:', e);
+            } finally {
                 setLoading(false);
             }
         },
-        [user?.id, loadSlowData]
+        [user?.id]
     );
 
     const refreshUserData = useCallback(() => {
         loadedForUserRef.current = null;
+        profileEnrichmentLoadedRef.current = false;
         setListDetails({});
-        loadUserData(true);
-    }, [loadUserData]);
+        void (async () => {
+            await loadUserData(true);
+            await loadDbStats();
+        })();
+    }, [loadUserData, loadDbStats]);
 
     const loadListDetails = useCallback(async (listId) => {
         if (listDetails[listId] !== undefined) return;
@@ -347,7 +382,10 @@ export function UserDataProvider({ children }) {
         loadingWatchedDetails,
         loadingWishlistDetails,
         loadingUpcoming,
+        loadingProfileEnrichment,
         refreshUserData,
+        loadDbStats,
+        loadProfileContentEnrichment,
         loadListDetails,
     };
 

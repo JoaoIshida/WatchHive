@@ -1,7 +1,15 @@
 "use client";
 import ContentCard from '../components/ContentCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 
-export default function ProfileWatchedSection({ watchedDetails, watchedFilter, setWatchedFilter }) {
+export default function ProfileWatchedSection({ watchedDetails, watchedFilter, setWatchedFilter, loadingDetails }) {
+    if (loadingDetails) {
+        return (
+            <div className="flex justify-center py-12">
+                <LoadingSpinner size="lg" text="Loading watched…" />
+            </div>
+        );
+    }
     return (
         <div>
             {watchedDetails.length === 0 ? (
