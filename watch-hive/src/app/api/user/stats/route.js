@@ -27,6 +27,7 @@ export async function GET(req) {
         const stats = data && data.length > 0 ? data[0] : {
             watched_count: 0,
             wishlist_count: 0,
+            favorites_count: 0,
             series_in_progress: 0,
             completed_series: 0,
             total_episodes_watched: 0,
