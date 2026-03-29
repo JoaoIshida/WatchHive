@@ -8,6 +8,20 @@ export async function GET(req) {
     }
 
     const { searchParams } = new URL(req.url, 'http://localhost');
+    if (searchParams.get('unreadCount') === '1') {
+      const supabase = await createServerClient();
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+      if (error) throw error;
+      return new Response(JSON.stringify({ unread: count ?? 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '40', 10)));
 
     const supabase = await createServerClient();

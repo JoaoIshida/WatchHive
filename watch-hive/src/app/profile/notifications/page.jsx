@@ -2,11 +2,18 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
-import { Settings, Check } from "lucide-react";
+import { Settings, Check, Tv, Film } from "lucide-react";
 import {
   notificationTypeLabel,
   formatNotificationDate,
 } from "../../utils/notificationDisplay";
+
+function mediaIconForNotificationLink(link) {
+  if (!link || typeof link !== "string") return null;
+  if (link.includes("/series/")) return "tv";
+  if (link.includes("/movies/")) return "movie";
+  return null;
+}
 
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -43,6 +50,7 @@ export default function NotificationsPage() {
       credentials: "include",
       body: JSON.stringify({ notificationId: id, read: true }),
     });
+    window.dispatchEvent(new CustomEvent("refreshNotifications"));
     load();
   };
 
@@ -53,6 +61,7 @@ export default function NotificationsPage() {
       credentials: "include",
       body: JSON.stringify({ markAllRead: true }),
     });
+    window.dispatchEvent(new CustomEvent("refreshNotifications"));
     load();
   };
 
@@ -73,7 +82,7 @@ export default function NotificationsPage() {
         <h2 className="text-2xl font-bold text-amber-500">Notifications</h2>
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/profile/settings/notifications"
+            href="/profile/settings#notification-preferences"
             className="futuristic-button flex items-center gap-2 text-sm"
           >
             <Settings className="w-4 h-4" />
@@ -109,7 +118,19 @@ export default function NotificationsPage() {
               }`}
             >
               <div>
-                <p className="font-semibold text-white">{n.title}</p>
+                <p className="font-semibold text-white flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const m = mediaIconForNotificationLink(n.link);
+                    if (m === "tv") {
+                      return <Tv className="w-5 h-5 text-amber-500 shrink-0" aria-label="Series" />;
+                    }
+                    if (m === "movie") {
+                      return <Film className="w-5 h-5 text-amber-500 shrink-0" aria-label="Movie" />;
+                    }
+                    return null;
+                  })()}
+                  <span>{n.title}</span>
+                </p>
                 <p className="text-white/80 text-sm mt-1">{n.message}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   {n.type ? (

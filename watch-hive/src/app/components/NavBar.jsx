@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Film, Tv, LayoutList, Compass, ChevronDown, User, Users, Settings, LogOut, Search, X, Menu, Bell } from 'lucide-react';
+import { Film, Tv, LayoutList, Compass, ChevronDown, ChevronRight, User, Users, Settings, LogOut, Search, X, Menu, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSupabaseProfileRealtime } from '../hooks/useSupabaseProfileRealtime';
 import QuickSearch from './QuickSearch';
@@ -87,7 +87,7 @@ const FilterDropdownMenu = ({ label, basePath, items, labelIcon: LabelIcon }) =>
     );
 };
 
-const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
+const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0, unreadNotificationsCount = 0 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -121,7 +121,7 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors p-2"
-                title="Profile"
+                title="Dashboard"
             >
                 <User className="w-5 h-5" />
                 <span className="hidden md:inline">{displayName}</span>
@@ -143,7 +143,7 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
                         className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
                         <User className="w-4 h-4" />
-                        Profile
+                        Dashboard
                     </a>
                     <a 
                         href="/profile/friends"
@@ -161,9 +161,14 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0 }) => {
                     <a 
                         href="/profile/notifications"
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
+                        className="relative flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
-                        <Bell className="w-4 h-4" />
+                        <span className="relative inline-flex">
+                            <Bell className="w-4 h-4" />
+                            {unreadNotificationsCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-charcoal-900" aria-hidden />
+                            )}
+                        </span>
                         Notifications
                     </a>
                     <a 
@@ -194,10 +199,20 @@ const Navbar = () => {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+    const [mobileMoviesExpanded, setMobileMoviesExpanded] = useState(false);
+    const [mobileSeriesExpanded, setMobileSeriesExpanded] = useState(false);
     const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+    const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
     const { user, loading, signOut } = useAuth();
 
     useSupabaseProfileRealtime(user?.id);
+
+    useEffect(() => {
+        if (!isMobileMenuOpen) {
+            setMobileMoviesExpanded(false);
+            setMobileSeriesExpanded(false);
+        }
+    }, [isMobileMenuOpen]);
 
     const fetchPendingCount = useCallback(() => {
         if (!user?.id) {
@@ -210,9 +225,30 @@ const Navbar = () => {
             .catch(() => setPendingInvitesCount(0));
     }, [user?.id]);
 
+    const fetchUnreadNotifications = useCallback(() => {
+        if (!user?.id) {
+            setUnreadNotificationsCount(0);
+            return;
+        }
+        fetch('/api/notifications?unreadCount=1', { credentials: 'include' })
+            .then((res) => (res.ok ? res.json() : { unread: 0 }))
+            .then((data) => setUnreadNotificationsCount(data?.unread ?? 0))
+            .catch(() => setUnreadNotificationsCount(0));
+    }, [user?.id]);
+
     useEffect(() => {
         fetchPendingCount();
     }, [fetchPendingCount]);
+
+    useEffect(() => {
+        fetchUnreadNotifications();
+    }, [fetchUnreadNotifications]);
+
+    useEffect(() => {
+        const onRefreshNotifications = () => fetchUnreadNotifications();
+        window.addEventListener('refreshNotifications', onRefreshNotifications);
+        return () => window.removeEventListener('refreshNotifications', onRefreshNotifications);
+    }, [fetchUnreadNotifications]);
 
     useEffect(() => {
         const handleRefreshPendingInvites = (e) => {
@@ -302,7 +338,12 @@ const Navbar = () => {
                 {/* Desktop Auth Links */}
                 <div className="hidden md:flex items-center gap-4 flex-shrink-0">
                     {loading ? null : (user && user.id) ? (
-                        <ProfileDropdown onSignOut={handleSignOut} user={user} pendingInvitesCount={pendingInvitesCount} />
+                        <ProfileDropdown
+                            onSignOut={handleSignOut}
+                            user={user}
+                            pendingInvitesCount={pendingInvitesCount}
+                            unreadNotificationsCount={unreadNotificationsCount}
+                        />
                     ) : (
                         <button
                             onClick={() => {
@@ -370,48 +411,72 @@ const Navbar = () => {
                             transform: 'translateZ(0)'
                         }}
                     >
-                        {/* Movies Section */}
-                        <div className="flex flex-col gap-2">
-                            <a 
-                                href="/movies" 
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                                <Film className="w-4 h-4" />
-                                Movies
-                            </a>
-                            {movieQuickFilters.map((filter, index) => (
-                                <a 
-                                    key={index}
-                                    href={filter.href} 
-                                    className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
+                        {/* Movies Section — filters collapsed until expanded */}
+                        <div className="flex flex-col gap-0">
+                            <div className="flex items-center gap-1 pl-2 pr-2">
+                                <button
+                                    type="button"
+                                    className="p-2 text-amber-500 hover:bg-charcoal-800/80 rounded-md transition-colors"
+                                    aria-expanded={mobileMoviesExpanded}
+                                    aria-label={mobileMoviesExpanded ? 'Hide movie filters' : 'Show movie filters'}
+                                    onClick={() => setMobileMoviesExpanded((v) => !v)}
+                                >
+                                    <ChevronRight className={`w-5 h-5 transition-transform ${mobileMoviesExpanded ? 'rotate-90' : ''}`} />
+                                </button>
+                                <a
+                                    href="/movies"
+                                    className="text-amber-500 font-semibold text-sm flex flex-1 items-center gap-2 py-2 min-w-0"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    {filter.label}
+                                    <Film className="w-4 h-4 flex-shrink-0" />
+                                    Movies
                                 </a>
-                            ))}
+                            </div>
+                            {mobileMoviesExpanded &&
+                                movieQuickFilters.map((filter, index) => (
+                                    <a
+                                        key={index}
+                                        href={filter.href}
+                                        className="text-white hover:text-amber-500 transition-colors pl-12 pr-4 py-2 border-l-2 border-transparent hover:border-amber-500"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {filter.label}
+                                    </a>
+                                ))}
                         </div>
-                        
-                        {/* Series Section */}
-                        <div className="flex flex-col gap-2">
-                            <a 
-                                href="/series" 
-                                className="text-amber-500 font-semibold text-sm mb-1 pl-4 flex items-center gap-2"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                                <Tv className="w-4 h-4" />
-                                Series
-                            </a>
-                            {seriesQuickFilters.map((filter, index) => (
-                                <a 
-                                    key={index}
-                                    href={filter.href} 
-                                    className="text-white hover:text-amber-500 transition-colors pl-8 py-2 border-l-2 border-transparent hover:border-amber-500"
+
+                        {/* Series Section — filters collapsed until expanded */}
+                        <div className="flex flex-col gap-0">
+                            <div className="flex items-center gap-1 pl-2 pr-2">
+                                <button
+                                    type="button"
+                                    className="p-2 text-amber-500 hover:bg-charcoal-800/80 rounded-md transition-colors"
+                                    aria-expanded={mobileSeriesExpanded}
+                                    aria-label={mobileSeriesExpanded ? 'Hide series filters' : 'Show series filters'}
+                                    onClick={() => setMobileSeriesExpanded((v) => !v)}
+                                >
+                                    <ChevronRight className={`w-5 h-5 transition-transform ${mobileSeriesExpanded ? 'rotate-90' : ''}`} />
+                                </button>
+                                <a
+                                    href="/series"
+                                    className="text-amber-500 font-semibold text-sm flex flex-1 items-center gap-2 py-2 min-w-0"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    {filter.label}
+                                    <Tv className="w-4 h-4 flex-shrink-0" />
+                                    Series
                                 </a>
-                            ))}
+                            </div>
+                            {mobileSeriesExpanded &&
+                                seriesQuickFilters.map((filter, index) => (
+                                    <a
+                                        key={index}
+                                        href={filter.href}
+                                        className="text-white hover:text-amber-500 transition-colors pl-12 pr-4 py-2 border-l-2 border-transparent hover:border-amber-500"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {filter.label}
+                                    </a>
+                                ))}
                         </div>
                         
                         {/* Collections & Lists */}
@@ -459,7 +524,7 @@ const Navbar = () => {
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
                                     <User className="w-5 h-5" />
-                                    <span>Profile</span>
+                                    <span>Dashboard</span>
                                 </a>
                                 <a 
                                     href="/profile/friends" 
@@ -476,10 +541,15 @@ const Navbar = () => {
                                 </a>
                                 <a 
                                     href="/profile/notifications" 
-                                    className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
+                                    className="relative flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    <Bell className="w-5 h-5" />
+                                    <span className="relative inline-flex">
+                                        <Bell className="w-5 h-5" />
+                                        {unreadNotificationsCount > 0 && (
+                                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950" aria-hidden />
+                                        )}
+                                    </span>
                                     <span>Notifications</span>
                                 </a>
                                 <a 
