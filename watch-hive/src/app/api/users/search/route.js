@@ -1,9 +1,19 @@
 import { getServerUser, createServerClient } from '../../../lib/supabase-server';
 
+const SELECT_FIELDS = 'id, display_name, avatar_url';
+const MIN_QUERY_LEN = 3;
+const MAX_QUERY_LEN = 32;
+const MAX_RESULTS = 8;
+
+/** Escape `%`, `_`, `\` for PostgreSQL LIKE (default escape `\`). */
+function escapeLikePattern(s) {
+    return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 /**
  * GET /api/users/search?q=
- * Search profiles by display_name (for add collaborator, etc.)
- * Returns id, display_name, avatar_url. Requires auth. Limit 10.
+ * Case-sensitive prefix match on display_name only (no substring / no hex tags).
+ * Reduces scraping: must know how the username starts, exact casing.
  */
 export async function GET(req) {
     try {
@@ -16,26 +26,36 @@ export async function GET(req) {
         }
 
         const { searchParams } = new URL(req.url, 'http://localhost');
-        const q = searchParams.get('q')?.trim() || '';
+        const raw = searchParams.get('q')?.trim() || '';
 
-        if (q.length < 2) {
+        if (raw.length < MIN_QUERY_LEN) {
             return new Response(JSON.stringify({ users: [] }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
             });
         }
 
+        if (raw.length > MAX_QUERY_LEN) {
+            return new Response(JSON.stringify({ error: 'Query too long' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
         const supabase = await createServerClient();
-        const { data: profiles, error } = await supabase
+        const pattern = `${escapeLikePattern(raw)}%`;
+
+        const { data: nameRows, error: nameErr } = await supabase
             .from('profiles')
-            .select('id, display_name, avatar_url')
+            .select(SELECT_FIELDS)
             .neq('id', user.id)
-            .ilike('display_name', `%${q}%`)
-            .limit(10);
+            .like('display_name', pattern)
+            .order('display_name', { ascending: true })
+            .limit(MAX_RESULTS);
 
-        if (error) throw error;
+        if (nameErr) throw nameErr;
 
-        const users = (profiles || []).map((p) => ({
+        const users = (nameRows || []).map((p) => ({
             id: p.id,
             display_name: p.display_name || null,
             avatar_url: p.avatar_url || null,

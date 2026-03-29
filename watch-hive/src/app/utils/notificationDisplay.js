@@ -1,6 +1,7 @@
 const TYPE_LABELS = {
   new_episodes: 'Episode update',
   release_reminder: 'Release reminder',
+  friend_request: 'Friend request',
 };
 
 function titleCaseFromSnake(s) {

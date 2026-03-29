@@ -51,6 +51,32 @@ export async function PUT(request) {
       dbUpdates.display_name = display_name.trim();
     }
 
+    if (dbUpdates.display_name) {
+      const { data: me, error: meErr } = await supabaseAdmin
+        .from('profiles')
+        .select('display_name')
+        .eq('id', userPayload.userId)
+        .maybeSingle();
+      if (meErr) {
+        console.error(meErr);
+        return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
+      }
+      const current = (me?.display_name || '').trim();
+      const next = dbUpdates.display_name;
+      if (current.toLowerCase() !== next.toLowerCase()) {
+        const { data: takenId, error: rpcErr } = await supabaseAdmin.rpc('profile_id_for_display_name', {
+          p_name: next,
+        });
+        if (rpcErr) {
+          console.error(rpcErr);
+          return NextResponse.json({ error: 'Could not validate username' }, { status: 500 });
+        }
+        if (takenId && takenId !== userPayload.userId) {
+          return NextResponse.json({ error: 'That username is already taken' }, { status: 400 });
+        }
+      }
+    }
+
     // profile_visibility is stored inside the existing JSONB `preferences` column
     if (profileVisibility !== undefined) {
       if (!['friends', 'anyone', 'no_one'].includes(profileVisibility)) {

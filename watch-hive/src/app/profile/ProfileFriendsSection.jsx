@@ -51,8 +51,18 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef, onFrien
     }, [userId, fetchFriends]);
 
     useEffect(() => {
+        if (!userId) return undefined;
+        const onRefresh = () => {
+            fetchFriends();
+            onFriendsChanged?.();
+        };
+        window.addEventListener("refreshPendingInvites", onRefresh);
+        return () => window.removeEventListener("refreshPendingInvites", onRefresh);
+    }, [userId, fetchFriends, onFriendsChanged]);
+
+    useEffect(() => {
         const q = searchQuery.trim();
-        if (q.length < 2) {
+        if (q.length < 3) {
             setSearchResults([]);
             return;
         }
@@ -132,13 +142,16 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef, onFrien
         }
     };
 
-    const sendRequest = async (targetUserId) => {
+    const sendRequest = async (targetUserId, targetDisplayName) => {
         setActionLoading(`send-${targetUserId}`);
         try {
             const res = await fetch('/api/friends', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: targetUserId }),
+                body: JSON.stringify({
+                    displayName: targetDisplayName || undefined,
+                    userId: targetUserId,
+                }),
             });
             const data = await res.json();
             if (!res.ok) alert(data.error || 'Failed to send request');
@@ -189,21 +202,22 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef, onFrien
             <div className="space-y-6">
             {/* People search */}
             <div className="futuristic-card p-4">
-                <label className="block text-white font-semibold mb-2">Search people</label>
+                <label className="block text-white font-semibold mb-2">Search</label>
+                <p className="text-white/45 text-xs mb-2">Prefix of username · 3+ chars · case-sensitive</p>
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by username (min 2 characters)"
+                    placeholder="Username…"
                     className="w-full px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white placeholder-white/40 focus:outline-none focus:border-amber-500"
                 />
                 {searchLoading && (
-                    <p className="text-white/60 text-sm mt-2">Searching…</p>
+                    <p className="text-white/45 text-xs mt-2">…</p>
                 )}
-                {searchQuery.trim().length >= 2 && !searchLoading && (
+                {searchQuery.trim().length >= 3 && !searchLoading && (
                     <ul className="mt-3 space-y-2 max-h-48 overflow-y-auto">
                         {searchResults.length === 0 ? (
-                            <li className="text-white/60 text-sm">No users found.</li>
+                            <li className="text-white/50 text-sm">No match. Try checking for typos or using full username</li>
                         ) : (
                             searchResults.map((u) => {
                                 const isSelf = u.id === userId;
@@ -251,7 +265,7 @@ export default function ProfileFriendsSection({ userId, fetchFriendsRef, onFrien
                                                 </>
                                             ) : (
                                                 <button
-                                                    onClick={() => sendRequest(u.id)}
+                                                    onClick={() => sendRequest(u.id, u.display_name)}
                                                     disabled={actionLoading === `send-${u.id}`}
                                                     className="px-3 py-1.5 bg-amber-500/20 text-amber-500 rounded hover:bg-amber-500/30 text-sm disabled:opacity-50"
                                                 >

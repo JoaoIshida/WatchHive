@@ -29,6 +29,13 @@ export default function NotificationsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!user) return undefined;
+    const onRefresh = () => load();
+    window.addEventListener("refreshNotifications", onRefresh);
+    return () => window.removeEventListener("refreshNotifications", onRefresh);
+  }, [user, load]);
+
   const markRead = async (id) => {
     await fetch("/api/notifications", {
       method: "PATCH",

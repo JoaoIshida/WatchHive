@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Film, Tv, LayoutList, Compass, ChevronDown, User, Users, Settings, LogOut, Search, X, Menu, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSupabaseProfileRealtime } from '../hooks/useSupabaseProfileRealtime';
 import QuickSearch from './QuickSearch';
 
 const FilterDropdownMenu = ({ label, basePath, items, labelIcon: LabelIcon }) => {
@@ -195,6 +196,8 @@ const Navbar = () => {
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
     const { user, loading, signOut } = useAuth();
+
+    useSupabaseProfileRealtime(user?.id);
 
     const fetchPendingCount = useCallback(() => {
         if (!user?.id) {

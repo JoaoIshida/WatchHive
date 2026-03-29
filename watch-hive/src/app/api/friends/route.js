@@ -1,4 +1,5 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
+import { notifyFriendRequestReceived } from '../../lib/friend-request-notify';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -84,8 +85,9 @@ export async function GET() {
 }
 
 /**
- * POST /api/friends  body: { userId }
- * Send a friend request (inserts row with status='pending').
+ * POST /api/friends  body: { displayName } and/or { userId }
+ * Usernames are unique case-insensitively. Prefer sending displayName from search results;
+ * userId is optional and must match the resolved name when both are sent.
  */
 export async function POST(req) {
     try {
@@ -93,11 +95,32 @@ export async function POST(req) {
         if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
 
         const body = await req.json().catch(() => ({}));
-        const targetUserId = body.userId;
-        if (!targetUserId) return jsonResponse({ error: 'userId is required' }, 400);
-        if (targetUserId === user.id) return jsonResponse({ error: 'Cannot send request to yourself' }, 400);
+        const displayName =
+            typeof body.displayName === 'string' ? body.displayName.trim() : '';
+        let targetUserId = body.userId || null;
 
         const supabase = await createServerClient();
+
+        if (displayName.length >= 2) {
+            const { data: resolvedId, error: rpcErr } = await supabase.rpc('profile_id_for_display_name', {
+                p_name: displayName,
+            });
+            if (rpcErr) throw rpcErr;
+            if (!resolvedId) {
+                return jsonResponse({ error: 'No user found with that username' }, 404);
+            }
+            if (targetUserId && targetUserId !== resolvedId) {
+                return jsonResponse({ error: 'Username does not match that profile' }, 400);
+            }
+            targetUserId = resolvedId;
+        } else if (!targetUserId) {
+            return jsonResponse(
+                { error: 'Send displayName (username, 2+ characters) or userId' },
+                400,
+            );
+        }
+
+        if (targetUserId === user.id) return jsonResponse({ error: 'Cannot send request to yourself' }, 400);
 
         // Check for existing row in either direction
         const { data: existingRows, error: existErr } = await supabase
@@ -124,6 +147,16 @@ export async function POST(req) {
             .single();
 
         if (error) throw error;
+
+        try {
+            await notifyFriendRequestReceived(supabase, {
+                senderId: user.id,
+                receiverId: targetUserId,
+            });
+        } catch (notifyErr) {
+            console.error('notifyFriendRequestReceived:', notifyErr);
+        }
+
         return jsonResponse({ requestId: inserted.id, createdAt: inserted.created_at });
     } catch (err) {
         console.error('POST /api/friends:', err);

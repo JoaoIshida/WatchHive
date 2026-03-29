@@ -73,14 +73,15 @@ export async function POST(request) {
       );
     }
 
-    // Check if display_name is already taken (must be unique)
-    const { data: existingProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('display_name')
-      .eq('display_name', trimmedDisplayName)
-      .maybeSingle();
-
-    if (existingProfile) {
+    // Username taken if same when compared case-insensitively (matches DB unique index)
+    const { data: takenId, error: nameLookupErr } = await supabaseAdmin.rpc('profile_id_for_display_name', {
+      p_name: trimmedDisplayName,
+    });
+    if (nameLookupErr) {
+      console.error('profile_id_for_display_name:', nameLookupErr);
+      return NextResponse.json({ error: 'Could not validate username' }, { status: 500 });
+    }
+    if (takenId) {
       return NextResponse.json(
         { error: 'This username is already taken. Please choose another.' },
         { status: 400 }

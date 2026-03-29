@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({
     user: null,
@@ -77,6 +78,14 @@ export const AuthProvider = ({ children }) => {
             // Update user state from response
             setUser(result.user);
 
+            if (result.session?.access_token && result.session?.refresh_token) {
+                const { error: sErr } = await supabase.auth.setSession({
+                    access_token: result.session.access_token,
+                    refresh_token: result.session.refresh_token,
+                });
+                if (sErr) console.warn('Supabase Realtime session sync failed', sErr);
+            }
+
             return { error: null };
         } catch (error) {
             return { error: { message: 'Login failed: ' + error.message } };
@@ -107,6 +116,11 @@ export const AuthProvider = ({ children }) => {
             // Auto-login after signup
             if (result.user) {
                 setUser(result.user);
+                const { error: sErr } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+                if (sErr) console.warn('Supabase session after signup failed', sErr);
             }
 
             return { error: null };
@@ -116,6 +130,11 @@ export const AuthProvider = ({ children }) => {
     };
 
     const signOut = async () => {
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.warn('Supabase signOut:', error);
+        }
         try {
             await fetch('/api/auth/logout', {
                 method: 'POST',

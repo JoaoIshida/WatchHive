@@ -62,7 +62,7 @@ export async function POST(request) {
       role: 'user', // Default role, can be extended later
     });
 
-    // Create response with success message
+    // Create response with success message (session for Supabase Realtime in the browser)
     const response = NextResponse.json({
       success: true,
       message: 'Login successful!',
@@ -71,7 +71,14 @@ export async function POST(request) {
         email: authData.user.email,
         display_name: profile?.display_name || authData.user.email,
         role: 'user',
-      }
+      },
+      session: authData.session
+        ? {
+            access_token: authData.session.access_token,
+            refresh_token: authData.session.refresh_token,
+            expires_at: authData.session.expires_at,
+          }
+        : null,
     });
 
     // Set secure HTTP-only cookie with JWT token
