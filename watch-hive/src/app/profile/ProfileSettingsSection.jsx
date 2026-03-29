@@ -1,6 +1,6 @@
 "use client";
-import Link from 'next/link';
-import { LogOut, Trash2, Bell, Inbox } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
+import NotificationPreferencesPanel from './settings/NotificationPreferencesPanel';
 
 export default function ProfileSettingsSection({
     displayName,
@@ -21,33 +21,17 @@ export default function ProfileSettingsSection({
                 <h2 className="text-2xl font-bold mb-4 text-amber-500">
                     Profile Settings
                 </h2>
-                <div className="flex flex-col gap-2 mb-6">
-                    <Link
-                        href="/profile/settings/notifications"
-                        className="inline-flex items-center gap-2 text-amber-500 hover:underline text-sm font-semibold"
-                    >
-                        <Bell className="w-4 h-4" />
-                        Notification preferences (reminders &amp; push)
-                    </Link>
-                    <Link
-                        href="/profile/notifications"
-                        className="inline-flex items-center gap-2 text-amber-500/90 hover:underline text-sm"
-                    >
-                        <Inbox className="w-4 h-4" />
-                        Your notification feed
-                    </Link>
-                </div>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-white font-semibold mb-2">
                             Username
                         </label>
-                        <div className="flex gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
                             <input
                                 type="text"
                                 value={displayName}
                                 onChange={(e) => setDisplayName(e.target.value)}
-                                className="flex-1 px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/50"
+                                className="w-full min-w-0 flex-1 px-4 py-2 bg-charcoal-900/50 border border-charcoal-700/50 rounded text-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/50"
                                 placeholder="Enter your username"
                             />
                             <button
@@ -79,7 +63,7 @@ export default function ProfileSettingsSection({
                                     }
                                 }}
                                 disabled={isUpdating}
-                                className="futuristic-button-yellow px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="futuristic-button-yellow px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto shrink-0"
                             >
                                 {isUpdating ? 'Updating...' : 'Update'}
                             </button>
@@ -137,6 +121,8 @@ export default function ProfileSettingsSection({
                     </div>
                 </div>
             </div>
+
+            <NotificationPreferencesPanel />
 
             <div className="futuristic-card p-6">
                 <h2 className="text-2xl font-bold mb-4 text-amber-500">

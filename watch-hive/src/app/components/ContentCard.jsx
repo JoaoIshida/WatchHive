@@ -17,6 +17,10 @@ import { isSeriesReleased, isMovieReleased } from '../utils/releaseDateValidator
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const { user } = useAuth();
     const { watched, seriesProgress, seriesDetails: contextSeriesDetails } = useUserData();
+    const watchedItem = user
+        ? watched.find((w) => w.content_id === item.id && w.media_type === mediaType)
+        : null;
+    const timesWatched = watchedItem?.times_watched ?? 0;
     const title = item.title || item.name;
     const releaseDate = item.release_date || item.first_air_date;
     const posterPath = item.poster_path || item.backdrop_path;
@@ -170,10 +174,18 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                 </div>
             </a>
             
-            <div className="absolute top-0 right-0 z-20">
-                <QuickActionsMenu 
-                    itemId={item.id} 
-                    mediaType={mediaType} 
+            <div className="absolute top-0 right-0 z-20 flex items-center gap-1 pt-2 pr-2">
+                {user && timesWatched > 0 && (
+                    <span
+                        className="text-[10px] font-bold tabular-nums text-amber-400 bg-charcoal-950/90 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0 max-w-[2.5rem] truncate"
+                        title={`Watched ${timesWatched} time${timesWatched === 1 ? '' : 's'}`}
+                    >
+                        {timesWatched}×
+                    </span>
+                )}
+                <QuickActionsMenu
+                    itemId={item.id}
+                    mediaType={mediaType}
                     itemData={item}
                 />
             </div>

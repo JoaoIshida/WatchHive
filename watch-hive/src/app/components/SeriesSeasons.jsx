@@ -18,6 +18,9 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const [loadingSeriesComplete, setLoadingSeriesComplete] = useState(false);
     const [loadingSeasons, setLoadingSeasons] = useState({}); // { seasonNumber: boolean }
     const [loadingEpisodes, setLoadingEpisodes] = useState({}); // { 'seasonNumber-episodeNumber': boolean }
+    const [expandedEpisodeDesc, setExpandedEpisodeDesc] = useState({});
+
+    const episodeDescKey = (seasonNumber, episodeNumber) => `${seasonNumber}-${episodeNumber}`;
 
     useEffect(() => {
         // Load progress from API
@@ -464,18 +467,19 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
 
     return (
         <div className="futuristic-card p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
                 <h2 className="text-2xl font-bold text-amber-500">
                     Seasons & Episodes
                 </h2>
-                <div className="flex items-center gap-4">
-                    <div className="text-white">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                    <div className="text-white text-sm sm:text-base text-center sm:text-left">
                         <span className="font-semibold">{overallProgress.watched}</span> / {overallProgress.total} episodes watched
                     </div>
                     <button
+                        type="button"
                         onClick={toggleSeriesCompleted}
                         disabled={loadingSeriesComplete}
-                        className={`futuristic-button flex items-center gap-2 ${isSeriesCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        className={`futuristic-button flex items-center justify-center gap-2 text-sm whitespace-nowrap ${isSeriesCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
                         {loadingSeriesComplete ? (
                             <>
@@ -503,16 +507,16 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     return (
                         <div key={season.id} className="futuristic-card p-4">
                             <div 
-                                className="flex items-center justify-between cursor-pointer"
+                                className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between cursor-pointer"
                                 onClick={() => toggleSeason(season.season_number)}
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-4 min-w-0 flex-1">
                                     <ImageWithFallback
                                         src={seasonData.poster_path ? `https://image.tmdb.org/t/p/w200${seasonData.poster_path}` : null}
                                         alt={`Season ${season.season_number}`}
-                                        className="w-20 h-28 object-cover rounded"
+                                        className="w-20 h-28 object-cover rounded shrink-0"
                                     />
-                                    <div>
+                                    <div className="min-w-0">
                                         <h3 className="text-lg font-bold text-white">
                                             {season.name || `Season ${season.season_number}`}
                                         </h3>
@@ -543,14 +547,15 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-row items-center justify-between gap-3 shrink-0 w-full lg:w-auto lg:justify-end">
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             toggleSeasonCompleted(season.season_number);
                                         }}
                                         disabled={loadingSeasons[season.season_number]}
-                                        className={`futuristic-button text-sm flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                        className={`futuristic-button text-xs sm:text-sm whitespace-nowrap px-3 py-2 flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                     >
                                         {loadingSeasons[season.season_number] ? (
                                             <>
@@ -564,10 +569,11 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         )}
                                     </button>
                                     <svg
-                                        className={`w-6 h-6 text-amber-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                        className={`w-6 h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
+                                        aria-hidden
                                     >
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
@@ -585,82 +591,100 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                         const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
                                         const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
+                                        const dk = episodeDescKey(season.season_number, episode.episode_number);
+                                        const descOpen = !!expandedEpisodeDesc[dk];
                                         
                                         return (
                                             <div
                                                 key={episode.id}
-                                                className={`futuristic-card p-3 flex items-center gap-4 transition-colors ${
+                                                className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors ${
                                                     isWatched ? 'border-l-4 border-amber-500' : ''
                                                 }`}
                                             >
-                                                <div className="flex-shrink-0 w-12 text-center">
-                                                    <span className="text-amber-500 font-bold">
-                                                        E{episode.episode_number}
-                                                    </span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-semibold text-white">
-                                                            {episode.name || `Episode ${episode.episode_number}`}
-                                                        </h4>
-                                                        {!episodeIsReleased && (
-                                                            <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
-                                                                Unreleased
-                                                            </span>
+                                                <div className="flex gap-3 min-w-0 flex-1">
+                                                    <div className="flex-shrink-0 w-10 sm:w-12 text-center">
+                                                        <span className="text-amber-500 font-bold text-sm">
+                                                            E{episode.episode_number}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h4 className="font-semibold text-white text-sm sm:text-base">
+                                                                {episode.name || `Episode ${episode.episode_number}`}
+                                                            </h4>
+                                                            {!episodeIsReleased && (
+                                                                <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
+                                                                    Unreleased
+                                                                </span>
+                                                            )}
+                                                            {isWatched && !isEpisodeLoading && episodeIsReleased && (
+                                                                <span className="text-amber-500">✓</span>
+                                                            )}
+                                                        </div>
+                                                        {episode.air_date && (
+                                                            <p className="text-xs text-amber-500/80">
+                                                                {formatDate(episode.air_date)}
+                                                            </p>
                                                         )}
-                                                        {isWatched && !isEpisodeLoading && episodeIsReleased && (
-                                                            <span className="text-amber-500">✓</span>
+                                                        {episode.overview && (
+                                                            <div className="mt-1">
+                                                                <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
+                                                                    {episode.overview}
+                                                                </p>
+                                                                {episode.overview.length > 120 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="text-[10px] text-amber-500 mt-1 hover:underline"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
+                                                                        }}
+                                                                    >
+                                                                        {descOpen ? 'Show less' : 'Show more'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    {episode.air_date && (
-                                                        <p className="text-xs text-amber-500/80">
-                                                            {formatDate(episode.air_date)}
-                                                        </p>
-                                                    )}
-                                                    {episode.overview && (
-                                                        <p className="text-xs text-white/70 line-clamp-2 mt-1">
-                                                            {episode.overview}
-                                                        </p>
-                                                    )}
                                                 </div>
-                                                {episode.vote_average && episode.vote_average > 0 ? (
-                                                    <div className="text-xs text-amber-500 mr-2">
-                                                        ⭐ {episode.vote_average.toFixed(1)}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-xs text-white/60 mr-2">
-                                                        No ratings
-                                                    </div>
-                                                )}
-                                                {/* Episode Watch Button */}
-                                                <button
-                                                    onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
-                                                    disabled={isEpisodeLoading || !episodeIsReleased}
-                                                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                                                        isEpisodeLoading || !episodeIsReleased
-                                                            ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
-                                                            : isWatched 
-                                                                ? 'bg-amber-500 text-black hover:bg-amber-500' 
-                                                                : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
-                                                    }`}
-                                                    title={!episodeIsReleased ? 'Episode not yet released' : ''}
-                                                >
-                                                    {isEpisodeLoading ? (
-                                                        <>
-                                                            <LoadingSpinner />
-                                                        </>
-                                                    ) : isWatched ? (
-                                                        <>
-                                                            <span>✓</span>
-                                                            <span>Watched</span>
-                                                        </>
+                                                <div className="flex flex-row items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:min-w-[6rem] shrink-0 pt-2 border-t border-charcoal-700/40 sm:border-t-0 sm:pt-0">
+                                                    {episode.vote_average && episode.vote_average > 0 ? (
+                                                        <div className="text-xs text-amber-500 sm:text-right">
+                                                            ⭐ {episode.vote_average.toFixed(1)}
+                                                        </div>
                                                     ) : (
-                                                        <>
-                                                            <span>+</span>
-                                                            <span>Watch</span>
-                                                        </>
+                                                        <div className="text-[10px] text-white/50 sm:text-right hidden sm:block">
+                                                            —
+                                                        </div>
                                                     )}
-                                                </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
+                                                        disabled={isEpisodeLoading || !episodeIsReleased}
+                                                        className={`w-full sm:w-auto justify-center px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
+                                                            isEpisodeLoading || !episodeIsReleased
+                                                                ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
+                                                                : isWatched 
+                                                                    ? 'bg-amber-500 text-black hover:bg-amber-500' 
+                                                                    : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
+                                                        }`}
+                                                        title={!episodeIsReleased ? 'Episode not yet released' : ''}
+                                                    >
+                                                        {isEpisodeLoading ? (
+                                                            <LoadingSpinner />
+                                                        ) : isWatched ? (
+                                                            <>
+                                                                <span>✓</span>
+                                                                <span className="hidden sm:inline">Watched</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span>+</span>
+                                                                <span>Watch</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -686,16 +710,16 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                             return (
                                 <div key={season.id} className="futuristic-card p-4">
                                     <div 
-                                        className="flex items-center justify-between cursor-pointer"
+                                        className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between cursor-pointer"
                                         onClick={() => toggleSeason(season.season_number)}
                                     >
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-4 min-w-0 flex-1">
                                             <ImageWithFallback
                                                 src={seasonData.poster_path ? `https://image.tmdb.org/t/p/w200${seasonData.poster_path}` : null}
                                                 alt={season.name || 'Special'}
-                                                className="w-20 h-28 object-cover rounded"
+                                                className="w-20 h-28 object-cover rounded shrink-0"
                                             />
-                                            <div>
+                                            <div className="min-w-0">
                                                 <h3 className="text-lg font-bold text-white">
                                                     {season.name || 'Special'}
                                                 </h3>
@@ -726,14 +750,15 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex flex-row items-center justify-between gap-3 shrink-0 w-full lg:w-auto lg:justify-end">
                                             <button
+                                                type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     toggleSeasonCompleted(season.season_number);
                                                 }}
                                                 disabled={loadingSeasons[season.season_number]}
-                                                className={`futuristic-button text-sm flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                                className={`futuristic-button text-xs sm:text-sm whitespace-nowrap px-3 py-2 flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                             >
                                                 {loadingSeasons[season.season_number] ? (
                                                     <>
@@ -747,10 +772,11 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                 )}
                                             </button>
                                             <svg
-                                                className={`w-6 h-6 text-amber-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                                className={`w-6 h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                                 fill="none"
                                                 stroke="currentColor"
                                                 viewBox="0 0 24 24"
+                                                aria-hidden
                                             >
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                             </svg>
@@ -760,90 +786,105 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                     {isExpanded && seasonData.episodes && (
                                         <div className="mt-4 space-y-2">
                                             {seasonData.episodes.map((episode) => {
-                                                // Only check database for watched status - don't assume based on season completion
                                                 const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
-                                                // Pass seasonData for fallback date checking
                                                 const episodeIsReleased = isEpisodeReleased(episode, seasonData);
-                                                // Only show as watched if episode is in the database as watched
                                                 const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                                 const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
                                                 const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
-                                                
+                                                const dk = episodeDescKey(season.season_number, episode.episode_number);
+                                                const descOpen = !!expandedEpisodeDesc[dk];
+
                                                 return (
                                                     <div
                                                         key={episode.id}
-                                                        className={`futuristic-card p-3 flex items-center gap-4 transition-colors ${
+                                                        className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors ${
                                                             isWatched ? 'border-l-4 border-amber-500' : ''
                                                         }`}
                                                     >
-                                                        <div className="flex-shrink-0 w-12 text-center">
-                                                            <span className="text-amber-500 font-bold">
-                                                                E{episode.episode_number}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <h4 className="font-semibold text-white">
-                                                                    {episode.name || `Episode ${episode.episode_number}`}
-                                                                </h4>
-                                                                {!episodeIsReleased && (
-                                                                    <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
-                                                                        Unreleased
-                                                                    </span>
+                                                        <div className="flex gap-3 min-w-0 flex-1">
+                                                            <div className="flex-shrink-0 w-10 sm:w-12 text-center">
+                                                                <span className="text-amber-500 font-bold text-sm">
+                                                                    E{episode.episode_number}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <h4 className="font-semibold text-white text-sm sm:text-base">
+                                                                        {episode.name || `Episode ${episode.episode_number}`}
+                                                                    </h4>
+                                                                    {!episodeIsReleased && (
+                                                                        <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
+                                                                            Unreleased
+                                                                        </span>
+                                                                    )}
+                                                                    {isWatched && !isEpisodeLoading && episodeIsReleased && (
+                                                                        <span className="text-amber-500">✓</span>
+                                                                    )}
+                                                                </div>
+                                                                {episode.air_date && (
+                                                                    <p className="text-xs text-amber-500/80">
+                                                                        {formatDate(episode.air_date)}
+                                                                    </p>
                                                                 )}
-                                                                {isWatched && !isEpisodeLoading && episodeIsReleased && (
-                                                                    <span className="text-amber-500">✓</span>
+                                                                {episode.overview && (
+                                                                    <div className="mt-1">
+                                                                        <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
+                                                                            {episode.overview}
+                                                                        </p>
+                                                                        {episode.overview.length > 120 && (
+                                                                            <button
+                                                                                type="button"
+                                                                                className="text-[10px] text-amber-500 mt-1 hover:underline"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
+                                                                                }}
+                                                                            >
+                                                                                {descOpen ? 'Show less' : 'Show more'}
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 )}
                                                             </div>
-                                                            {episode.air_date && (
-                                                                <p className="text-xs text-amber-500/80">
-                                                                    {formatDate(episode.air_date)}
-                                                                </p>
-                                                            )}
-                                                            {episode.overview && (
-                                                                <p className="text-xs text-white/70 line-clamp-2 mt-1">
-                                                                    {episode.overview}
-                                                                </p>
-                                                            )}
                                                         </div>
-                                                        {episode.vote_average && episode.vote_average > 0 ? (
-                                                            <div className="text-xs text-amber-500 mr-2">
-                                                                ⭐ {episode.vote_average.toFixed(1)}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-xs text-white/60 mr-2">
-                                                                No ratings
-                                                            </div>
-                                                        )}
-                                                        {/* Episode Watch Button */}
-                                                        <button
-                                                            onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
-                                                            disabled={isEpisodeLoading || !episodeIsReleased}
-                                                            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                                                                isEpisodeLoading || !episodeIsReleased
-                                                                    ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
-                                                                    : isWatched 
-                                                                        ? 'bg-amber-500 text-black hover:bg-amber-500' 
-                                                                        : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
-                                                            }`}
-                                                            title={!episodeIsReleased ? 'Episode not yet released' : ''}
-                                                        >
-                                                            {isEpisodeLoading ? (
-                                                                <>
-                                                                    <LoadingSpinner />
-                                                                </>
-                                                            ) : isWatched ? (
-                                                                <>
-                                                                    <span>✓</span>
-                                                                    <span>Watched</span>
-                                                                </>
+                                                        <div className="flex flex-row items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:min-w-[6rem] shrink-0 pt-2 border-t border-charcoal-700/40 sm:border-t-0 sm:pt-0">
+                                                            {episode.vote_average && episode.vote_average > 0 ? (
+                                                                <div className="text-xs text-amber-500 sm:text-right">
+                                                                    ⭐ {episode.vote_average.toFixed(1)}
+                                                                </div>
                                                             ) : (
-                                                                <>
-                                                                    <span>+</span>
-                                                                    <span>Watch</span>
-                                                                </>
+                                                                <div className="text-[10px] text-white/50 sm:text-right hidden sm:block">
+                                                                    —
+                                                                </div>
                                                             )}
-                                                        </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
+                                                                disabled={isEpisodeLoading || !episodeIsReleased}
+                                                                className={`w-full sm:w-auto justify-center px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
+                                                                    isEpisodeLoading || !episodeIsReleased
+                                                                        ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
+                                                                        : isWatched 
+                                                                            ? 'bg-amber-500 text-black hover:bg-amber-500' 
+                                                                            : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
+                                                                }`}
+                                                                title={!episodeIsReleased ? 'Episode not yet released' : ''}
+                                                            >
+                                                                {isEpisodeLoading ? (
+                                                                    <LoadingSpinner />
+                                                                ) : isWatched ? (
+                                                                    <>
+                                                                        <span>✓</span>
+                                                                        <span className="hidden sm:inline">Watched</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span>+</span>
+                                                                        <span>Watch</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

@@ -185,8 +185,8 @@ const Home = () => {
                     Discover, Track, and Share Your Favorite Movies & Series
                 </p>
                 
-                {/* Quick Search */}
-                <div className="max-w-2xl mx-auto mb-8 relative z-[100]">
+                {/* Quick Search — narrower bar + horizontal breathing room on small screens */}
+                <div className="w-full max-w-lg md:max-w-xl mx-auto px-4 sm:px-6 mb-8 relative z-[100]">
                     <QuickSearch />
                 </div>
             </div>

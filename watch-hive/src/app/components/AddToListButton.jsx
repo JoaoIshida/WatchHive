@@ -166,11 +166,12 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
 
             {isOpen && (
                 <>
-                    <div 
-                        className="fixed inset-0 z-10 bg-black/50" 
+                    <div
+                        className="fixed inset-0 z-[200] bg-black/50"
                         onClick={() => setIsOpen(false)}
+                        aria-hidden
                     />
-                    <div className="fixed sm:absolute sm:top-full sm:left-0 sm:mt-2 inset-4 sm:inset-auto z-20 bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[280px] sm:max-w-sm max-h-[calc(100vh-2rem)] flex flex-col">
+                    <div className="fixed sm:absolute sm:top-full sm:left-0 sm:mt-2 top-16 left-3 right-3 bottom-auto sm:inset-auto z-[210] bg-charcoal-900 border border-amber-500/50 rounded-lg shadow-subtle p-4 w-auto max-w-[min(100%,24rem)] sm:w-auto sm:min-w-[280px] sm:max-w-sm max-h-[min(85vh,calc(100vh-5rem))] flex flex-col mx-auto sm:mx-0">
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-amber-400 font-bold">Your Lists</h3>
                             <button
