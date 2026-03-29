@@ -15,6 +15,7 @@ export function UserDataProvider({ children }) {
     const { user, loading: authLoading } = useAuth();
     const [watched, setWatched] = useState([]);
     const [wishlist, setWishlist] = useState([]);
+    const [favorites, setFavorites] = useState([]);
     const [seriesProgress, setSeriesProgress] = useState({});
     const [dbStats, setDbStats] = useState(null);
     const [customLists, setCustomLists] = useState([]);
@@ -22,21 +23,27 @@ export function UserDataProvider({ children }) {
     const [loadingListDetails, setLoadingListDetails] = useState({});
     const [watchedDetails, setWatchedDetails] = useState([]);
     const [wishlistDetails, setWishlistDetails] = useState([]);
+    const [favoritesDetails, setFavoritesDetails] = useState([]);
     const [seriesDetails, setSeriesDetails] = useState({});
     const [upcomingEpisodes, setUpcomingEpisodes] = useState([]);
     const [upcomingWishlistMovies, setUpcomingWishlistMovies] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loadingWatchedDetails, setLoadingWatchedDetails] = useState(false);
     const [loadingWishlistDetails, setLoadingWishlistDetails] = useState(false);
+    const [loadingFavoritesDetails, setLoadingFavoritesDetails] = useState(false);
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
     const [loadingProfileEnrichment, setLoadingProfileEnrichment] = useState(false);
+    /** False until /api watched+wishlist+favorites+lists+series-progress have been fetched for this user. Prevents profile enrichment from running with empty watched on first paint (loading also starts false). */
+    const [userDataHydrated, setUserDataHydrated] = useState(false);
     const loadedForUserRef = useRef(null);
     /** True after TMDB/content enrichment ran for this session (cleared on refresh / user change). */
     const profileEnrichmentLoadedRef = useRef(false);
+    const profileEnrichmentInFlightRef = useRef(false);
 
     const clearUserData = useCallback(() => {
         setWatched([]);
         setWishlist([]);
+        setFavorites([]);
         setSeriesProgress({});
         setDbStats(null);
         setCustomLists([]);
@@ -44,16 +51,20 @@ export function UserDataProvider({ children }) {
         setLoadingListDetails({});
         setWatchedDetails([]);
         setWishlistDetails([]);
+        setFavoritesDetails([]);
         setSeriesDetails({});
         setUpcomingEpisodes([]);
         setUpcomingWishlistMovies([]);
         setLoading(false);
         setLoadingWatchedDetails(false);
         setLoadingWishlistDetails(false);
+        setLoadingFavoritesDetails(false);
         setLoadingUpcoming(false);
         setLoadingProfileEnrichment(false);
+        setUserDataHydrated(false);
         loadedForUserRef.current = null;
         profileEnrichmentLoadedRef.current = false;
+        profileEnrichmentInFlightRef.current = false;
     }, []);
 
     const loadUpcomingMovies = useCallback(async (wishlistItems) => {
@@ -169,7 +180,7 @@ export function UserDataProvider({ children }) {
     }, [loadUpcomingMovies]);
 
     const loadSlowData = useCallback(
-        async (watchedItems, wishlistItems, seriesProgressData) => {
+        async (watchedItems, wishlistItems, seriesProgressData, favoritesItems = []) => {
             if (watchedItems?.length) {
                 setLoadingWatchedDetails(true);
                 try {
@@ -191,6 +202,8 @@ export function UserDataProvider({ children }) {
                 } finally {
                     setLoadingWatchedDetails(false);
                 }
+            } else {
+                setWatchedDetails([]);
             }
             if (wishlistItems?.length) {
                 setLoadingWishlistDetails(true);
@@ -213,6 +226,32 @@ export function UserDataProvider({ children }) {
                 } finally {
                     setLoadingWishlistDetails(false);
                 }
+            } else {
+                setWishlistDetails([]);
+            }
+            if (favoritesItems?.length) {
+                setLoadingFavoritesDetails(true);
+                try {
+                    const details = await Promise.all(
+                        favoritesItems.map(async (item) => {
+                            try {
+                                const response = await fetch(`/api/content/${item.media_type}/${item.content_id}`);
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    return { ...data, media_type: item.media_type, dateAdded: item.date_added, id: item.content_id };
+                                }
+                            } catch (e) {
+                                console.error('Error fetching favorite item:', e);
+                            }
+                            return null;
+                        })
+                    );
+                    setFavoritesDetails(details.filter(Boolean));
+                } finally {
+                    setLoadingFavoritesDetails(false);
+                }
+            } else {
+                setFavoritesDetails([]);
             }
             const seriesIds = Object.keys(seriesProgressData || {});
             if (seriesIds.length) {
@@ -264,36 +303,45 @@ export function UserDataProvider({ children }) {
      * Friends, lists, notifications, settings skip this — avoids N+1 calls when you only need friends.
      */
     const loadProfileContentEnrichment = useCallback(async () => {
-        if (!user?.id) return;
+        if (!user?.id || !userDataHydrated) return;
         if (profileEnrichmentLoadedRef.current) return;
-        profileEnrichmentLoadedRef.current = true;
+        if (profileEnrichmentInFlightRef.current) return;
+        profileEnrichmentInFlightRef.current = true;
         setLoadingProfileEnrichment(true);
         try {
-            await loadSlowData(watched, wishlist, seriesProgress);
+            await loadSlowData(watched, wishlist, seriesProgress, favorites);
+            profileEnrichmentLoadedRef.current = true;
         } catch (e) {
             profileEnrichmentLoadedRef.current = false;
             console.error('Error loading profile content enrichment:', e);
         } finally {
+            profileEnrichmentInFlightRef.current = false;
             setLoadingProfileEnrichment(false);
         }
-    }, [user?.id, watched, wishlist, seriesProgress, loadSlowData]);
+    }, [user?.id, userDataHydrated, watched, wishlist, seriesProgress, favorites, loadSlowData]);
 
     const loadUserData = useCallback(
         async (force = false) => {
             if (!user?.id) return;
-            if (!force && loadedForUserRef.current === user.id) return;
+            if (!force && loadedForUserRef.current === user.id) {
+                setUserDataHydrated(true);
+                return;
+            }
             setLoading(true);
             try {
-                const [watchedRes, wishlistRes, customListsRes] = await Promise.all([
+                const [watchedRes, wishlistRes, favoritesRes, customListsRes] = await Promise.all([
                     fetch('/api/watched'),
                     fetch('/api/wishlist'),
+                    fetch('/api/favorites'),
                     fetch('/api/custom-lists'),
                 ]);
                 const watchedItems = watchedRes.ok ? (await watchedRes.json()).watched : [];
                 const wishlistItems = wishlistRes.ok ? (await wishlistRes.json()).wishlist : [];
+                const favoritesItems = favoritesRes.ok ? (await favoritesRes.json()).favorites : [];
                 const customListsData = customListsRes.ok ? (await customListsRes.json()).lists : [];
                 setWatched(watchedItems);
                 setWishlist(wishlistItems);
+                setFavorites(favoritesItems);
                 setCustomLists(customListsData || []);
 
                 const seriesProgressRes = await fetch('/api/series-progress');
@@ -305,6 +353,7 @@ export function UserDataProvider({ children }) {
                 console.error('Error loading user data:', e);
             } finally {
                 setLoading(false);
+                setUserDataHydrated(true);
             }
         },
         [user?.id]
@@ -366,6 +415,7 @@ export function UserDataProvider({ children }) {
     const value = {
         watched,
         wishlist,
+        favorites,
         seriesProgress,
         setSeriesProgress,
         dbStats,
@@ -374,13 +424,16 @@ export function UserDataProvider({ children }) {
         loadingListDetails,
         watchedDetails,
         wishlistDetails,
+        favoritesDetails,
         seriesDetails,
         setSeriesDetails,
         upcomingEpisodes,
         upcomingWishlistMovies,
         loading,
+        userDataHydrated,
         loadingWatchedDetails,
         loadingWishlistDetails,
+        loadingFavoritesDetails,
         loadingUpcoming,
         loadingProfileEnrichment,
         refreshUserData,

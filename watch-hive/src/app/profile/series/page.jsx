@@ -9,6 +9,7 @@ export default function ProfileSeriesPage() {
         seriesProgress,
         seriesDetails,
         loading,
+        userDataHydrated,
         loadingProfileEnrichment,
         loadProfileContentEnrichment,
     } = useUserData();
@@ -16,9 +17,9 @@ export default function ProfileSeriesPage() {
     const [seriesSeasonDetails, setSeriesSeasonDetails] = useState({});
 
     useEffect(() => {
-        if (loading) return;
+        if (loading || !userDataHydrated) return;
         void loadProfileContentEnrichment();
-    }, [loading, loadProfileContentEnrichment]);
+    }, [loading, userDataHydrated, loadProfileContentEnrichment]);
 
     const hasProgress = Object.keys(seriesProgress).length > 0;
     const waitingForSeriesDetails =

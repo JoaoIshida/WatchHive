@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { Bookmark, BookmarkCheck, Heart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
@@ -11,7 +12,7 @@ import UnreleasedNotification from './UnreleasedNotification';
 
 export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
     const { user } = useAuth();
-    const { watched, wishlist, seriesProgress, customLists, refreshUserData } = useUserData();
+    const { watched, wishlist, favorites, seriesProgress, customLists, refreshUserData } = useUserData();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -50,6 +51,11 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const isInWishlist = (() => {
         if (!user) return false;
         return wishlist.some(w => w.content_id === itemId && w.media_type === mediaType);
+    })();
+
+    const isFavorite = (() => {
+        if (!user) return false;
+        return favorites.some((f) => f.content_id === itemId && f.media_type === mediaType);
     })();
 
     const itemLists = (() => {
@@ -278,6 +284,36 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
     };
 
+    const handleToggleFavorite = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            setIsOpen(false);
+            return;
+        }
+
+        setLoading(true);
+        setLoadingAction('favorite');
+        try {
+            if (isFavorite) {
+                await fetch(`/api/favorites?itemId=${itemId}&mediaType=${mediaType}`, { method: 'DELETE' });
+            } else {
+                await fetch('/api/favorites', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId, mediaType }),
+                });
+            }
+            refreshUserData();
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setLoading(false);
+            setLoadingAction(null);
+            setIsOpen(false);
+        }
+    };
+
     const handleAddToList = () => {
         if (!user) {
             window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
@@ -475,13 +511,39 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     </>
                 ) : isInWishlist ? (
                     <>
-                        <span>★</span>
+                        <BookmarkCheck className="w-4 h-4 text-amber-400" />
                         <span>Remove from Wishlist</span>
                     </>
                 ) : (
                     <>
-                        <span>☆</span>
+                        <Bookmark className="w-4 h-4" />
                         <span>Add to Wishlist</span>
+                    </>
+                )}
+            </button>
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleToggleFavorite();
+                }}
+                disabled={loading}
+                className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+            >
+                {loadingAction === 'favorite' ? (
+                    <>
+                        <LoadingSpinner />
+                        <span>Processing...</span>
+                    </>
+                ) : isFavorite ? (
+                    <>
+                        <Heart className="w-4 h-4 text-rose-400 fill-current" />
+                        <span>Remove Favorite</span>
+                    </>
+                ) : (
+                    <>
+                        <Heart className="w-4 h-4" />
+                        <span>Add Favorite</span>
                     </>
                 )}
             </button>
@@ -531,7 +593,7 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     e.stopPropagation();
                     setIsOpen(!isOpen);
                 }}
-                className="absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center bg-charcoal-950/90 backdrop-blur-sm rounded-full border border-amber-500/50 hover:bg-charcoal-900 hover:border-amber-400 transition-all"
+                className="relative z-20 w-8 h-8 flex items-center justify-center bg-charcoal-950/90 backdrop-blur-sm rounded-full border border-amber-500/50 hover:bg-charcoal-900 hover:border-amber-400 transition-all shrink-0"
                 aria-label="Quick actions"
             >
                 <svg 

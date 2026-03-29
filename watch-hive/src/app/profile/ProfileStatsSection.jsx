@@ -20,46 +20,71 @@ export default function ProfileStatsSection({
 }) {
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-                <div className="futuristic-card p-6 text-center">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                <Link
+                    href="/profile/watched"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"
+                >
                     <div className="text-4xl font-bold text-amber-500 mb-2">
                         {stats.totalWatched}
                     </div>
-                    <div className="text-white font-semibold">Total Watched</div>
+                    <div className="text-white font-semibold">Watched</div>
                     <div className="text-sm text-amber-500/80 mt-2">
                         {stats.watchedMovies} movies • {stats.watchedSeries} series
                     </div>
-                </div>
+                </Link>
 
-                <div className="futuristic-card p-6 text-center">
+                <Link
+                    href="/profile/wishlist"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"
+                >
                     <div className="text-4xl font-bold text-amber-500 mb-2">
                         {stats.totalWishlist}
                     </div>
-                    <div className="text-white font-semibold">In Wishlist</div>
+                    <div className="text-white font-semibold">Wishlist</div>
                     <div className="text-sm text-amber-500/80 mt-2">
                         {stats.wishlistMovies} movies • {stats.wishlistSeries} series
                     </div>
-                </div>
+                </Link>
 
-                <div className="futuristic-card p-6 text-center">
+                <Link
+                    href="/profile/favorites"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"
+                >
+                    <div className="text-4xl font-bold text-amber-500 mb-2">
+                        {stats.totalFavorites ?? 0}
+                    </div>
+                    <div className="text-white font-semibold">Favorites</div>
+                    <div className="text-sm text-amber-500/80 mt-2">
+                        {(stats.favoriteMovies ?? 0)} movies • {(stats.favoriteSeries ?? 0)} series
+                    </div>
+                </Link>
+
+                <Link
+                    href="/profile/series"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"
+                >
                     <div className="text-4xl font-bold text-amber-500 mb-2">
                         {stats.seriesInProgress}
                     </div>
-                    <div className="text-white font-semibold">Series In Progress</div>
+                    <div className="text-white font-semibold">Series in progress</div>
                     <div className="text-sm text-amber-500/80 mt-2">
                         {stats.completedSeries} completed
                     </div>
-                </div>
+                </Link>
 
-                <div className="futuristic-card p-6 text-center">
+                <Link
+                    href="/profile/series"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl lg:col-span-2"
+                >
                     <div className="text-4xl font-bold text-amber-500 mb-2">
                         {stats.totalEpisodesWatched}
                     </div>
-                    <div className="text-white font-semibold">Episodes Watched</div>
+                    <div className="text-white font-semibold">Episodes watched</div>
                     <div className="text-sm text-amber-500/80 mt-2">
                         Across all series
                     </div>
-                </div>
+                </Link>
             </div>
 
             {/* Upcoming Section - Combined */}

@@ -3,30 +3,30 @@ import { Bookmark } from 'lucide-react';
 import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-export default function ProfileWishlistSection({ loadingWishlistDetails, wishlistDetails }) {
-    if (loadingWishlistDetails) {
+export default function ProfileFavoritesSection({ loadingFavoritesDetails, favoritesDetails }) {
+    if (loadingFavoritesDetails) {
         return (
             <div className="flex justify-center py-12">
-                <LoadingSpinner size="lg" text="Loading wishlist content..." />
+                <LoadingSpinner size="lg" text="Loading favorites..." />
             </div>
         );
     }
-    if (wishlistDetails.length === 0) {
+    if (favoritesDetails.length === 0) {
         return (
             <div className="text-center py-12 futuristic-card">
                 <Bookmark className="w-12 h-12 mx-auto text-amber-500/50 mb-3" aria-hidden />
-                <p className="text-xl text-white mb-2">Your wishlist is empty</p>
-                <p className="text-amber-500/80">Use the save icon on a title to add it to your wishlist.</p>
+                <p className="text-xl text-white mb-2">No favorites yet</p>
+                <p className="text-amber-500/80">Tap the heart on a title to save favorites here.</p>
             </div>
         );
     }
     return (
         <>
             <div className="mb-4 text-sm text-amber-500/80">
-                Showing {wishlistDetails.length} {wishlistDetails.length === 1 ? 'item' : 'items'} in wishlist
+                Showing {favoritesDetails.length} {favoritesDetails.length === 1 ? 'item' : 'items'}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {wishlistDetails
+                {favoritesDetails
                     .sort((a, b) => {
                         const dateA = new Date(a.dateAdded || 0);
                         const dateB = new Date(b.dateAdded || 0);

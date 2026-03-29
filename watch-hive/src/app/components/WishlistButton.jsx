@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import { Bookmark, BookmarkCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import ReminderPickerModal from './ReminderPickerModal';
@@ -67,12 +68,12 @@ export default function WishlistButton({ itemId, mediaType, onUpdate }) {
             >
                 {isInWishlist ? (
                     <>
-                        <span>★</span>
+                        <BookmarkCheck className="w-4 h-4" />
                         <span>In Wishlist</span>
                     </>
                 ) : (
                     <>
-                        <span>☆</span>
+                        <Bookmark className="w-4 h-4" />
                         <span>Add to Wishlist</span>
                     </>
                 )}

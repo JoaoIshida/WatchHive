@@ -8,6 +8,7 @@ export default function ProfileStatsPage() {
     const {
         watched,
         wishlist,
+        favorites,
         seriesProgress,
         seriesDetails,
         dbStats,
@@ -16,15 +17,16 @@ export default function ProfileStatsPage() {
         upcomingWishlistMovies,
         loadingUpcoming,
         loading,
+        userDataHydrated,
         loadDbStats,
         loadProfileContentEnrichment,
     } = useUserData();
 
     useEffect(() => {
-        if (loading) return;
+        if (loading || !userDataHydrated) return;
         loadDbStats();
         void loadProfileContentEnrichment();
-    }, [loading, loadDbStats, loadProfileContentEnrichment]);
+    }, [loading, userDataHydrated, loadDbStats, loadProfileContentEnrichment]);
 
     const [expandedUpcomingSeries, setExpandedUpcomingSeries] = useState({});
     const [seriesSummaryExpanded, setSeriesSummaryExpanded] = useState(false);
@@ -33,6 +35,8 @@ export default function ProfileStatsPage() {
     const watchedSeries = watched.filter(w => w.media_type === 'tv').length;
     const wishlistMovies = wishlist.filter(w => w.media_type === 'movie').length;
     const wishlistSeries = wishlist.filter(w => w.media_type === 'tv').length;
+    const favoriteMovies = favorites.filter((f) => f.media_type === 'movie').length;
+    const favoriteSeries = favorites.filter((f) => f.media_type === 'tv').length;
 
     const seriesIds = Object.keys(seriesProgress);
     let seriesInProgressCount = dbStats?.series_in_progress ?? 0;
@@ -61,11 +65,17 @@ export default function ProfileStatsPage() {
         totalWishlist: dbStats?.wishlist_count ?? wishlist.length,
         wishlistMovies,
         wishlistSeries,
+        totalFavorites: favorites.length,
+        favoriteMovies,
+        favoriteSeries,
         seriesInProgress: seriesInProgressCount,
         completedSeries: completedSeriesCount,
         totalEpisodesWatched,
         totalLists: dbStats?.custom_lists_count ?? customLists.length,
-        totalListItems: customLists.reduce((total, list) => total + (list.items?.length || 0), 0),
+        totalListItems: customLists.reduce(
+            (total, list) => total + (typeof list.items_count === 'number' ? list.items_count : list.items?.length || 0),
+            0
+        ),
     };
 
     return (

@@ -77,6 +77,7 @@ export async function fetchTitleProfile(titleId, mediaType, { existingGenres, ex
         keywordIds,
         title: title || '',
         overview: overview || '',
+        originalLanguage: resolvedDetails?.original_language || '',
         collectionMovieIds,
         collectionParts,
         voteAverage: resolvedDetails?.vote_average ?? 0,
@@ -95,6 +96,7 @@ export function mergeProfiles(profiles) {
     const overviews = [];
     const collectionMovieIdsSet = new Set();
     const collectionPartsById = new Map();
+    const langFreq = new Map();
 
     for (const p of profiles) {
         for (const gid of p.genreIds) {
@@ -111,6 +113,10 @@ export function mergeProfiles(profiles) {
         for (const part of p.collectionParts || []) {
             if (part?.id) collectionPartsById.set(part.id, part);
         }
+        const ol = p.originalLanguage;
+        if (ol && typeof ol === 'string') {
+            langFreq.set(ol, (langFreq.get(ol) || 0) + 1);
+        }
     }
 
     const sortedGenres = [...genreFreq.entries()]
@@ -122,11 +128,16 @@ export function mergeProfiles(profiles) {
         .map(([id]) => id)
         .slice(0, 10);
 
+    const originalLanguages = [...langFreq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([code]) => code);
+
     return {
         genreIds: sortedGenres,
         keywordIds: sortedKeywords,
         titles,
         overviews,
+        originalLanguages,
         collectionMovieIds: [...collectionMovieIdsSet],
         collectionParts: [...collectionPartsById.values()],
     };
@@ -167,6 +178,8 @@ const GENRE_SCORE_MAX = 10;
 const OVERVIEW_SCORE_MAX = 7;
 const NAME_SCORE_MAX = 3;
 const COLLECTION_BONUS = 5;
+/** Extra weight when candidate matches source title original language(s). */
+const ORIGINAL_LANGUAGE_BONUS = 6;
 
 /**
  * Similarity-based scoring.
@@ -186,6 +199,13 @@ export function scoreResults(results, sourceProfile) {
             ? [sourceProfile.overview]
             : [];
     const collectionMovieIdsSet = new Set(sourceProfile.collectionMovieIds || []);
+    const sourceLangCodes = new Set(
+        sourceProfile.originalLanguages?.length
+            ? sourceProfile.originalLanguages
+            : sourceProfile.originalLanguage
+                ? [sourceProfile.originalLanguage]
+                : []
+    );
 
     return results
         .map((item) => {
@@ -208,12 +228,22 @@ export function scoreResults(results, sourceProfile) {
             const collectionBonus =
                 collectionMovieIdsSet.has(item.id) ? COLLECTION_BONUS : 0;
 
+            const originalLang = item.original_language || '';
+            const languageBonus =
+                originalLang && sourceLangCodes.has(originalLang) ? ORIGINAL_LANGUAGE_BONUS : 0;
+
             const voteScore = item.vote_average || 0;
             const popularityScore =
                 item.popularity > 0 ? Math.min(Math.log10(item.popularity), 3) : 0;
 
             const finalScore =
-                genreScore + overviewScore + nameScore + collectionBonus + voteScore + popularityScore;
+                genreScore +
+                overviewScore +
+                nameScore +
+                collectionBonus +
+                languageBonus +
+                voteScore +
+                popularityScore;
 
             return { ...item, _score: Math.round(finalScore * 100) / 100 };
         })

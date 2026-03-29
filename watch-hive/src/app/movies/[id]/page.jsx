@@ -73,6 +73,7 @@ async function getMovieRecommendations(id) {
 import ImageWithFallback from '../../components/ImageWithFallback';
 import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';
+import FavoriteButton from '../../components/FavoriteButton';
 import AddToListButton from '../../components/AddToListButton';
 import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
@@ -115,6 +116,7 @@ const MovieDetailPage = async ({ params }) => {
                             <div className="flex flex-wrap gap-3">
                                 <WatchedButton itemId={movie.id} mediaType="movie" itemData={movie} />
                                 <WishlistButton itemId={movie.id} mediaType="movie" />
+                                <FavoriteButton itemId={movie.id} mediaType="movie" />
                                 <AddToListButton itemId={movie.id} mediaType="movie" itemTitle={movie.title} />
                             </div>
                         </div>

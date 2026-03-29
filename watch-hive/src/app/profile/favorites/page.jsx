@@ -1,15 +1,15 @@
 "use client";
 import { useEffect } from 'react';
 import { useUserData } from '../../contexts/UserDataContext';
-import ProfileWishlistSection from '../ProfileWishlistSection';
+import ProfileFavoritesSection from '../ProfileFavoritesSection';
 
-export default function ProfileWishlistPage() {
+export default function ProfileFavoritesPage() {
     const {
-        wishlist,
-        wishlistDetails,
+        favorites,
+        favoritesDetails,
         loading,
         userDataHydrated,
-        loadingWishlistDetails,
+        loadingFavoritesDetails,
         loadingProfileEnrichment,
         loadProfileContentEnrichment,
     } = useUserData();
@@ -20,15 +20,15 @@ export default function ProfileWishlistPage() {
     }, [loading, userDataHydrated, loadProfileContentEnrichment]);
 
     const loadingList =
-        loadingWishlistDetails ||
-        (wishlist.length > 0 &&
-            wishlistDetails.length === 0 &&
+        loadingFavoritesDetails ||
+        (favorites.length > 0 &&
+            favoritesDetails.length === 0 &&
             loadingProfileEnrichment);
 
     return (
-        <ProfileWishlistSection
-            loadingWishlistDetails={loadingList}
-            wishlistDetails={wishlistDetails}
+        <ProfileFavoritesSection
+            loadingFavoritesDetails={loadingList}
+            favoritesDetails={favoritesDetails}
         />
     );
 }

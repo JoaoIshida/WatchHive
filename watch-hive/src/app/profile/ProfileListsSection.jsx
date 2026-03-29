@@ -143,7 +143,8 @@ export default function ProfileListsSection({
                         </div>
                     )}
                     {customLists.map((list) => {
-                        const items = listDetails[list.id] || [];
+                        const loadedItems = listDetails[list.id];
+                        const items = loadedItems || [];
                         const isLoadingList = loadingListDetails[list.id];
                         const canEditSettings = list.user_id === user?.id || list.my_permission === 'admin';
                         const isExpanded = expandedListIds.includes(list.id);
@@ -156,6 +157,17 @@ export default function ProfileListsSection({
                                 loadListDetails(list.id);
                             }
                         };
+                        const collapsedCount = typeof list.items_count === 'number' ? list.items_count : 0;
+                        let itemCountSubtitle;
+                        if (isLoadingList) {
+                            itemCountSubtitle = 'Loading...';
+                        } else if (loadedItems !== undefined) {
+                            const n = items.length;
+                            itemCountSubtitle = `${n} ${n === 1 ? 'item' : 'items'}`;
+                        } else {
+                            const n = collapsedCount;
+                            itemCountSubtitle = `${n} ${n === 1 ? 'item' : 'items'}`;
+                        }
                         return (
                             <div key={list.id} className="futuristic-card p-6">
                                 <div
@@ -180,7 +192,7 @@ export default function ProfileListsSection({
                                                 {list.name}
                                             </h3>
                                             <p className="text-sm text-white/70 mt-1">
-                                                {isLoadingList ? 'Loading...' : `${items.length} ${items.length === 1 ? 'item' : 'items'}`} • Created {formatDate(list.created_at)}
+                                                {itemCountSubtitle} • Created {formatDate(list.created_at)}
                                                 {list.is_public !== undefined && (
                                                     <span className="ml-2 text-white/50">
                                                         {list.is_public ? ' • Public' : ' • Private'}

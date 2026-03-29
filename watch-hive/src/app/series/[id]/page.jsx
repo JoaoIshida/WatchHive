@@ -1,6 +1,7 @@
 import ImageWithFallback from '../../components/ImageWithFallback';
 import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';
+import FavoriteButton from '../../components/FavoriteButton';
 import AddToListButton from '../../components/AddToListButton';
 import SeriesSeasons from '../../components/SeriesSeasons';
 import ContentCard from '../../components/ContentCard';
@@ -107,6 +108,7 @@ const SerieDetailPage = async ({ params }) => {
                             <div className="flex flex-wrap gap-3">
                                 <WatchedButton itemId={tv.id} mediaType="tv" seasons={tv.seasons} itemData={tv} />
                                 <WishlistButton itemId={tv.id} mediaType="tv" />
+                                <FavoriteButton itemId={tv.id} mediaType="tv" />
                                 <AddToListButton itemId={tv.id} mediaType="tv" itemTitle={tv.name} />
                             </div>
                         </div>

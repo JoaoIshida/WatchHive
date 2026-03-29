@@ -8,6 +8,7 @@ export default function ProfileWatchedPage() {
         watched,
         watchedDetails,
         loading,
+        userDataHydrated,
         loadingWatchedDetails,
         loadingProfileEnrichment,
         loadProfileContentEnrichment,
@@ -15,9 +16,9 @@ export default function ProfileWatchedPage() {
     const [watchedFilter, setWatchedFilter] = useState('all');
 
     useEffect(() => {
-        if (loading) return;
+        if (loading || !userDataHydrated) return;
         void loadProfileContentEnrichment();
-    }, [loading, loadProfileContentEnrichment]);
+    }, [loading, userDataHydrated, loadProfileContentEnrichment]);
 
     const loadingDetails =
         watched.length > 0 &&
