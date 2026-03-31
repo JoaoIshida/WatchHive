@@ -1,5 +1,6 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
+import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
 
 /**
  * Check if an episode is released (server-side validation)
@@ -118,47 +119,6 @@ export async function POST(req, { params }) {
             .eq('id', seriesProgress.id);
 
         if (updateError) throw updateError;
-
-        // Sync with watched_content table
-        if (completed) {
-            // Mark series as watched in watched_content
-            const { data: existingWatched } = await supabase
-                .from('watched_content')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('content_id', parseInt(seriesId))
-                .eq('media_type', 'tv')
-                .single();
-
-            if (!existingWatched) {
-                // Insert new watched record
-                await supabase
-                    .from('watched_content')
-                    .insert({
-                        user_id: user.id,
-                        content_id: parseInt(seriesId),
-                        media_type: 'tv',
-                        date_watched: new Date().toISOString(),
-                        times_watched: 1,
-                    });
-            } else {
-                // Update existing watched record
-                await supabase
-                    .from('watched_content')
-                    .update({
-                        date_watched: new Date().toISOString(),
-                    })
-                    .eq('id', existingWatched.id);
-            }
-        } else {
-            // Unmark series from watched_content
-            await supabase
-                .from('watched_content')
-                .delete()
-                .eq('user_id', user.id)
-                .eq('content_id', parseInt(seriesId))
-                .eq('media_type', 'tv');
-        }
 
         // If marking as completed, fetch all seasons and filter only released episodes
         if (completed) {
@@ -321,6 +281,14 @@ export async function POST(req, { params }) {
                 .update({ completed: false })
                 .eq('series_progress_id', seriesProgress.id);
         }
+
+        await syncTvWatchedContentFromProgress(
+            supabase,
+            user.id,
+            parseInt(seriesId, 10),
+            seriesProgress.id,
+            { forceWatched: completed, removeIfNoEpisodes: true },
+        );
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,

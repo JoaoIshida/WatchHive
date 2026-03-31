@@ -304,3 +304,14 @@ body {
 .wave-container path {
   mix-blend-mode: screen;
 }
+
+/* Pull-to-refresh (mobile) — Reddit-style spinner */
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ptr-spin {
+  animation: ptr-spin 0.55s linear infinite;
+}

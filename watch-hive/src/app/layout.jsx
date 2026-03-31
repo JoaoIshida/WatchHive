@@ -6,6 +6,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { UserDataProvider } from "./contexts/UserDataContext";
 import GlobalAuthModal from "./components/GlobalAuthModal";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
+import PullToRefresh from "./components/PullToRefresh";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -42,11 +43,11 @@ export default function RootLayout({ children }) {
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <AuthProvider>
           <UserDataProvider>
-            <Navbar />
-            <main className="flex-grow">
-            {children}
-            </main>
-            <Footer />
+            <PullToRefresh>
+              <Navbar />
+              <main className="flex-grow">{children}</main>
+              <Footer />
+            </PullToRefresh>
             <GlobalAuthModal />
             <ServiceWorkerRegister />
           </UserDataProvider>

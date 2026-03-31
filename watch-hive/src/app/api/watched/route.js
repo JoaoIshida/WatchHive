@@ -1,5 +1,6 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
 import { fetchTMDB } from '../utils';
+import { syncTvWatchedContentFromProgress } from '../../utils/syncTvWatchedContent';
 
 /**
  * Check if an episode is released (server-side validation)
@@ -376,6 +377,14 @@ export async function POST(req) {
                     markedEpisodes: markedEpisodes
                 };
 
+                await syncTvWatchedContentFromProgress(
+                    supabase,
+                    user.id,
+                    parseInt(itemId, 10),
+                    seriesProgress.id,
+                    { forceWatched: true, removeIfNoEpisodes: false },
+                );
+
                 return new Response(JSON.stringify({ 
                     watched: result, 
                     success: true,
@@ -386,6 +395,25 @@ export async function POST(req) {
                 });
             } catch (error) {
                 console.error('Error syncing series progress:', error);
+                const { data: sp } = await supabase
+                    .from('series_progress')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('series_id', parseInt(itemId, 10))
+                    .maybeSingle();
+                if (sp?.id) {
+                    try {
+                        await syncTvWatchedContentFromProgress(
+                            supabase,
+                            user.id,
+                            parseInt(itemId, 10),
+                            sp.id,
+                            { forceWatched: true, removeIfNoEpisodes: false },
+                        );
+                    } catch (syncErr) {
+                        console.error('syncTvWatchedContentFromProgress after partial tv watch:', syncErr);
+                    }
+                }
                 // Don't fail the watched operation if series progress sync fails
                 // Return with error info
                 return new Response(JSON.stringify({ 
@@ -441,7 +469,50 @@ export async function DELETE(req) {
         }
 
         const supabase = await createServerClient();
-        // Uses index: idx_watched_content_user_content_media (composite index for fast deletion)
+
+        if (mediaType === 'tv') {
+            const { data: seriesProgressData, error: progressError } = await supabase
+                .from('series_progress')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('series_id', parseInt(itemId, 10))
+                .maybeSingle();
+
+            if (progressError && progressError.code !== 'PGRST116') {
+                throw progressError;
+            }
+
+            if (seriesProgressData) {
+                const { data: seasons, error: seasonsError } = await supabase
+                    .from('series_seasons')
+                    .select('id')
+                    .eq('series_progress_id', seriesProgressData.id);
+
+                if (seasonsError) throw seasonsError;
+
+                if (seasons && seasons.length > 0) {
+                    const seasonIds = seasons.map((s) => s.id);
+                    const { error: episodesError } = await supabase
+                        .from('series_episodes')
+                        .delete()
+                        .in('series_season_id', seasonIds);
+                    if (episodesError) throw episodesError;
+
+                    const { error: seasonsDeleteError } = await supabase
+                        .from('series_seasons')
+                        .delete()
+                        .eq('series_progress_id', seriesProgressData.id);
+                    if (seasonsDeleteError) throw seasonsDeleteError;
+                }
+
+                const { error: progressDeleteError } = await supabase
+                    .from('series_progress')
+                    .delete()
+                    .eq('id', seriesProgressData.id);
+                if (progressDeleteError) throw progressDeleteError;
+            }
+        }
+
         const { error } = await supabase
             .from('watched_content')
             .delete()
@@ -450,79 +521,6 @@ export async function DELETE(req) {
             .eq('media_type', mediaType);
 
         if (error) throw error;
-
-        // If it's a series, also clear series progress
-        if (mediaType === 'tv') {
-            try {
-                // Get series progress (don't use .single() to avoid error if not found)
-                // Uses index: idx_series_progress_user_series (composite index)
-                const { data: seriesProgressData, error: progressError } = await supabase
-                    .from('series_progress')
-                    .select('id')
-                    .eq('user_id', user.id)
-                    .eq('series_id', parseInt(itemId))
-                    .maybeSingle();
-
-                // Handle case where progress might not exist
-                if (progressError && progressError.code !== 'PGRST116') {
-                    throw progressError;
-                }
-
-                const seriesProgress = seriesProgressData;
-
-                if (seriesProgress) {
-                    // Get all seasons for this series progress
-                    const { data: seasons, error: seasonsError } = await supabase
-                        .from('series_seasons')
-                        .select('id')
-                        .eq('series_progress_id', seriesProgress.id);
-
-                    if (seasonsError) {
-                        console.error('Error fetching seasons for deletion:', seasonsError);
-                    }
-
-                    if (seasons && seasons.length > 0) {
-                        const seasonIds = seasons.map(s => s.id);
-                        
-                        // Delete ALL episodes for all seasons (regardless of airdate)
-                        // This ensures episodes without airdate are also deleted
-                        const { error: episodesError } = await supabase
-                            .from('series_episodes')
-                            .delete()
-                            .in('series_season_id', seasonIds);
-
-                        if (episodesError) {
-                            console.error('Error deleting episodes:', episodesError);
-                            // Continue with season deletion even if episode deletion fails
-                        }
-
-                        // Delete all seasons
-                        const { error: seasonsDeleteError } = await supabase
-                            .from('series_seasons')
-                            .delete()
-                            .eq('series_progress_id', seriesProgress.id);
-
-                        if (seasonsDeleteError) {
-                            console.error('Error deleting seasons:', seasonsDeleteError);
-                        }
-                    }
-
-                    // Delete series progress
-                    const { error: progressDeleteError } = await supabase
-                        .from('series_progress')
-                        .delete()
-                        .eq('id', seriesProgress.id);
-
-                    if (progressDeleteError) {
-                        console.error('Error deleting series progress:', progressDeleteError);
-                    }
-                }
-            } catch (error) {
-                console.error('Error clearing series progress:', error);
-                // Don't fail the watched deletion if series progress clear fails
-                // The watched_content deletion already succeeded
-            }
-        }
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,

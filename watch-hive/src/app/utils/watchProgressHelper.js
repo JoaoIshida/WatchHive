@@ -36,7 +36,7 @@ export function getSeriesWatchProgress(seriesId, seriesData = null, progress = n
         : true; // Default to true if we can't check (assume released)
     
     // Series is considered watched ONLY if:
-    // 1. It's explicitly marked as watched in watched_content (user's explicit choice), OR
+    // 1. It's explicitly marked as watched in watched_content (synced when ≥1 episode or mark-watched), OR
     // 2. It's marked as completed in progress AND series is released, OR
     // 3. It has watched episodes AND series is released
     // This prevents unreleased series from showing as watched, even if Supabase has it marked

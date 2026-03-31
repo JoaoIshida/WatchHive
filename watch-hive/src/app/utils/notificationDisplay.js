@@ -1,5 +1,7 @@
 const TYPE_LABELS = {
   new_episodes: 'Episode update',
+  catalog_expanded: 'Guide update',
+  series_catchup: 'Catch up',
   release_reminder: 'Release reminder',
   friend_request: 'Friend request',
 };

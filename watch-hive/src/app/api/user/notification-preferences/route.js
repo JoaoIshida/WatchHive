@@ -11,6 +11,9 @@ const DEFAULTS = {
   default_reminder_kinds: ['release_day'],
   custom_days_before: null,
   push_enabled: false,
+  push_friends: true,
+  push_catchup: true,
+  push_releases: true,
 };
 
 function coercePreferencesRow(row) {
@@ -20,9 +23,13 @@ function coercePreferencesRow(row) {
     kinds = row.default_reminder_kind ? [row.default_reminder_kind] : ['release_day'];
   }
   return {
+    ...DEFAULTS,
     ...row,
     default_reminder_kinds: kinds,
     default_reminder_kind: row.default_reminder_kind || legacyDefaultReminderKind(kinds),
+    push_friends: row.push_friends !== false,
+    push_catchup: row.push_catchup !== false,
+    push_releases: row.push_releases !== false,
   };
 }
 
@@ -77,6 +84,15 @@ export async function PATCH(req) {
     }
     if (body.push_enabled !== undefined) {
       patch.push_enabled = !!body.push_enabled;
+    }
+    if (body.push_friends !== undefined) {
+      patch.push_friends = !!body.push_friends;
+    }
+    if (body.push_catchup !== undefined) {
+      patch.push_catchup = !!body.push_catchup;
+    }
+    if (body.push_releases !== undefined) {
+      patch.push_releases = !!body.push_releases;
     }
 
     let kinds = normalizeReminderKindsInput(body.default_reminder_kinds);
@@ -150,6 +166,9 @@ export async function PATCH(req) {
           default_reminder_kinds: merged.default_reminder_kinds,
           custom_days_before: merged.custom_days_before,
           push_enabled: merged.push_enabled,
+          push_friends: merged.push_friends !== false,
+          push_catchup: merged.push_catchup !== false,
+          push_releases: merged.push_releases !== false,
           updated_at: merged.updated_at,
         },
         { onConflict: 'user_id' },

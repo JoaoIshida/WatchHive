@@ -24,13 +24,24 @@ const KINDS = [
   { value: "custom", label: "Custom — X days before" },
 ];
 
-function prefsPayload(timezone, reminderKinds, customDays, pushEnabled) {
+function prefsPayload(
+  timezone,
+  reminderKinds,
+  customDays,
+  pushEnabled,
+  pushFriends,
+  pushCatchup,
+  pushReleases,
+) {
   const hasCustom = reminderKinds.includes("custom");
   return {
     timezone,
     default_reminder_kinds: reminderKinds,
     custom_days_before: hasCustom ? customDays : null,
     push_enabled: pushEnabled,
+    push_friends: pushFriends,
+    push_catchup: pushCatchup,
+    push_releases: pushReleases,
   };
 }
 
@@ -45,6 +56,9 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
   const [reminderKinds, setReminderKinds] = useState(["release_day"]);
   const [customDays, setCustomDays] = useState(3);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushFriends, setPushFriends] = useState(true);
+  const [pushCatchup, setPushCatchup] = useState(true);
+  const [pushReleases, setPushReleases] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [standalone, setStandalone] = useState(false);
@@ -107,6 +121,9 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
       setCustomDays(preferences.custom_days_before);
     }
     setPushEnabled(!!preferences.push_enabled);
+    setPushFriends(preferences.push_friends !== false);
+    setPushCatchup(preferences.push_catchup !== false);
+    setPushReleases(preferences.push_releases !== false);
   }, [user]);
 
   useEffect(() => {
@@ -126,7 +143,17 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(prefsPayload(timezone, reminderKinds, customDays, pushEnabled)),
+        body: JSON.stringify(
+          prefsPayload(
+            timezone,
+            reminderKinds,
+            customDays,
+            pushEnabled,
+            pushFriends,
+            pushCatchup,
+            pushReleases,
+          ),
+        ),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -144,19 +171,21 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
     setMsg("");
     try {
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        setMsg("This browser does not support push alerts.");
+        setMsg("This browser does not support push notifications.");
         return;
       }
       const reg = await navigator.serviceWorker.ready;
       const keyRes = await fetch("/api/push/vapid-public-key");
       const keyData = await keyRes.json();
       if (!keyData.publicKey) {
-        setMsg("Push alerts are not available on this server right now.");
+        setMsg("Push notifications are not available on this server right now.");
         return;
       }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setMsg("Notifications are turned off — allow them in your browser settings to continue.");
+        setMsg(
+          "Browser notifications are blocked — allow them in your browser or OS settings to receive push.",
+        );
         return;
       }
       const sub = await reg.pushManager.subscribe({
@@ -171,7 +200,7 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
       });
       if (!subRes.ok) {
         const err = await subRes.json().catch(() => ({}));
-        setMsg(err.error || "Could not turn on alerts.");
+        setMsg(err.error || "Could not turn on push notifications.");
         return;
       }
       const prefRes = await fetch("/api/user/notification-preferences", {
@@ -179,19 +208,27 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          ...prefsPayload(timezone, reminderKinds, customDays, true),
+          ...prefsPayload(
+            timezone,
+            reminderKinds,
+            customDays,
+            true,
+            pushFriends,
+            pushCatchup,
+            pushReleases,
+          ),
           push_enabled: true,
         }),
       });
       if (!prefRes.ok) {
-        setMsg("Alerts are on, but we could not save your settings. Try Save preferences.");
+        setMsg("Push is on, but we could not save your settings. Try Save preferences.");
         return;
       }
       setPushEnabled(true);
-      setMsg("Push alerts are on.");
+      setMsg("Push notifications are on for this device.");
     } catch (e) {
       console.error(e);
-      setMsg("Something went wrong turning on alerts. Try again in a moment.");
+      setMsg("Something went wrong turning on push. Try again in a moment.");
     } finally {
       setPushBusy(false);
     }
@@ -218,10 +255,10 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         credentials: "include",
         body: JSON.stringify({ push_enabled: false }),
       });
-      setMsg("Push alerts are off.");
+      setMsg("Push notifications are off for this device.");
     } catch (e) {
       console.error(e);
-      setMsg("Could not turn off alerts completely. Check your device settings.");
+      setMsg("Could not turn off push completely. Check your device settings.");
     } finally {
       setPushBusy(false);
     }
@@ -254,10 +291,17 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         Release dates follow the Canadian TV schedule when we have them. Your timezone decides what
         counts as &quot;today&quot; for reminders.
       </p>
+      <p className="text-white/60 text-sm">
+        The card below sets <strong className="text-white/80 font-medium">when</strong> we schedule
+        release-related reminders. <strong className="text-white/80 font-medium">Device push</strong> is
+        optional and configured in the &quot;Push notifications&quot; card further down — that is not a
+        generic on/off for all notifications.
+      </p>
 
       {!standalone && (
         <p className="text-amber-500/90 text-sm border border-amber-500/30 rounded-lg p-3">
-          On iPhone or iPad, add WatchHive to your Home Screen for the most reliable alerts (Safari).
+          On iPhone or iPad, add WatchHive to your Home Screen for the most reliable push notifications
+          (Safari).
         </p>
       )}
 
@@ -322,10 +366,11 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
       </div>
 
       <div className="futuristic-card p-6 space-y-4">
-        <h3 className="text-lg font-bold text-amber-500">Phone &amp; computer alerts</h3>
+        <h3 className="text-lg font-bold text-amber-500">Push notifications</h3>
+        <p className="text-white/60 text-xs uppercase tracking-wide">Phone, tablet, and computer</p>
         <p className="text-white/70 text-sm">
-          Get a heads-up on your device when something you follow has news or a release coming up.
-          You can turn this off anytime.
+          Use the buttons here to allow or block push for <strong className="text-white/90 font-semibold">this device only</strong>.
+          You can turn push off anytime; release timing above still applies when we create in-app items.
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -334,7 +379,7 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
             onClick={enablePush}
             className="futuristic-button-yellow px-4 py-2 disabled:opacity-50"
           >
-            {pushBusy ? "Working…" : "Turn on alerts"}
+            {pushBusy ? "Working…" : "Turn on push"}
           </button>
           <button
             type="button"
@@ -342,8 +387,42 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
             onClick={disablePush}
             className="futuristic-button px-4 py-2 disabled:opacity-50"
           >
-            Turn off alerts
+            Turn off push
           </button>
+        </div>
+        <div className="space-y-2 pt-2 border-t border-white/10">
+          <span className="block text-white font-semibold text-sm">Categories</span>
+          <p className="text-white/50 text-xs">
+            Choose which kinds of updates may <strong className="text-white/70">send push</strong> to this
+            device and which appear in your <strong className="text-white/70">in-app Notifications</strong>{" "}
+            list. Friend requests still use a one-hour limit per sender.
+          </p>
+          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={pushFriends}
+              onChange={(e) => setPushFriends(e.target.checked)}
+            />
+            Friend requests
+          </label>
+          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={pushCatchup}
+              onChange={(e) => setPushCatchup(e.target.checked)}
+            />
+            Weekly catch-up <span className="text-white/50 text-xs">
+            (shows you&apos;re behind on episodes)
+            </span>
+          </label>
+          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={pushReleases}
+              onChange={(e) => setPushReleases(e.target.checked)}
+            />
+            Releases &amp; guide <span className="text-white/50 text-xs">(premieres, new episodes on the calendar, TMDB guide updates)</span>
+          </label>
         </div>
       </div>
 

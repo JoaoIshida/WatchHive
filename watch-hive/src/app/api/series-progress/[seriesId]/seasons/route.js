@@ -1,5 +1,6 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
+import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
 
 /**
  * Check if an episode is released (server-side validation)
@@ -204,6 +205,13 @@ export async function POST(req, { params }) {
             .from('series_progress')
             .update({ last_watched: new Date().toISOString() })
             .eq('id', seriesProgress.id);
+
+        await syncTvWatchedContentFromProgress(
+            supabase,
+            user.id,
+            parseInt(seriesId, 10),
+            seriesProgress.id,
+        );
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,

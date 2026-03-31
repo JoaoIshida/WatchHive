@@ -3,10 +3,27 @@ import { sendWebPushPayloadToUser } from './push-notify';
 const HOUR_MS = 60 * 60 * 1000;
 
 /**
- * In-app notification + optional Web Push (1 push per sender→receiver per hour).
+ * In-app notification + optional Web Push.
+ * At most one in-app row + one push burst per sender→receiver per hour (unified throttle).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  */
 export async function notifyFriendRequestReceived(supabase, { senderId, receiverId }) {
+  const { data: throttle, error: throttleErr } = await supabase
+    .from('friend_request_notify_throttle')
+    .select('last_notified_at')
+    .eq('sender_id', senderId)
+    .eq('receiver_id', receiverId)
+    .maybeSingle();
+
+  if (throttleErr) {
+    console.error('friend-request-notify: throttle read', throttleErr);
+  } else {
+    const last = throttle?.last_notified_at
+      ? new Date(throttle.last_notified_at).getTime()
+      : 0;
+    if (last && Date.now() - last < HOUR_MS) return;
+  }
+
   const { data: sender, error: pErr } = await supabase
     .from('profiles')
     .select('display_name')
@@ -31,43 +48,28 @@ export async function notifyFriendRequestReceived(supabase, { senderId, receiver
     return;
   }
 
+  const { error: upErr } = await supabase.from('friend_request_notify_throttle').upsert(
+    {
+      sender_id: senderId,
+      receiver_id: receiverId,
+      last_notified_at: new Date().toISOString(),
+    },
+    { onConflict: 'sender_id,receiver_id' },
+  );
+  if (upErr) console.error('friend-request-notify: throttle upsert', upErr);
+
   const { data: pref } = await supabase
     .from('notification_preferences')
-    .select('push_enabled')
+    .select('push_enabled, push_friends')
     .eq('user_id', receiverId)
     .maybeSingle();
 
-  if (pref && pref.push_enabled === false) return;
+  if (pref?.push_enabled === false) return;
+  if (pref && pref.push_friends === false) return;
 
-  const { data: throttle, error: throttleErr } = await supabase
-    .from('friend_request_push_throttle')
-    .select('last_push_at')
-    .eq('sender_id', senderId)
-    .eq('receiver_id', receiverId)
-    .maybeSingle();
-
-  if (throttleErr) {
-    console.error('friend-request-notify: throttle read', throttleErr);
-  } else {
-    const last = throttle?.last_push_at ? new Date(throttle.last_push_at).getTime() : 0;
-    if (last && Date.now() - last < HOUR_MS) return;
-  }
-
-  const pushed = await sendWebPushPayloadToUser(supabase, receiverId, {
+  await sendWebPushPayloadToUser(supabase, receiverId, {
     title: 'Friend request',
     body: `${name} wants to connect on WatchHive.`,
     url: '/profile/friends',
   });
-
-  if (pushed) {
-    const { error: upErr } = await supabase.from('friend_request_push_throttle').upsert(
-      {
-        sender_id: senderId,
-        receiver_id: receiverId,
-        last_push_at: new Date().toISOString(),
-      },
-      { onConflict: 'sender_id,receiver_id' },
-    );
-    if (upErr) console.error('friend-request-notify: throttle upsert', upErr);
-  }
 }
