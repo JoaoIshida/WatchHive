@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <title>WatchHive - Offline</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d1117;
+        --surface: rgba(15, 23, 42, 0.65);
+        --border: rgba(71, 85, 105, 0.6);
+        --text: #f8fafc;
+        --muted: rgba(248, 250, 252, 0.72);
+        --accent: #f59e0b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        background: rgba(2, 6, 23, 0.85);
+        backdrop-filter: blur(12px);
+      }
+      .container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 1rem;
+      }
+      @media (min-width: 640px) {
+        .container {
+          padding: 0 1.5rem;
+        }
+      }
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 56px;
+        gap: 1rem;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        text-decoration: none;
+        color: inherit;
+        font-weight: 700;
+        font-size: 1.125rem;
+        letter-spacing: -0.02em;
+      }
+      .brand img {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 0 3rem;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        padding: 1.75rem 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+        text-align: center;
+      }
+      .icon-wrap {
+        margin: 0 auto 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .icon-wrap img {
+        width: 100%;
+        max-width: 220px;
+        height: auto;
+        display: block;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+      .hint {
+        margin-top: 1.25rem;
+        font-size: 0.8125rem;
+        color: rgba(248, 250, 252, 0.55);
+      }
+      footer {
+        margin-top: auto;
+        border-top: 1px solid var(--border);
+        background: rgba(3, 7, 18, 0.92);
+      }
+      .footer-inner {
+        padding: 1.25rem 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+        color: rgba(248, 250, 252, 0.65);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container nav-inner">
+        <a class="brand" href="/" aria-label="WatchHive home">
+          <img src="/watchhive-icon.png" alt="" width="36" height="36" />
+          WatchHive
+        </a>
+      </div>
+    </header>
+    <main>
+      <div class="container">
+        <div class="card" role="status" aria-live="polite">
+          <div class="icon-wrap">
+            <img
+              src="/beengie/no-wifi-beengie.png"
+              alt=""
+              width="270"
+              height="226"
+              decoding="async"
+            />
+          </div>
+          <h1>You’re offline</h1>
+          <p>
+            WatchHive needs an internet connection. Connect to Wi‑Fi or mobile data, then try again.
+          </p>
+        </div>
+      </div>
+    </main>
+    <footer>
+      <div class="container footer-inner">
+        <span>WatchHive</span>
+        <span>Movies and TV - online only</span>
+      </div>
+    </footer>
+  </body>
+</html>
