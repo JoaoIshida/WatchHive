@@ -252,7 +252,6 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
             filterObj.trending = true;
         } else if (contentTypeValue === 'upcoming') {
             filterObj.upcoming = true;
-            filterObj.dateRange = 'upcoming';
         }
         
         return filterObj;
@@ -602,6 +601,11 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                             </button>
                                         ))}
                                     </div>
+                                    <p className="text-[10px] text-white/55 mt-2 leading-relaxed">
+                                        {mediaType === 'movie'
+                                            ? 'Movie ratings use BR (Brazil) certifications via TMDB discover.'
+                                            : 'TV: TMDB discover does not apply age ratings like movies; results may not match this filter.'}
+                                    </p>
                                 </CollapsibleSection>
 
                                 {/* Date Info Section - Mobile: Year Search + Date Range */}
@@ -617,6 +621,9 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                                 selectedYears={selectedYears}
                                                 onYearsChange={handleYearsChange}
                                             />
+                                            <p className="text-[10px] text-white/55 -mt-2 leading-relaxed">
+                                                If you pick several years, TMDB discover uses only the first year.
+                                            </p>
                                             <div>
                                                 <label className="block text-xs font-semibold text-amber-500/90 mb-2">Date Range</label>
                                                 <select
@@ -631,7 +638,14 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                                     }}
                                                 >
                                                     <option value="" className="bg-charcoal-900 text-white">All Dates</option>
-                                                    <option value="upcoming" className="bg-charcoal-900 text-white">Upcoming</option>
+                                                    {mediaType === 'tv' ? (
+                                                        <>
+                                                            <option value="upcoming" className="bg-charcoal-900 text-white">New premieres</option>
+                                                            <option value="episodes_upcoming" className="bg-charcoal-900 text-white">Episodes airing (12 mo)</option>
+                                                        </>
+                                                    ) : (
+                                                        <option value="upcoming" className="bg-charcoal-900 text-white">Upcoming releases</option>
+                                                    )}
                                                     <option value="this_week" className="bg-charcoal-900 text-white">This Week</option>
                                                     <option value="this_month" className="bg-charcoal-900 text-white">This Month</option>
                                                     <option value="this_year" className="bg-charcoal-900 text-white">This Year</option>
@@ -915,6 +929,11 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     ))}
                                 </div>
                             </div>
+                            <p className="text-xs text-white/55 mt-2 leading-relaxed">
+                                {mediaType === 'movie'
+                                    ? 'Movie ratings use BR (Brazil) certifications via TMDB discover.'
+                                    : 'TV: TMDB discover does not apply age ratings like movies; results may not match this filter.'}
+                            </p>
                         </div>
                     </div>
 
@@ -1078,6 +1097,9 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     selectedYears={selectedYears}
                                     onYearsChange={handleYearsChange}
                                 />
+                                <p className="text-xs text-white/55 mt-2 leading-relaxed">
+                                    If you pick several years, TMDB discover uses only the first year.
+                                </p>
                             </div>
 
                             <div className="mb-6">
@@ -1094,7 +1116,14 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     }}
                                 >
                                     <option value="" className="bg-charcoal-900 text-white">All Dates</option>
-                                    <option value="upcoming" className="bg-charcoal-900 text-white">Upcoming</option>
+                                    {mediaType === 'tv' ? (
+                                        <>
+                                            <option value="upcoming" className="bg-charcoal-900 text-white">New premieres</option>
+                                            <option value="episodes_upcoming" className="bg-charcoal-900 text-white">Episodes airing (12 mo)</option>
+                                        </>
+                                    ) : (
+                                        <option value="upcoming" className="bg-charcoal-900 text-white">Upcoming releases</option>
+                                    )}
                                     <option value="this_week" className="bg-charcoal-900 text-white">This Week</option>
                                     <option value="this_month" className="bg-charcoal-900 text-white">This Month</option>
                                     <option value="this_year" className="bg-charcoal-900 text-white">This Year</option>

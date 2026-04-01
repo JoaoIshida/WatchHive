@@ -277,7 +277,7 @@ const Navbar = () => {
         { href: '/series', label: 'All Series' },
         { href: '/series?trending=true', label: 'Trending' },
         { href: '/series?airingToday=true', label: 'Airing Today' },
-        { href: '/series?upcoming=true', label: 'Upcoming' },
+        { href: '/series?upcoming=true', label: 'On TV' },
         { href: '/series?dateRange=thisYear', label: 'This Year' },
     ];
 

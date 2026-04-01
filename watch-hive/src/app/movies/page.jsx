@@ -292,8 +292,12 @@ const PopularMoviesContent = () => {
     const getPageTitle = () => {
         if (filters.trending === true) {
             return 'Trending Movies';
-        } else if (filters.upcoming === true) {
+        }
+        if (filters.upcoming === true) {
             return 'Upcoming Movies';
+        }
+        if (filters.dateRange === 'upcoming') {
+            return 'Upcoming Releases';
         }
         return 'Popular Movies';
     };
@@ -322,6 +326,7 @@ const PopularMoviesContent = () => {
                     {/* Active Filters - Desktop only */}
                     <div className="hidden sm:block">
                         <ActiveFilters
+                            mediaType="movie"
                             filters={filters}
                             genres={genres}
                             watchProviders={watchProviders}

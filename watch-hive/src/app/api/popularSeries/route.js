@@ -97,6 +97,15 @@ export async function GET(req) {
                 case 'upcoming':
                     params['first_air_date.gte'] = now.toISOString().split('T')[0];
                     break;
+                case 'episodes_upcoming': {
+                    // Discover TV: episode air dates in range (TMDB v3 discover/tv — air_date.gte / air_date.lte)
+                    const todayStr = now.toISOString().split('T')[0];
+                    params['air_date.gte'] = todayStr;
+                    const end = new Date(now);
+                    end.setFullYear(end.getFullYear() + 1);
+                    params['air_date.lte'] = end.toISOString().split('T')[0];
+                    break;
+                }
                 case 'this_week':
                     const thisWeek = new Date(now);
                     thisWeek.setDate(now.getDate() - now.getDay());

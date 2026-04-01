@@ -291,8 +291,15 @@ const PopularSeriesContent = () => {
     const getPageTitle = () => {
         if (filters.trending === true) {
             return 'Trending Series';
-        } else if (filters.upcoming === true) {
-            return 'Upcoming Series';
+        }
+        if (filters.upcoming === true) {
+            return 'On TV';
+        }
+        if (filters.dateRange === 'upcoming') {
+            return 'New Series Premieres';
+        }
+        if (filters.dateRange === 'episodes_upcoming') {
+            return 'Episodes Airing';
         }
         return 'Popular Series';
     };
@@ -321,6 +328,7 @@ const PopularSeriesContent = () => {
                     {/* Active Filters - Desktop only */}
                     <div className="hidden sm:block">
                         <ActiveFilters
+                            mediaType="tv"
                             filters={filters}
                             genres={genres}
                             watchProviders={watchProviders}

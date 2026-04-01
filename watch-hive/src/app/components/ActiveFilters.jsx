@@ -2,7 +2,21 @@
 import { useMemo } from 'react';
 import { formatRuntime } from '../utils/runtimeFormatter';
 
-const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConfig, watchProviders = [] }) => {
+const dateRangeDisplayLabel = (dateRange, mediaType = 'movie') => {
+    if (!dateRange) return '';
+    if (dateRange === 'upcoming') {
+        return mediaType === 'tv' ? 'New premieres' : 'Upcoming releases';
+    }
+    if (dateRange === 'episodes_upcoming') {
+        return mediaType === 'tv' ? 'Episodes airing' : 'Upcoming releases';
+    }
+    if (dateRange === 'this_week') return 'This Week';
+    if (dateRange === 'this_month') return 'This Month';
+    if (dateRange === 'this_year') return 'This Year';
+    return dateRange;
+};
+
+const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConfig, watchProviders = [], mediaType = 'movie' }) => {
     const getSelectedGenreNames = () => {
         if (!filters.genres || !Array.isArray(filters.genres)) return [];
         return filters.genres.map(id => {
@@ -198,10 +212,7 @@ const ActiveFilters = ({ filters, genres, onFilterChange, onSortChange, sortConf
                         className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium hover:bg-amber-500/30 transition-colors border border-amber-500/30"
                     >
                         <span>
-                            {filters.dateRange === 'upcoming' ? 'Upcoming' :
-                             filters.dateRange === 'this_week' ? 'This Week' :
-                             filters.dateRange === 'this_month' ? 'This Month' :
-                             filters.dateRange === 'this_year' ? 'This Year' : filters.dateRange}
+                            {dateRangeDisplayLabel(filters.dateRange, mediaType)}
                         </span>
                         <span className="text-amber-500 font-bold">×</span>
                     </button>

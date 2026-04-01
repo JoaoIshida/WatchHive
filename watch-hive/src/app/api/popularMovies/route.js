@@ -104,6 +104,7 @@ export async function GET(req) {
         if (dateRange) {
             switch (dateRange) {
                 case 'upcoming':
+                case 'episodes_upcoming':
                     params['primary_release_date.gte'] = now.toISOString().split('T')[0];
                     break;
                 case 'this_week':
