@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { Eye } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
@@ -16,6 +17,40 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
     const [error, setError] = useState(null);
     const [seriesSummary, setSeriesSummary] = useState(null);
     const [reminderOpen, setReminderOpen] = useState(false);
+
+    const shouldShowWatchingReminder = () => {
+        if (typeof window === 'undefined') return false;
+        // Respect per-flow suppression
+        const suppressed = window.localStorage.getItem('watchhive_suppress_watching_reminder_picker') === '1';
+        if (suppressed) return false;
+        if (mediaType !== 'tv' || !itemData) return false;
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        // If TMDB says the series is still in production / returning, there may be future episodes
+        const status = (itemData.status || '').toLowerCase();
+        if (['returning series', 'in production', 'planned', 'pilot'].includes(status)) {
+            return true;
+        }
+
+        // If TMDB exposes a next_episode_to_air in the future, definitely show
+        const nextAir = itemData.next_episode_to_air?.air_date;
+        if (nextAir) {
+            const nextDate = new Date(nextAir);
+            nextDate.setHours(0, 0, 0, 0);
+            if (nextDate >= now) return true;
+        }
+
+        // If last_air_date is in the future, there may still be unaired content
+        if (itemData.last_air_date) {
+            const lastDate = new Date(itemData.last_air_date);
+            lastDate.setHours(0, 0, 0, 0);
+            if (lastDate >= now) return true;
+        }
+
+        return false;
+    };
 
     // Derive watched state from context
     const watchedItem = user
@@ -44,6 +79,9 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                     setError('Failed to remove from watched. Please try again.');
                 }
                 refreshUserData();
+                if (mediaType === 'tv') {
+                    window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                }
             } catch (error) {
                 console.error('Error removing watched status:', error);
                 setError('Failed to remove from watched. Please try again.');
@@ -120,18 +158,25 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                             });
                             setShowNotification(true);
                         } else {
-                            setReminderOpen(true);
+                            if (shouldShowWatchingReminder()) {
+                                setReminderOpen(true);
+                            }
                             openedReminder = true;
                         }
                     }
                     if (mediaType === 'tv' && !openedReminder && !data.seriesProgress) {
-                        setReminderOpen(true);
+                        if (shouldShowWatchingReminder()) {
+                            setReminderOpen(true);
+                        }
                     }
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     setError(errorData.error || 'Failed to mark as watched. Please try again.');
                 }
                 refreshUserData();
+                if (mediaType === 'tv') {
+                    window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                }
             } catch (error) {
                 console.error('Error toggling watched status:', error);
                 setError('An error occurred. Please try again.');
@@ -144,6 +189,11 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
     };
 
     const handleIncrement = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+
         setLoading(true);
         try {
             const response = await fetch('/api/watched', {
@@ -153,6 +203,9 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
             });
             if (response.ok) {
                 refreshUserData();
+                if (mediaType === 'tv') {
+                    window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+                }
             }
             if (onUpdate) onUpdate();
         } catch (error) {
@@ -171,9 +224,10 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                 mediaType="tv"
                 variant="watching"
                 title="Episode / air-date reminder"
+                flowKey="watching"
             />
             <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={handleToggle}
                         disabled={loading}
@@ -203,19 +257,38 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                             </>
                         )}
                     </button>
-                    {isWatched && !loading && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-amber-400 font-semibold">
-                                {timesWatched}x
-                            </span>
-                            <button
-                                onClick={handleIncrement}
-                                disabled={loading}
-                                className="futuristic-button-yellow text-sm px-3 py-1"
-                                title="Increment watch count"
-                            >
-                                +1
-                            </button>
+                    {isWatched && (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-charcoal-900/80 border border-amber-500/40">
+                            <Eye className="w-4 h-4 text-amber-400" />
+                            <div className="flex items-center gap-1 ml-1">
+                                <button
+                                    onClick={() => {
+                                        if (!loading) {
+                                            void handleToggle();
+                                        }
+                                    }}
+                                    disabled={loading}
+                                    className="w-6 h-6 flex items-center justify-center rounded-full border border-charcoal-700 bg-charcoal-900 text-white/80 hover:bg-charcoal-800 hover:border-amber-500/60 disabled:opacity-40 disabled:cursor-not-allowed text-[11px]"
+                                    aria-label="Decrease watched count"
+                                >
+                                    –
+                                </button>
+                                <span className="min-w-[1.75rem] text-center text-xs font-semibold text-amber-400 tabular-nums">
+                                    {timesWatched}x
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        if (!loading) {
+                                            void handleIncrement();
+                                        }
+                                    }}
+                                    disabled={loading}
+                                    className="w-6 h-6 flex items-center justify-center rounded-full border border-amber-500/70 bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed text-[11px]"
+                                    aria-label="Increase watched count"
+                                >
+                                    +
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

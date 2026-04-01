@@ -178,7 +178,6 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                 {user && timesWatched > 0 && (
                     <span
                         className="text-[10px] font-bold tabular-nums text-amber-400 bg-charcoal-950/90 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0 max-w-[2.5rem] truncate"
-                        title={`Watched ${timesWatched} time${timesWatched === 1 ? '' : 's'}`}
                     >
                         {timesWatched}×
                     </span>

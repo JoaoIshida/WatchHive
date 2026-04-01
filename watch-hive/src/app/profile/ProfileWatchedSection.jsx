@@ -99,9 +99,6 @@ export default function ProfileWatchedSection({ watchedDetails, watchedFilter, s
                                                         mediaType={item.media_type}
                                                         href={href}
                                                     />
-                                                    <div className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded z-20">
-                                                        {item.timesWatched}x
-                                                    </div>
                                                     {item.dateWatched && (
                                                         <div className="absolute bottom-2 right-2 bg-charcoal-800/90 text-white text-[8px] px-1.5 py-0.5 rounded z-20">
                                                             {new Date(item.dateWatched).toLocaleDateString()}

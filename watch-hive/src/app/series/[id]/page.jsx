@@ -107,7 +107,7 @@ const SerieDetailPage = async ({ params }) => {
                             {/* User Actions */}
                             <div className="flex flex-wrap gap-3">
                                 <WatchedButton itemId={tv.id} mediaType="tv" seasons={tv.seasons} itemData={tv} />
-                                <WishlistButton itemId={tv.id} mediaType="tv" />
+                                <WishlistButton itemId={tv.id} mediaType="tv" itemData={tv} />
                                 <FavoriteButton itemId={tv.id} mediaType="tv" />
                                 <AddToListButton itemId={tv.id} mediaType="tv" itemTitle={tv.name} />
                             </div>

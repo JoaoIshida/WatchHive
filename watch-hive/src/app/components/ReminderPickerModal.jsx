@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const KIND_OPTIONS = [
   { value: "release_day", label: "On release day" },
@@ -15,11 +15,20 @@ export default function ReminderPickerModal({
   mediaType,
   variant,
   title = "Reminder for releases",
+  flowKey, // e.g. "watching" or "wishlist" for per-flow suppression
 }) {
   const [useGlobal, setUseGlobal] = useState(true);
   const [kind, setKind] = useState("release_day");
   const [customDays, setCustomDays] = useState(3);
   const [saving, setSaving] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    // Reset local checkbox state whenever modal opens
+    if (open) {
+      setDontShowAgain(false);
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -59,6 +68,13 @@ export default function ReminderPickerModal({
         alert(err.error || "Failed to save");
         return;
       }
+      // Persist per-flow "don't show again" flag in localStorage when requested
+      if (dontShowAgain && typeof window !== "undefined" && flowKey) {
+        window.localStorage.setItem(
+          `watchhive_suppress_${flowKey}_reminder_picker`,
+          "1",
+        );
+      }
       onClose?.();
     } finally {
       setSaving(false);
@@ -80,6 +96,16 @@ export default function ReminderPickerModal({
           />
           Use my global default (Settings → Notifications)
         </label>
+        {flowKey && (
+          <label className="flex items-center gap-2 text-white/80 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+            />
+            Don't show this picker again for this action
+          </label>
+        )}
         {!useGlobal && (
           <div className="space-y-2 pl-2 border-l-2 border-amber-500/40">
             {KIND_OPTIONS.map((o) => (

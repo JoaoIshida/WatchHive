@@ -115,7 +115,7 @@ const MovieDetailPage = async ({ params }) => {
                             {/* User Actions */}
                             <div className="flex flex-wrap gap-3">
                                 <WatchedButton itemId={movie.id} mediaType="movie" itemData={movie} />
-                                <WishlistButton itemId={movie.id} mediaType="movie" />
+                                <WishlistButton itemId={movie.id} mediaType="movie" itemData={movie} />
                                 <FavoriteButton itemId={movie.id} mediaType="movie" />
                                 <AddToListButton itemId={movie.id} mediaType="movie" itemTitle={movie.title} />
                             </div>
