@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import ContentCard from './ContentCard';
 import LoadingCard from './LoadingCard';
+import Pagination from './Pagination';
 
 const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
     const [series, setSeries] = useState([]);
@@ -33,7 +34,7 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
                     
                     const response = await fetch(`/api/upcoming/series?${queryParams.toString()}`);
                     if (!response.ok) {
-                        throw new Error('Failed to fetch upcoming series');
+                        throw new Error('Failed to fetch on-the-air series');
                     }
                     const data = await response.json();
                     setSeries(data.results || []);
@@ -244,23 +245,7 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
 
     return (
         <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-center my-6 gap-2">
-                <button
-                    onClick={() => onPageChange(Math.max(page - 1, 1))}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page === 1}
-                >
-                    Prev
-                </button>
-                <span className="bg-charcoal-800/80 border border-amber-500/50 text-amber-500 font-bold p-2 px-4 rounded-lg">{page}</span>
-                <button
-                    onClick={() => onPageChange(page + 1)}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page >= totalPages}
-                >
-                    Next
-                </button>
-            </div>
+            <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
             {series.length === 0 ? (
                 <div className="text-center py-6 text-white">No popular series available</div>
             ) : (
@@ -275,23 +260,7 @@ const SeriesList = ({ page, filters, sortConfig, onPageChange }) => {
                     ))}
                 </div>
             )}
-            <div className="flex items-center justify-center my-6 gap-2">
-                <button
-                    onClick={() => onPageChange(Math.max(page - 1, 1))}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page === 1}
-                >
-                    Prev
-                </button>
-                <span className="bg-charcoal-800/80 border border-amber-500/50 text-amber-500 font-bold p-2 px-4 rounded-lg">{page}</span>
-                <button
-                    onClick={() => onPageChange(page + 1)}
-                    className="futuristic-button disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={page >= totalPages}
-                >
-                    Next
-                </button>
-            </div>
+            <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
         </div>
     );
 };
