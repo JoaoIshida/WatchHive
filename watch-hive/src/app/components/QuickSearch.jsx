@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import ImageWithFallback from './ImageWithFallback';
 import { highlightText } from '../utils/highlightText';
 import { recentSearchesStorage } from '../lib/localStorage';
+import { normalizeSearchQueryInput } from '../utils/searchQueryNormalize';
 
 const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
     const [query, setQuery] = useState('');
@@ -54,7 +55,8 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
     // Autofocus is reliable on mobile when within user gesture context.
 
     const searchContent = async (searchQuery) => {
-        if (!searchQuery.trim()) return;
+        const normalized = normalizeSearchQueryInput(searchQuery);
+        if (!normalized.trim()) return;
 
         setLoading(true);
         try {
@@ -62,7 +64,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
             
-            const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`, {
+            const response = await fetch(`/api/search?query=${encodeURIComponent(normalized)}`, {
                 signal: controller.signal
             });
             
@@ -246,7 +248,7 @@ const QuickSearch = ({ onClose, isNavbar = false, autoFocus = false }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className={`${isNavbar ? 'text-base' : 'text-sm'} font-semibold text-white truncate mb-1.5`}>
-                                        {highlightText(title, query)}
+                                        {highlightText(title, normalizeSearchQueryInput(query))}
                                     </h3>
                                     {item.overview && (
                                         <p className={`${isNavbar ? 'text-sm' : 'text-xs'} text-white/70 ${isNavbar ? 'line-clamp-3' : 'line-clamp-2'} mb-2`}>

@@ -8,6 +8,7 @@ import { formatDate } from '../utils/dateFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
 import { highlightText } from '../utils/highlightText';
 import { recentSearchesStorage } from '../lib/localStorage';
+import { normalizeSearchQueryInput } from '../utils/searchQueryNormalize';
 
 const SearchPageContent = () => {
     const searchParams = useSearchParams();
@@ -22,7 +23,8 @@ const SearchPageContent = () => {
 
     // Function to handle the search. Only addToRecent when user commits (Enter or landed with URL), not on every keystroke.
     const handleSearch = useCallback(async (searchQuery, updateURL = true, addToRecent = false) => {
-        if (!searchQuery) {
+        const normalized = normalizeSearchQueryInput(searchQuery);
+        if (!normalized || !normalized.trim()) {
             setResults([]); // Clear results if input is empty
             if (updateURL) {
                 router.replace(pathname);
@@ -33,24 +35,24 @@ const SearchPageContent = () => {
 
         setLoading(true);
         if (updateURL) {
-            lastSearchQueryRef.current = searchQuery;
+            lastSearchQueryRef.current = normalized;
         }
 
         try {
             if (updateURL) {
                 const params = new URLSearchParams();
-                params.set('q', searchQuery);
+                params.set('q', normalized);
                 router.replace(`${pathname}?${params.toString()}`, { scroll: false });
             }
 
-            const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
+            const response = await fetch(`/api/search?query=${encodeURIComponent(normalized)}`);
             if (!response.ok) {
                 throw new Error('Failed to fetch search results');
             }
             const data = await response.json();
             setResults(data);
             if (addToRecent) {
-                recentSearchesStorage.add(searchQuery);
+                recentSearchesStorage.add(normalized);
             }
         } catch (error) {
             console.error('Error fetching search results:', error);
@@ -63,7 +65,7 @@ const SearchPageContent = () => {
     // Sync with URL: when q param changes (e.g. from navbar or initial load), update local state and run search.
     // Do NOT overwrite query when the URL was just set by our own debounced search (avoids input reverting / missing letters).
     const urlQuery = searchParams.get('q') || '';
-    const decodedUrlQuery = urlQuery ? decodeURIComponent(urlQuery) : '';
+    const decodedUrlQuery = urlQuery ? normalizeSearchQueryInput(urlQuery) : '';
 
     useEffect(() => {
         if (decodedUrlQuery === lastSearchQueryRef.current) {
@@ -131,7 +133,8 @@ const SearchPageContent = () => {
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && query.trim()) {
                         e.preventDefault();
-                        handleSearch(query.trim(), true, true); // Commit search and add to recent
+                        // Preserve exact characters (including spaces) in the committed query
+                        handleSearch(query, true, true); // Commit search and add to recent
                     }
                 }}
                 placeholder="Search for movies and series..."
@@ -212,7 +215,7 @@ const SearchPageContent = () => {
                                             />
                                             <div className='flex flex-col flex-1'>
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className="font-bold text-white text-lg">{highlightText(title, query)}</h3>
+                                                    <h3 className="font-bold text-white text-lg">{highlightText(title, normalizeSearchQueryInput(query))}</h3>
                                                     <span className="text-xs bg-charcoal-800 text-white px-2 py-1 rounded border border-amber-500/50">
                                                         {typeLabel}
                                                     </span>

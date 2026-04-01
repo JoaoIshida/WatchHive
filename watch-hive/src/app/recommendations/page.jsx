@@ -6,6 +6,7 @@ import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LoadingCard from '../components/LoadingCard';
 import { RecommendationsSkeleton } from '../components/Skeleton';
+import { normalizeSearchQueryInput } from '../utils/searchQueryNormalize';
 
 const RecommendationsPage = () => {
     const [inputs, setInputs] = useState(['', '', '', '']);
@@ -17,7 +18,8 @@ const RecommendationsPage = () => {
 
     // Function to fetch suggestions from API
     const fetchSuggestions = async (query, index) => {
-        if (query.trim().length === 0) {
+        const normalized = normalizeSearchQueryInput(query);
+        if (normalized.trim().length === 0) {
             return setSuggestions(prev => {
                 const newSuggestions = [...prev];
                 newSuggestions[index] = [];
@@ -26,7 +28,7 @@ const RecommendationsPage = () => {
         }
 
         try {
-            const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+            const response = await fetch(`/api/search?query=${encodeURIComponent(normalized)}`);
             const data = await response.json();
             
             // Filter based on media type preference
