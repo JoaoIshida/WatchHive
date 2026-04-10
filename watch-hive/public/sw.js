@@ -1,13 +1,13 @@
 /* WatchHive service worker — push, offline shell cache, background sync signal */
 
-const CACHE_SHELL = "watchhive-shell-v2";
+const CACHE_SHELL = "watchhive-shell-v3";
 const SYNC_TAG = "watchhive-sync";
 
 /** Same-origin paths precached for offline shell (layout + assets only). */
 const SHELL_PATHS = new Set([
   "/offline.html",
   "/manifest.webmanifest",
-  "/watchhive-icon.png",
+  "/beengie/beengie-logo.png",
   /** Offline mascot (PNG); must be listed or img requests fail when offline. */
   "/beengie/no-wifi-beengie.png",
 ]);
@@ -107,8 +107,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/watchhive-icon.png",
-      badge: "/watchhive-icon.png",
+      icon: "/beengie/beengie-logo.png",
+      badge: "/beengie/beengie-logo.png",
       data: { url: data.url || "/" },
     }),
   );

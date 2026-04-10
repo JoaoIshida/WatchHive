@@ -8,10 +8,10 @@
   "theme_color": "#0a0a0a",
   "icons": [
     {
-      "src": "/watchhive-icon.png",
-      "sizes": "512x512",
+      "src": "/beengie/beengie-logo.png",
+      "sizes": "1385x1313",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

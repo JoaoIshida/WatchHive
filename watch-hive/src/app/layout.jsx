@@ -22,17 +22,19 @@ export const metadata = {
   themeColor: "#0a0a0a",
   icons: {
     icon: {
-      url: '/watchhive-icon.png',
-      type: 'image/png',
-      sizes: 'any',
+      url: "/beengie/beengie-logo.png",
+      type: "image/png",
+      sizes: "1385x1313",
     },
     shortcut: {
-      url: '/watchhive-icon.png',
-      type: 'image/png',
+      url: "/beengie/beengie-logo.png",
+      type: "image/png",
+      sizes: "1385x1313",
     },
     apple: {
-      url: '/watchhive-icon.png',
-      type: 'image/png',
+      url: "/beengie/beengie-logo.png",
+      type: "image/png",
+      sizes: "1385x1313",
     },
   },
 };
