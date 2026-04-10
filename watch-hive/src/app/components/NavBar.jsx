@@ -291,7 +291,7 @@ const Navbar = () => {
             <div className="container mx-auto flex items-center justify-between gap-4">
                 {/* Logo */}
                 <a className="text-amber-500 text-3xl font-bold cursor-pointer hover:text-amber-400 transition-colors flex-shrink-0" href="/">
-                    <img src="/watchhive-logo.png" alt="Watch Hive Logo" className="inline h-12 w-auto mr-2 align-middle scale-125" />
+                    <img src="/beengie/beengie-logo.png" alt="Watch Hive Logo" className="inline h-12 w-auto mr-2 align-middle scale-125" />
                 </a>
                 
                 {/* Desktop Navigation */}
