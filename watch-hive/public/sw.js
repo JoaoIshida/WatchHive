@@ -1,6 +1,6 @@
 /* WatchHive service worker — push, offline shell cache, background sync signal */
 
-const CACHE_SHELL = "watchhive-shell-v3";
+const CACHE_SHELL = "watchhive-shell-v4";
 const SYNC_TAG = "watchhive-sync";
 
 /** Same-origin paths precached for offline shell (layout + assets only). */

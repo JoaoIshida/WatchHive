@@ -23,14 +23,60 @@
       * {
         box-sizing: border-box;
       }
+      html.ptr-pull-enabled {
+        overscroll-behavior-y: none;
+      }
       body {
         margin: 0;
         min-height: 100vh;
-        display: flex;
-        flex-direction: column;
         font-family: "Inter", system-ui, sans-serif;
         background: var(--bg);
         color: var(--text);
+      }
+      /* Same pattern as PullToRefresh.jsx — shelf + translated layout */
+      .ptr-shelf {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        z-index: 130;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        pointer-events: none;
+        background: #0d1117;
+        height: 0;
+        transition: height 0.22s cubic-bezier(0.33, 1, 0.68, 1);
+      }
+      .ptr-shelf-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.08s linear;
+      }
+      .ptr-shelf-inner.ptr-visible {
+        opacity: 1;
+      }
+      .ptr-layout {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        width: 100%;
+        background: var(--bg);
+        transition: transform 0.24s cubic-bezier(0.33, 1, 0.68, 1);
+      }
+      .ptr-svg {
+        color: #f59e0b;
+      }
+      .ptr-svg.ptr-spinning {
+        animation: ptr-spin 0.55s linear infinite;
+      }
+      @keyframes ptr-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
       header {
         border-bottom: 1px solid var(--border);
@@ -132,38 +178,313 @@
     </style>
   </head>
   <body>
-    <header>
-      <div class="container nav-inner">
-        <a class="brand" href="/" aria-label="WatchHive home">
-          <img src="/beengie/beengie-logo.png" alt="" width="36" height="36" />
-          WatchHive
-        </a>
+    <div id="ptr-shelf" class="ptr-shelf" aria-hidden="true">
+      <div id="ptr-shelf-inner" class="ptr-shelf-inner">
+        <svg
+          id="ptr-svg"
+          class="ptr-svg"
+          width="34"
+          height="34"
+          viewBox="0 0 36 36"
+        >
+          <circle
+            id="ptr-arc"
+            cx="18"
+            cy="18"
+            r="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-dasharray="8 88"
+            stroke-dashoffset="0"
+            opacity="0.82"
+          />
+        </svg>
       </div>
-    </header>
-    <main>
-      <div class="container">
-        <div class="card" role="status" aria-live="polite">
-          <div class="icon-wrap">
-            <img
-              src="/beengie/no-wifi-beengie.png"
-              alt=""
-              width="270"
-              height="226"
-              decoding="async"
-            />
-          </div>
-          <h1>You’re offline</h1>
-          <p>
-            WatchHive needs an internet connection. Connect to Wi‑Fi or mobile data, then try again.
-          </p>
+    </div>
+
+    <div id="ptr-layout" class="ptr-layout">
+      <header>
+        <div class="container nav-inner">
+          <a class="brand" href="/" aria-label="WatchHive home">
+            <img src="/beengie/beengie-logo.png" alt="" width="36" height="36" />
+            WatchHive
+          </a>
         </div>
-      </div>
-    </main>
-    <footer>
-      <div class="container footer-inner">
-        <span>WatchHive</span>
-        <span>Movies and TV - online only</span>
-      </div>
-    </footer>
+      </header>
+      <main>
+        <div class="container">
+          <div class="card" role="status" aria-live="polite">
+            <div class="icon-wrap">
+              <img
+                src="/beengie/no-wifi-beengie.png"
+                alt=""
+                width="270"
+                height="226"
+                decoding="async"
+              />
+            </div>
+            <h1>You’re offline</h1>
+            <p>
+              WatchHive needs an internet connection. Connect to Wi‑Fi or mobile data, then try again.
+            </p>
+            <p class="hint">Pull down from the top to check the connection again.</p>
+          </div>
+        </div>
+      </main>
+      <footer>
+        <div class="container footer-inner">
+          <span>WatchHive</span>
+          <span>Movies and TV - online only</span>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        /* Mirrors src/app/components/PullToRefresh.jsx */
+        var THRESHOLD = 56;
+        var MAX_PULL = 96;
+        var DAMP = 0.42;
+        var MIN_REFRESH_MS = 480;
+        var REFRESH_SHELF = 52;
+
+        var shelf = document.getElementById("ptr-shelf");
+        var shelfInner = document.getElementById("ptr-shelf-inner");
+        var layout = document.getElementById("ptr-layout");
+        var svg = document.getElementById("ptr-svg");
+        var arc = document.getElementById("ptr-arc");
+
+        var pull = 0;
+        var refreshing = false;
+        var pullRef = 0;
+        var startY = 0;
+        var startX = 0;
+        var active = false;
+        var refreshingLock = false;
+        var listenersBound = false;
+
+        var mq = window.matchMedia("(max-width: 1024px)");
+
+        function isPullRefreshEnabled() {
+          var touch = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+          return mq.matches && touch;
+        }
+
+        function setShelfHeight(px) {
+          shelf.style.height = px + "px";
+          layout.style.transform = "translateY(" + px + "px)";
+        }
+
+        function setShelfTransition(on) {
+          var ease = on
+            ? "height 0.22s cubic-bezier(0.33, 1, 0.68, 1)"
+            : "none";
+          var ease2 = on
+            ? "transform 0.24s cubic-bezier(0.33, 1, 0.68, 1)"
+            : "none";
+          shelf.style.transition = ease;
+          layout.style.transition = ease2;
+        }
+
+        function updateArc(progress, spinning) {
+          if (spinning) {
+            arc.setAttribute("stroke-dasharray", "22 66");
+            arc.setAttribute("opacity", "1");
+            svg.classList.add("ptr-spinning");
+            svg.style.transform = "";
+            return;
+          }
+          svg.classList.remove("ptr-spinning");
+          var dash = Math.max(8, progress * 44);
+          arc.setAttribute("stroke-dasharray", dash + " 88");
+          arc.setAttribute("opacity", String(0.82 + progress * 0.18));
+          svg.style.transform = "rotate(" + progress * 320 + "deg)";
+        }
+
+        function updateShelfVisuals() {
+          var shelfPx = refreshing ? REFRESH_SHELF : pull;
+          var show = refreshing || pull > 2;
+          setShelfHeight(shelfPx);
+          shelfInner.classList.toggle("ptr-visible", show);
+          if (show) {
+            var op = refreshing ? 1 : Math.min(1, pull / 22);
+            shelfInner.style.opacity = String(op);
+          } else {
+            shelfInner.style.opacity = "0";
+          }
+          var progress = Math.min(pull / THRESHOLD, 1);
+          updateArc(progress, refreshing);
+        }
+
+        function sleep(ms) {
+          return new Promise(function (r) {
+            setTimeout(r, ms);
+          });
+        }
+
+        function checkOnline() {
+          var ctrl = new AbortController();
+          var t = setTimeout(function () {
+            ctrl.abort();
+          }, 8000);
+          return fetch("/", { method: "HEAD", cache: "no-store", signal: ctrl.signal })
+            .then(function (res) {
+              clearTimeout(t);
+              return res.ok;
+            })
+            .catch(function () {
+              clearTimeout(t);
+              return false;
+            });
+        }
+
+        function runRefresh() {
+          if (refreshingLock) return;
+          refreshingLock = true;
+          refreshing = true;
+          pull = REFRESH_SHELF;
+          pullRef = 0;
+          active = false;
+          setShelfTransition(true);
+          updateShelfVisuals();
+
+          var started = performance.now();
+          checkOnline()
+            .then(function (ok) {
+              var elapsed = performance.now() - started;
+              var wait = elapsed < MIN_REFRESH_MS ? MIN_REFRESH_MS - elapsed : 0;
+              return sleep(wait).then(function () {
+                return ok;
+              });
+            })
+            .then(function (ok) {
+              refreshing = false;
+              refreshingLock = false;
+              pull = 0;
+              updateShelfVisuals();
+              setShelfTransition(true);
+              if (ok) {
+                window.location.href = "/";
+              }
+            })
+            .catch(function () {
+              refreshing = false;
+              refreshingLock = false;
+              pull = 0;
+              updateShelfVisuals();
+              setShelfTransition(true);
+            });
+        }
+
+        function onTouchStart(e) {
+          if (refreshingLock) return;
+          if (window.scrollY > 4) return;
+          var t = e.touches[0];
+          if (!t) return;
+          if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+          startY = t.clientY;
+          startX = t.clientX;
+          active = true;
+          setShelfTransition(false);
+        }
+
+        function onTouchMove(e) {
+          if (!active || refreshingLock) return;
+          if (window.scrollY > 4) {
+            active = false;
+            pullRef = 0;
+            pull = 0;
+            setShelfTransition(true);
+            updateShelfVisuals();
+            return;
+          }
+          var t = e.touches[0];
+          if (!t) return;
+          var dy = t.clientY - startY;
+          var dx = t.clientX - startX;
+          if (dy <= 0) {
+            pullRef = 0;
+            pull = 0;
+            updateShelfVisuals();
+            return;
+          }
+          if (Math.abs(dx) > dy * 1.2) return;
+
+          var next = Math.min(dy * DAMP, MAX_PULL);
+          pullRef = next;
+          pull = next;
+          updateShelfVisuals();
+          if (next > 8) e.preventDefault();
+        }
+
+        function onTouchEnd() {
+          if (!active) return;
+          active = false;
+          var p = pullRef;
+          pullRef = 0;
+          setShelfTransition(true);
+
+          if (p >= THRESHOLD && !refreshingLock) {
+            runRefresh();
+          } else {
+            pull = 0;
+            updateShelfVisuals();
+          }
+        }
+
+        function onTouchCancel() {
+          active = false;
+          pullRef = 0;
+          pull = 0;
+          setShelfTransition(true);
+          if (!refreshingLock) updateShelfVisuals();
+        }
+
+        function detachPullListeners() {
+          if (!listenersBound) return;
+          document.removeEventListener("touchstart", onTouchStart);
+          document.removeEventListener("touchmove", onTouchMove);
+          document.removeEventListener("touchend", onTouchEnd);
+          document.removeEventListener("touchcancel", onTouchCancel);
+          listenersBound = false;
+        }
+
+        function attachPullListeners() {
+          if (listenersBound) return;
+          document.addEventListener("touchstart", onTouchStart, { passive: true });
+          document.addEventListener("touchmove", onTouchMove, { passive: false });
+          document.addEventListener("touchend", onTouchEnd, { passive: true });
+          document.addEventListener("touchcancel", onTouchCancel, { passive: true });
+          listenersBound = true;
+        }
+
+        function syncPullToRefresh() {
+          if (!isPullRefreshEnabled()) {
+            document.documentElement.classList.remove("ptr-pull-enabled");
+            detachPullListeners();
+            refreshing = false;
+            refreshingLock = false;
+            active = false;
+            pull = 0;
+            pullRef = 0;
+            setShelfTransition(true);
+            setShelfHeight(0);
+            layout.style.transform = "";
+            shelfInner.classList.remove("ptr-visible");
+            updateArc(0, false);
+            return;
+          }
+
+          document.documentElement.classList.add("ptr-pull-enabled");
+          attachPullListeners();
+          updateShelfVisuals();
+        }
+
+        syncPullToRefresh();
+        mq.addEventListener("change", syncPullToRefresh);
+      })();
+    </script>
   </body>
 </html>
