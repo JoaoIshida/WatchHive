@@ -3,29 +3,81 @@ import { useState, useEffect } from 'react';
 import WatchProviders from './WatchProviders';
 import { checkMovieInTheaters } from '../utils/theaterHelper';
 
-const WatchProvidersSection = ({ flatrate, rent, buy, title, mediaType = 'movie', movieId }) => {
+const WatchProvidersSection = ({
+    flatrate,
+    rent,
+    buy,
+    title,
+    mediaType = 'movie',
+    movieId,
+    contentTmdbId,
+    watchRegionCode = 'CA',
+    entityType: entityTypeProp,
+}) => {
     const [inTheaters, setInTheaters] = useState(false);
-    const [checkingTheater, setCheckingTheater] = useState(false);
+    const [canonicalRows, setCanonicalRows] = useState(null);
+
+    const tmdbContentId = contentTmdbId ?? movieId;
+    const entityType =
+        entityTypeProp ||
+        (mediaType === 'tv' ? 'series' : 'movie');
+    const regionUpper =
+        String(watchRegionCode || 'CA')
+            .trim()
+            .toUpperCase() || 'CA';
 
     // Check if movie is in theaters (only for movies)
     useEffect(() => {
         if (mediaType === 'movie' && movieId) {
-            setCheckingTheater(true);
             checkMovieInTheaters(movieId)
-                .then(result => {
-                    setInTheaters(result);
-                    setCheckingTheater(false);
-                })
-                .catch(() => {
-                    setCheckingTheater(false);
-                });
+                .then((result) => setInTheaters(result))
+                .catch(() => setInTheaters(false));
         }
     }, [movieId, mediaType]);
+
+    useEffect(() => {
+        if (!tmdbContentId) {
+            setCanonicalRows(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const qs = new URLSearchParams({
+                    mediaType: mediaType === 'tv' ? 'tv' : 'movie',
+                    tmdbId: String(tmdbContentId),
+                    region: regionUpper,
+                    entityType,
+                });
+                const res = await fetch(`/api/watch/provider-links?${qs.toString()}`);
+                if (!res.ok) {
+                    if (!cancelled) setCanonicalRows(null);
+                    return;
+                }
+                const data = await res.json();
+                if (!cancelled) setCanonicalRows(Array.isArray(data.links) ? data.links : []);
+            } catch {
+                if (!cancelled) setCanonicalRows(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [tmdbContentId, mediaType, regionUpper, entityType]);
 
     const hasProviders = (flatrate && flatrate.length > 0) || 
                         (rent && rent.length > 0) || 
                         (buy && buy.length > 0) ||
                         inTheaters;
+
+    const lazyWm =
+        tmdbContentId != null
+            ? {
+                  mediaType: mediaType === 'tv' ? 'tv' : 'movie',
+                  tmdbId: String(tmdbContentId),
+                  region: regionUpper,
+              }
+            : null;
 
     if (!hasProviders) {
         const searchQuery = encodeURIComponent(`where to watch ${title}`);
@@ -59,28 +111,54 @@ const WatchProvidersSection = ({ flatrate, rent, buy, title, mediaType = 'movie'
                     <p className="text-sm font-semibold text-amber-400/90 mb-3">In Theaters</p>
                     <div className="flex flex-wrap gap-2">
                         <a
-                            href={`https://www.google.com/search?q=${encodeURIComponent(`${title} showtimes theaters`)}`}
+                            href={`https://www.google.com/search?q=${encodeURIComponent(`${title} movie times near me`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group relative flex items-center justify-center bg-charcoal-800/60 hover:bg-charcoal-700/80 border border-amber-500/30 hover:border-amber-400/60 rounded-lg px-4 py-2 transition-all hover:scale-105 hover:shadow-subtle"
-                            title="Find showtimes near you"
+                            title="Find movie times near you"
                         >
                             <svg className="w-6 h-6 text-amber-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
-                            <span className="text-sm text-amber-400 font-medium">Find Showtimes</span>
+                            <span className="text-sm text-amber-400 font-medium">Find times near me</span>
                         </a>
                     </div>
                 </div>
             )}
             {flatrate && flatrate.length > 0 && (
-                <WatchProviders providers={flatrate} type="flatrate" />
+                <WatchProviders
+                    providers={flatrate}
+                    type="flatrate"
+                    title={title}
+                    canonicalRows={canonicalRows}
+                    linkEntityType={entityType}
+                    lazyWatchmode={lazyWm}
+                />
             )}
             {rent && rent.length > 0 && (
-                <WatchProviders providers={rent} type="rent" />
+                <WatchProviders
+                    providers={rent}
+                    type="rent"
+                    title={title}
+                    canonicalRows={canonicalRows}
+                    linkEntityType={entityType}
+                    lazyWatchmode={lazyWm}
+                />
             )}
             {buy && buy.length > 0 && (
-                <WatchProviders providers={buy} type="buy" />
+                <WatchProviders
+                    providers={buy}
+                    type="buy"
+                    title={title}
+                    canonicalRows={canonicalRows}
+                    linkEntityType={entityType}
+                    lazyWatchmode={lazyWm}
+                />
+            )}
+            {(flatrate?.length > 0 || rent?.length > 0 || buy?.length > 0) && (
+                <p className="text-[10px] text-white/30 pt-1">
+                    Availability data from The Movie Database (TMDB).
+                </p>
             )}
         </div>
     );

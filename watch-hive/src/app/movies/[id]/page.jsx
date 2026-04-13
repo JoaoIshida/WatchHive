@@ -12,11 +12,14 @@ async function getMovieDetails(id) {
     return res.json();
 }
 async function getMovieMoreDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers`, {
-        headers: {
-            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-        },
-    });
+    const res = await fetch(
+        `https://api.themoviedb.org/3/movie/${id}/watch/providers?language=en-CA`,
+        {
+            headers: {
+                Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+            },
+        }
+    );
 
     if (!res.ok) {
         throw new Error('Failed to fetch serie more details');
@@ -83,7 +86,6 @@ import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { formatRuntime } from '../../utils/runtimeFormatter';
-
 const MovieDetailPage = async ({ params }) => {
     const { id } = await params;
     const movie = await getMovieDetails(id);
@@ -224,6 +226,8 @@ const MovieDetailPage = async ({ params }) => {
                             title={movie.title}
                             mediaType="movie"
                             movieId={movie.id}
+                            watchRegionCode="CA"
+                            entityType="movie"
                         />
                     </div>
                 </div>

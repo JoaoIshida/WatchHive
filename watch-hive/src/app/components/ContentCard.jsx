@@ -8,11 +8,13 @@ import UpcomingBadge from './UpcomingBadge';
 import SeriesNotificationBadge from './SeriesNotificationBadge';
 import ContentRatingBadge from './ContentRatingBadge';
 import QuickActionsMenu from './QuickActionsMenu';
+import ProviderIconLinks from './ProviderIconLinks';
 import { formatDate } from '../utils/dateFormatter';
 import { getSeriesWatchProgress, getMovieWatchStatus } from '../utils/watchProgressHelper';
 import { formatRuntime, getSeriesInfo } from '../utils/runtimeFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
 import { isSeriesReleased, isMovieReleased } from '../utils/releaseDateValidator';
+import { getProviderWatchUrl } from '../utils/watchProviderUrls';
 
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const { user } = useAuth();
@@ -27,6 +29,7 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const isSeries = mediaType === 'tv' || item.media_type === 'tv';
     
     const [watchStatus, setWatchStatus] = useState(null);
+    const [providerLinks, setProviderLinks] = useState(null);
     
     useEffect(() => {
         if (!user) {
@@ -93,6 +96,58 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
         }
     }, [item.id, item, isSeries, user, watched, seriesProgress, contextSeriesDetails]);
 
+    useEffect(() => {
+        if (!item?.id) {
+            setProviderLinks(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const tvLike = mediaType === 'tv' || item.media_type === 'tv';
+                const mt = tvLike ? 'tv' : 'movie';
+                const et = tvLike ? 'series' : 'movie';
+                const qs = new URLSearchParams({
+                    mediaType: mt,
+                    tmdbId: String(item.id),
+                    region: 'CA',
+                    entityType: et,
+                });
+                const res = await fetch(`/api/watch/provider-links?${qs.toString()}`);
+                if (!res.ok || cancelled) return;
+                const data = await res.json();
+                if (!cancelled) {
+                    const raw = Array.isArray(data.links) ? data.links : [];
+                    setProviderLinks(
+                        raw.map((r) => ({
+                            ...r,
+                            openFallbackUrl: getProviderWatchUrl(
+                                r.tmdb_provider_id,
+                                r.provider_name,
+                                { title },
+                                {}
+                            ),
+                        }))
+                    );
+                }
+            } catch {
+                if (!cancelled) setProviderLinks([]);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [item.id, item.media_type, mediaType, title]);
+
+    const providerLazyWm =
+        item?.id != null
+            ? {
+                  mediaType: isSeries ? 'tv' : 'movie',
+                  tmdbId: String(item.id),
+                  region: 'CA',
+              }
+            : null;
+
     // Only show watched border if content is released
     const isReleased = isSeries ? isSeriesReleased(item) : isMovieReleased(item);
     const showWatchedBorder = watchStatus?.isWatched && isReleased;
@@ -130,7 +185,17 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                                 {item.vote_average.toFixed(1)}
                             </div>
                         )}
-                        
+
+                        {providerLinks && providerLinks.length > 0 && (
+                            <div
+                                className="absolute bottom-2 right-2 z-20 max-w-[calc(100%-3rem)]"
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                role="presentation"
+                            >
+                                <ProviderIconLinks links={providerLinks} lazyWatchmode={providerLazyWm} />
+                            </div>
+                        )}
                     </div>
                     <div className="p-2 bg-charcoal-900 min-h-[72px] flex flex-col justify-between">
                         <div className="flex items-start gap-2 mb-1">
