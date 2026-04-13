@@ -60,6 +60,7 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
   const [pushCatchup, setPushCatchup] = useState(true);
   const [pushReleases, setPushReleases] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingTimezone, setSavingTimezone] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [standalone, setStandalone] = useState(false);
   const [msg, setMsg] = useState("");
@@ -161,8 +162,31 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         return;
       }
       setMsg("Saved.");
+      window.dispatchEvent(new CustomEvent("watchhive-timezone-updated"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveTimezone = async () => {
+    setSavingTimezone(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/user/notification-preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ timezone }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setMsg(err.error || "Could not save timezone");
+        return;
+      }
+      setMsg("Timezone saved.");
+      window.dispatchEvent(new CustomEvent("watchhive-timezone-updated"));
+    } finally {
+      setSavingTimezone(false);
     }
   };
 
@@ -221,7 +245,7 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         }),
       });
       if (!prefRes.ok) {
-        setMsg("Push is on, but we could not save your settings. Try Save preferences.");
+        setMsg("Push is on, but we could not save your settings. Try Save reminder settings.");
         return;
       }
       setPushEnabled(true);
@@ -286,16 +310,55 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
           Back to settings
         </Link>
       )}
-      <h2 className="text-2xl font-bold text-amber-500">Notification preferences</h2>
-      <p className="text-white/70 text-sm">
-        Release dates follow the Canadian TV schedule when we have them. Your timezone decides what
-        counts as &quot;today&quot; for reminders.
+      <h2 className="text-2xl font-bold text-amber-500">Timezone</h2>
+      <p className="text-white/70 text-sm max-w-2xl">
+        This is the zone used for <strong className="text-white/90 font-medium">episode air times</strong> on
+        series pages (when we have a schedule from TVMaze) and for anything else that shows local dates and
+        times. Reminder &quot;today&quot; also uses this zone.
       </p>
-      <p className="text-white/60 text-sm">
-        The card below sets <strong className="text-white/80 font-medium">when</strong> we schedule
-        release-related reminders. <strong className="text-white/80 font-medium">Device push</strong> is
-        optional and configured in the &quot;Push notifications&quot; card further down — that is not a
-        generic on/off for all notifications.
+
+      <div className="futuristic-card p-6 space-y-4">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <span className="block text-white font-semibold" id="tz-heading">
+              Your saved timezone
+            </span>
+            <p className="text-white/50 text-xs">
+              Search or scroll by name or abbreviation (e.g. EST, GMT+1). This can differ from your device if
+              you travel or use a VPN.
+            </p>
+            <div aria-labelledby="tz-heading">
+              <TimeZonePicker value={timezone} onChange={setTimezone} rows={timeZoneRows} />
+            </div>
+          </div>
+          <div className="shrink-0 w-full max-w-lg flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
+            <div className="min-w-0 flex-1 flex items-center">
+              <p className="text-white/80 text-sm leading-snug">
+                <span className="text-white/50 block text-xs font-medium uppercase tracking-wide mb-1">
+                  Selected timezone
+                </span>
+                <span className="font-mono text-white text-base break-all">
+                  {timezone || "—"}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={savingTimezone}
+          onClick={saveTimezone}
+          className="futuristic-button-yellow px-6 py-2 disabled:opacity-50"
+        >
+          {savingTimezone ? "Saving…" : "Save timezone"}
+        </button>
+      </div>
+
+      <h2 className="text-2xl font-bold text-amber-500 pt-2">Notifications</h2>
+      <p className="text-white/60 text-sm max-w-2xl">
+        Reminder timing uses your saved timezone above.{" "}
+        <strong className="text-white/80 font-medium">Push</strong> is optional and only for this device — see
+        the Push card below.
       </p>
 
       {!standalone && (
@@ -306,18 +369,6 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
       )}
 
       <div className="futuristic-card p-6 space-y-4">
-        <div>
-          <span className="block text-white font-semibold mb-2" id="tz-heading">
-            Your timezone
-          </span>
-          <p className="text-white/50 text-xs mb-2">
-            Search or scroll by name or abbreviation (e.g. EST, GMT+1)
-          </p>
-          <div aria-labelledby="tz-heading">
-            <TimeZonePicker value={timezone} onChange={setTimezone} rows={timeZoneRows} />
-          </div>
-        </div>
-
         <div>
           <span className="block text-white font-semibold mb-2">Remind me</span>
           <p className="text-white/60 text-xs mb-2">You can pick more than one.</p>
@@ -361,7 +412,7 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
           onClick={savePrefs}
           className="futuristic-button-yellow px-6 py-2 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Save preferences"}
+          {saving ? "Saving…" : "Save reminder settings"}
         </button>
       </div>
 

@@ -123,9 +123,19 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0, unreadNotif
                 className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors p-2"
                 title="Dashboard"
             >
-                <User className="w-5 h-5" />
-                <span className="hidden md:inline">{displayName}</span>
-                <span className="relative inline-flex">
+                <span className="relative inline-flex shrink-0">
+                    <User className="w-5 h-5" />
+                    {unreadNotificationsCount > 0 && (
+                        <span
+                            className="absolute -top-1 -right-1.5 min-w-[1.125rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-charcoal-950 leading-none"
+                            aria-label={`${unreadNotificationsCount} unread notification${unreadNotificationsCount !== 1 ? 's' : ''}`}
+                        >
+                            {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                        </span>
+                    )}
+                </span>
+                <span className="hidden md:inline truncate max-w-[10rem] lg:max-w-[14rem]">{displayName}</span>
+                <span className="relative inline-flex shrink-0">
                     <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                     {pendingInvitesCount > 0 && (
                         <span className="absolute -top-1.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950" aria-label={`${pendingInvitesCount} pending invitation${pendingInvitesCount !== 1 ? 's' : ''}`} />
@@ -163,13 +173,13 @@ const ProfileDropdown = ({ onSignOut, user, pendingInvitesCount = 0, unreadNotif
                         onClick={() => setIsOpen(false)}
                         className="relative flex items-center gap-2 px-4 py-2 text-white hover:bg-charcoal-700 hover:text-amber-500 transition-colors text-sm"
                     >
-                        <span className="relative inline-flex">
-                            <Bell className="w-4 h-4" />
-                            {unreadNotificationsCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-charcoal-900" aria-hidden />
-                            )}
-                        </span>
-                        Notifications
+                        <Bell className="w-4 h-4" />
+                        <span>Notifications</span>
+                        {unreadNotificationsCount > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center">
+                                {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                            </span>
+                        )}
                     </a>
                     <a 
                         href="/profile/settings"
@@ -289,10 +299,16 @@ const Navbar = () => {
     return (
         <nav className="bg-charcoal-950/95 backdrop-blur-md border-b border-charcoal-700 shadow-subtle p-4 sticky top-0 z-[120] max-h-screen overflow-visible">
             <div className="container mx-auto flex items-center justify-between gap-4">
-                {/* Logo */}
-                <a className="text-amber-500 text-3xl font-bold cursor-pointer hover:text-amber-400 transition-colors flex-shrink-0" href="/">
-                    <img src="/beengie/beengie-logo.png" alt="Watch Hive Logo" className="inline h-12 w-auto mr-2 align-middle scale-125" />
+                {/* Brand — text wordmark only */}
+                <a
+                    className="flex items-center group text-amber-500 text-2xl sm:text-3xl font-bold cursor-pointer hover:text-amber-400 transition-colors flex-shrink-0 tracking-tight"
+                    href="/"
+                    aria-label="Watch Hive home"
+                >
+                    <span className="text-futuristic-blue-700 group-hover:text-futuristic-blue-500 transition-colors duration-150">Watch</span>
+                    <span className="ml-1 group-hover:text-amber-400 transition-colors duration-150">Hive</span>
                 </a>
+           
                 
                 {/* Desktop Navigation */}
                 <div className='hidden md:flex items-center gap-6 flex-1 max-w-4xl'>
@@ -377,8 +393,16 @@ const Navbar = () => {
                         aria-label="Toggle menu"
                     >
                         {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                        {!isMobileMenuOpen && pendingInvitesCount > 0 && (
-                            <span className="absolute -top-1.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950" aria-label={`${pendingInvitesCount} pending invitation${pendingInvitesCount !== 1 ? 's' : ''}`} />
+                        {!isMobileMenuOpen && (pendingInvitesCount > 0 || unreadNotificationsCount > 0) && (
+                            <span
+                                className="absolute -top-1.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-charcoal-950"
+                                aria-label={[
+                                    pendingInvitesCount > 0 && `${pendingInvitesCount} pending invitation${pendingInvitesCount !== 1 ? 's' : ''}`,
+                                    unreadNotificationsCount > 0 && `${unreadNotificationsCount} unread notification${unreadNotificationsCount !== 1 ? 's' : ''}`,
+                                ]
+                                    .filter(Boolean)
+                                    .join('; ')}
+                            />
                         )}
                     </button>
                 </div>
@@ -523,7 +547,14 @@ const Navbar = () => {
                                     className="flex items-center gap-2 text-white font-semibold hover:text-amber-500 transition-colors py-2 border-l-2 border-transparent hover:border-amber-500 pl-4"
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    <User className="w-5 h-5" />
+                                    <span className="relative inline-flex shrink-0">
+                                        <User className="w-5 h-5" />
+                                        {unreadNotificationsCount > 0 && (
+                                            <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-charcoal-950 leading-none">
+                                                {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                                            </span>
+                                        )}
+                                    </span>
                                     <span>Dashboard</span>
                                 </a>
                                 <a 

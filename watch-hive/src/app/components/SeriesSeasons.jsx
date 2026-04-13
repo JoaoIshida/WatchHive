@@ -1,13 +1,17 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
-import { formatDate } from '../utils/dateFormatter';
+import { formatDate, formatDateTimeInTimeZone } from '../utils/dateFormatter';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
 import ImageWithFallback from './ImageWithFallback';
 import UnreleasedNotification from './UnreleasedNotification';
 
-const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
+const SeriesSeasons = ({
+    seriesId,
+    seasons,
+    seriesName = 'Series',
+}) => {
     const { user } = useAuth();
     const [expandedSeasons, setExpandedSeasons] = useState({});
     const [seasonDetails, setSeasonDetails] = useState({});
@@ -19,8 +23,68 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
     const [loadingSeasons, setLoadingSeasons] = useState({}); // { seasonNumber: boolean }
     const [loadingEpisodes, setLoadingEpisodes] = useState({}); // { 'seasonNumber-episodeNumber': boolean }
     const [expandedEpisodeDesc, setExpandedEpisodeDesc] = useState({});
+    const [tvmazeEpisodes, setTvmazeEpisodes] = useState({});
+    const tvmazeFetchedRef = useRef(new Set());
+    const [displayTimeZone, setDisplayTimeZone] = useState(() => {
+        try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Toronto';
+        } catch {
+            return 'America/Toronto';
+        }
+    });
 
     const episodeDescKey = (seasonNumber, episodeNumber) => `${seasonNumber}-${episodeNumber}`;
+
+    useEffect(() => {
+        tvmazeFetchedRef.current = new Set();
+        setTvmazeEpisodes({});
+    }, [seriesId]);
+
+    const loadDisplayTimeZone = useCallback(async () => {
+        if (!user) return;
+        try {
+            const res = await fetch('/api/user/notification-preferences', { credentials: 'include' });
+            if (!res.ok) return;
+            const { preferences } = await res.json();
+            if (preferences?.timezone && typeof preferences.timezone === 'string') {
+                setDisplayTimeZone(preferences.timezone.trim());
+            }
+        } catch {
+            /* keep prior */
+        }
+    }, [user]);
+
+    useEffect(() => {
+        loadDisplayTimeZone();
+    }, [loadDisplayTimeZone, seriesId]);
+
+    useEffect(() => {
+        const onTz = () => loadDisplayTimeZone();
+        window.addEventListener('watchhive-timezone-updated', onTz);
+        return () => window.removeEventListener('watchhive-timezone-updated', onTz);
+    }, [loadDisplayTimeZone]);
+
+    const loadTvmazeSchedule = useCallback(
+        async (seasonNumber) => {
+            if (tvmazeFetchedRef.current.has(seasonNumber)) return;
+            try {
+                const response = await fetch(`/api/tvmaze/series/${seriesId}/season/${seasonNumber}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                const map = {};
+                for (const e of data.episodes || []) {
+                    if (e?.number != null) {
+                        map[e.number] = e;
+                    }
+                }
+                tvmazeFetchedRef.current.add(seasonNumber);
+                setTvmazeEpisodes((prev) => ({ ...prev, [seasonNumber]: map }));
+            } catch (e) {
+                console.error('TVMaze schedule fetch failed', e);
+            }
+        },
+        [seriesId]
+    );
 
     useEffect(() => {
         // Load progress from API
@@ -76,6 +140,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                     }
                 }
             }
+            void loadTvmazeSchedule(seasonNumber);
         }
     };
 
@@ -593,7 +658,8 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                         const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                         const dk = episodeDescKey(season.season_number, episode.episode_number);
                                         const descOpen = !!expandedEpisodeDesc[dk];
-                                        
+                                        const mazeEp = tvmazeEpisodes[season.season_number]?.[episode.episode_number];
+
                                         return (
                                             <div
                                                 key={episode.id}
@@ -621,11 +687,22 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                                 <span className="text-amber-500">✓</span>
                                                             )}
                                                         </div>
-                                                        {episode.air_date && (
+                                                        {mazeEp?.airstamp ? (
+                                                            <p
+                                                                className="text-xs text-sky-300/90"
+                                                                title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
+                                                            >
+                                                                {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                            </p>
+                                                        ) : episode.air_date ? (
                                                             <p className="text-xs text-amber-500/80">
                                                                 {formatDate(episode.air_date)}
                                                             </p>
-                                                        )}
+                                                        ) : mazeEp?.airdate ? (
+                                                            <p className="text-xs text-amber-500/80">
+                                                                {formatDate(mazeEp.airdate)}
+                                                            </p>
+                                                        ) : null}
                                                         {episode.overview && (
                                                             <div className="mt-1">
                                                                 <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
@@ -793,6 +870,7 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                 const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                                 const dk = episodeDescKey(season.season_number, episode.episode_number);
                                                 const descOpen = !!expandedEpisodeDesc[dk];
+                                                const mazeEp = tvmazeEpisodes[season.season_number]?.[episode.episode_number];
 
                                                 return (
                                                     <div
@@ -821,11 +899,22 @@ const SeriesSeasons = ({ seriesId, seasons, seriesName = 'Series' }) => {
                                                                         <span className="text-amber-500">✓</span>
                                                                     )}
                                                                 </div>
-                                                                {episode.air_date && (
+                                                                {mazeEp?.airstamp ? (
+                                                                    <p
+                                                                        className="text-xs text-sky-300/90"
+                                                                        title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
+                                                                    >
+                                                                        {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                                    </p>
+                                                                ) : episode.air_date ? (
                                                                     <p className="text-xs text-amber-500/80">
                                                                         {formatDate(episode.air_date)}
                                                                     </p>
-                                                                )}
+                                                                ) : mazeEp?.airdate ? (
+                                                                    <p className="text-xs text-amber-500/80">
+                                                                        {formatDate(mazeEp.airdate)}
+                                                                    </p>
+                                                                ) : null}
                                                                 {episode.overview && (
                                                                     <div className="mt-1">
                                                                         <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>

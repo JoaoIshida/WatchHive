@@ -14,7 +14,6 @@ import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
 import { fetchTMDB } from '../../api/utils';
 import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
-
 async function getSerieDetails(id) {
     // Directly call TMDB API (like movie page) to avoid server-side fetch issues
     const data = await fetchTMDB(`/tv/${id}`, {
@@ -40,7 +39,7 @@ async function getSerieDetails(id) {
 }
 
 async function getSerieMoreDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers`, {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers?language=en-CA`, {
         headers: {
             Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
         },
@@ -219,6 +218,9 @@ const SerieDetailPage = async ({ params }) => {
                             buy={tv_more.results.CA?.buy}
                             title={tv.name}
                             mediaType="tv"
+                            movieId={tv.id}
+                            watchRegionCode="CA"
+                            entityType="series"
                         />
                     </div>
                 </div>

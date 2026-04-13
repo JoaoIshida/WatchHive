@@ -182,7 +182,7 @@ const Home = () => {
                     )}
                 </h1>
                 <p className="text-xl md:text-2xl text-white mb-8">
-                    Discover, Track, and Share Your Favorite Movies & Series
+                    Discover, track, and share your favorite movies & series
                 </p>
                 
                 {/* Quick Search — narrower bar + horizontal breathing room on small screens */}

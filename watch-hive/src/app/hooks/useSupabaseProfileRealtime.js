@@ -50,6 +50,16 @@ export function useSupabaseProfileRealtime(userId) {
         },
         bumpNotifications,
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        bumpNotifications,
+      )
       .subscribe();
 
     return () => {
