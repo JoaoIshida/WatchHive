@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import ImageWithFallback from './ImageWithFallback';
@@ -8,14 +8,11 @@ import UpcomingBadge from './UpcomingBadge';
 import SeriesNotificationBadge from './SeriesNotificationBadge';
 import ContentRatingBadge from './ContentRatingBadge';
 import QuickActionsMenu from './QuickActionsMenu';
-import ProviderIconLinks from './ProviderIconLinks';
 import { formatDate } from '../utils/dateFormatter';
 import { getSeriesWatchProgress, getMovieWatchStatus } from '../utils/watchProgressHelper';
 import { formatRuntime, getSeriesInfo } from '../utils/runtimeFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
 import { isSeriesReleased, isMovieReleased } from '../utils/releaseDateValidator';
-import { getProviderWatchUrl } from '../utils/watchProviderUrls';
-
 const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const { user } = useAuth();
     const { watched, seriesProgress, seriesDetails: contextSeriesDetails } = useUserData();
@@ -29,8 +26,27 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     const isSeries = mediaType === 'tv' || item.media_type === 'tv';
     
     const [watchStatus, setWatchStatus] = useState(null);
-    const [providerLinks, setProviderLinks] = useState(null);
-    
+    const [releasedGapCount, setReleasedGapCount] = useState(undefined);
+    const [firstUnwatchedEpisode, setFirstUnwatchedEpisode] = useState(null);
+    const seriesProgressSnapshot = seriesProgress[item.id]
+        ? JSON.stringify(seriesProgress[item.id])
+        : '';
+
+    /** Sync catalog gap (total − watched) so the 3-dot menu can show missing rows on first paint */
+    const catalogMissingHint = useMemo(() => {
+        if (!user || !isSeries || !item?.id) return 0;
+        const progress = seriesProgress[item.id];
+        if (!progress) return 0;
+        const isWatchedTv = watched.some((w) => w.content_id === item.id && w.media_type === 'tv');
+        const seriesData = contextSeriesDetails[item.id] || item;
+        try {
+            const wp = getSeriesWatchProgress(item.id, seriesData, progress, isWatchedTv);
+            return Math.max(0, wp.totalEpisodes - wp.watchedEpisodes);
+        } catch {
+            return 0;
+        }
+    }, [user, isSeries, item, seriesProgress, contextSeriesDetails, watched]);
+
     useEffect(() => {
         if (!user) {
             setWatchStatus(null);
@@ -96,57 +112,69 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
         }
     }, [item.id, item, isSeries, user, watched, seriesProgress, contextSeriesDetails]);
 
+    // Prefetch released-only gap count so the 3-dot menu is ready immediately
     useEffect(() => {
-        if (!item?.id) {
-            setProviderLinks(null);
+        if (!user || !isSeries || !item.id) {
+            setReleasedGapCount(undefined);
             return;
         }
+        setReleasedGapCount(null);
         let cancelled = false;
         (async () => {
             try {
-                const tvLike = mediaType === 'tv' || item.media_type === 'tv';
-                const mt = tvLike ? 'tv' : 'movie';
-                const et = tvLike ? 'series' : 'movie';
-                const qs = new URLSearchParams({
-                    mediaType: mt,
-                    tmdbId: String(item.id),
-                    region: 'CA',
-                    entityType: et,
+                const res = await fetch(`/api/series-progress/${item.id}/released-gap-count`, {
+                    credentials: 'include',
                 });
-                const res = await fetch(`/api/watch/provider-links?${qs.toString()}`);
                 if (!res.ok || cancelled) return;
                 const data = await res.json();
-                if (!cancelled) {
-                    const raw = Array.isArray(data.links) ? data.links : [];
-                    setProviderLinks(
-                        raw.map((r) => ({
-                            ...r,
-                            openFallbackUrl: getProviderWatchUrl(
-                                r.tmdb_provider_id,
-                                r.provider_name,
-                                { title },
-                                {}
-                            ),
-                        }))
-                    );
-                }
+                const count = typeof data.count === 'number' ? data.count : 0;
+                if (!cancelled) setReleasedGapCount(count);
             } catch {
-                if (!cancelled) setProviderLinks([]);
+                if (!cancelled) setReleasedGapCount(0);
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [item.id, item.media_type, mediaType, title]);
+    }, [user, isSeries, item.id, seriesProgressSnapshot]);
 
-    const providerLazyWm =
-        item?.id != null
-            ? {
-                  mediaType: isSeries ? 'tv' : 'movie',
-                  tmdbId: String(item.id),
-                  region: 'CA',
-              }
-            : null;
+    useEffect(() => {
+        if (!user || !isSeries || !item.id) {
+            setFirstUnwatchedEpisode(null);
+            return;
+        }
+        const releasedOk = typeof releasedGapCount === 'number' && releasedGapCount > 0;
+        const hintOk = catalogMissingHint > 0;
+        if (!releasedOk && !hintOk) {
+            setFirstUnwatchedEpisode(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`/api/series-progress/${item.id}/first-unwatched`, {
+                    credentials: 'include',
+                });
+                if (!res.ok || cancelled) return;
+                const data = await res.json();
+                if (
+                    !cancelled &&
+                    typeof data.seasonNumber === 'number' &&
+                    typeof data.episodeNumber === 'number'
+                ) {
+                    setFirstUnwatchedEpisode({
+                        seasonNumber: data.seasonNumber,
+                        episodeNumber: data.episodeNumber,
+                    });
+                }
+            } catch {
+                if (!cancelled) setFirstUnwatchedEpisode(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user, isSeries, item.id, releasedGapCount, seriesProgressSnapshot, catalogMissingHint]);
 
     // Only show watched border if content is released
     const isReleased = isSeries ? isSeriesReleased(item) : isMovieReleased(item);
@@ -186,16 +214,6 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             </div>
                         )}
 
-                        {providerLinks && providerLinks.length > 0 && (
-                            <div
-                                className="absolute bottom-2 right-2 z-20 max-w-[calc(100%-3rem)]"
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                role="presentation"
-                            >
-                                <ProviderIconLinks links={providerLinks} lazyWatchmode={providerLazyWm} />
-                            </div>
-                        )}
                     </div>
                     <div className="p-2 bg-charcoal-900 min-h-[72px] flex flex-col justify-between">
                         <div className="flex items-start gap-2 mb-1">
@@ -251,6 +269,9 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                     itemId={item.id}
                     mediaType={mediaType}
                     itemData={item}
+                    catalogMissingHint={isSeries ? catalogMissingHint : undefined}
+                    prefetchedReleasedGapCount={isSeries ? releasedGapCount : undefined}
+                    prefetchedFirstUnwatched={isSeries ? firstUnwatchedEpisode : undefined}
                 />
             </div>
         </div>

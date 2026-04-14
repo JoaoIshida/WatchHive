@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Bookmark, BookmarkCheck, Heart } from 'lucide-react';
@@ -7,10 +7,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { isMovieReleased, isSeriesReleased } from '../utils/releaseDateValidator';
 import { formatDate } from '../utils/dateFormatter';
-import { getSeriesWatchProgress } from '../utils/watchProgressHelper';
 import UnreleasedNotification from './UnreleasedNotification';
+import { getSeriesWatchProgress } from '../utils/watchProgressHelper';
 
-export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate }) {
+export default function QuickActionsMenu({
+    itemId,
+    mediaType,
+    itemData,
+    onUpdate,
+    /** From parent (e.g. ContentCard) for instant missing rows; if omitted, computed here */
+    catalogMissingHint,
+    prefetchedReleasedGapCount,
+    prefetchedFirstUnwatched,
+}) {
     const { user } = useAuth();
     const { watched, wishlist, favorites, seriesProgress, customLists, refreshUserData } = useUserData();
     const router = useRouter();
@@ -22,7 +31,9 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
     const [seriesSummary, setSeriesSummary] = useState(null);
     const [mounted, setMounted] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-    const [missingEpisodes, setMissingEpisodes] = useState(0);
+    const [missingEpisodes, setMissingEpisodes] = useState(() =>
+        typeof prefetchedReleasedGapCount === 'number' ? prefetchedReleasedGapCount : 0,
+    );
     const [showListModal, setShowListModal] = useState(false);
     const [listModalItemLists, setListModalItemLists] = useState([]);
     const [newListName, setNewListName] = useState('');
@@ -48,6 +59,24 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         return false;
     })();
 
+    const internalCatalogHint = useMemo(() => {
+        if (typeof catalogMissingHint === 'number') return catalogMissingHint;
+        if (!user || mediaType !== 'tv' || !itemData || !itemId) return 0;
+        const progress = seriesProgress[itemId];
+        if (!progress) return 0;
+        try {
+            const wp = getSeriesWatchProgress(itemId, itemData, progress, isWatched);
+            return Math.max(0, wp.totalEpisodes - wp.watchedEpisodes);
+        } catch {
+            return 0;
+        }
+    }, [catalogMissingHint, user, mediaType, itemData, itemId, seriesProgress, isWatched]);
+
+    const resolvedMissing =
+        typeof prefetchedReleasedGapCount === 'number'
+            ? Math.max(0, prefetchedReleasedGapCount)
+            : Math.max(missingEpisodes, internalCatalogHint);
+
     const isInWishlist = (() => {
         if (!user) return false;
         return wishlist.some(w => w.content_id === itemId && w.media_type === mediaType);
@@ -63,24 +92,62 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         return [];
     })();
 
-    // Calculate missing episodes from context
+    // Released-only gap count — parent (e.g. ContentCard) can prefetch so the menu is instant
+    const progressSnapshot = seriesProgress[itemId]
+        ? JSON.stringify(seriesProgress[itemId])
+        : '';
     useEffect(() => {
-        if (!user || mediaType !== 'tv' || !itemData) {
+        if (typeof prefetchedReleasedGapCount === 'number') {
+            setMissingEpisodes(Math.max(0, prefetchedReleasedGapCount));
+        }
+    }, [prefetchedReleasedGapCount]);
+
+    useEffect(() => {
+        if (!user || mediaType !== 'tv' || !itemId) {
             setMissingEpisodes(0);
             return;
         }
-        const progress = seriesProgress[itemId];
-        if (progress && itemData) {
-            try {
-                const watchProgress = getSeriesWatchProgress(itemId, itemData, progress, isWatched);
-                setMissingEpisodes(Math.max(0, watchProgress.totalEpisodes - watchProgress.watchedEpisodes));
-            } catch {
-                setMissingEpisodes(0);
-            }
-        } else {
-            setMissingEpisodes(0);
+        if (typeof prefetchedReleasedGapCount === 'number') {
+            return;
         }
-    }, [user, mediaType, itemId, itemData, seriesProgress, isWatched]);
+
+        const applyCatalogEstimate = () => {
+            if (!itemData) return;
+            try {
+                const wp = getSeriesWatchProgress(itemId, itemData, seriesProgress[itemId], isWatched);
+                setMissingEpisodes(Math.max(0, wp.totalEpisodes - wp.watchedEpisodes));
+            } catch {
+                /* ignore */
+            }
+        };
+
+        if (prefetchedReleasedGapCount === null) {
+            applyCatalogEstimate();
+            return;
+        }
+
+        applyCatalogEstimate();
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`/api/series-progress/${itemId}/released-gap-count`, {
+                    credentials: 'include',
+                });
+                if (!res.ok) {
+                    if (!cancelled) applyCatalogEstimate();
+                    return;
+                }
+                const data = await res.json();
+                const count = typeof data.count === 'number' ? data.count : 0;
+                if (!cancelled) setMissingEpisodes(Math.max(0, count));
+            } catch {
+                if (!cancelled) applyCatalogEstimate();
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user, mediaType, itemId, itemData, seriesProgress, progressSnapshot, isWatched, prefetchedReleasedGapCount]);
 
     // Calculate menu position when opening
     useEffect(() => {
@@ -446,9 +513,62 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
         }
     };
 
-    const handleGoToUnwatchedEpisodes = () => {
+    const handleGoToUnwatchedEpisodes = async () => {
         setIsOpen(false);
+        if (!user) {
+            router.push(`/series/${itemId}#seasons-episodes`);
+            return;
+        }
+        const pre = prefetchedFirstUnwatched;
+        if (
+            pre &&
+            typeof pre.seasonNumber === 'number' &&
+            typeof pre.episodeNumber === 'number'
+        ) {
+            router.push(`/series/${itemId}#episode-${pre.seasonNumber}-${pre.episodeNumber}`);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/series-progress/${itemId}/first-unwatched`, {
+                credentials: 'include',
+            });
+            if (res.ok) {
+                const { seasonNumber, episodeNumber } = await res.json();
+                router.push(`/series/${itemId}#episode-${seasonNumber}-${episodeNumber}`);
+                return;
+            }
+        } catch (e) {
+            console.error('first-unwatched:', e);
+        }
         router.push(`/series/${itemId}#seasons-episodes`);
+    };
+
+    const handleFillMissingAll = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            setIsOpen(false);
+            return;
+        }
+        setLoading(true);
+        setLoadingAction('fillMissing');
+        try {
+            const res = await fetch(`/api/series-progress/${itemId}/fill-missing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            if (res.ok) {
+                refreshUserData();
+                if (onUpdate) onUpdate();
+                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            }
+        } catch (e) {
+            console.error('fill-missing:', e);
+        } finally {
+            setLoading(false);
+            setLoadingAction(null);
+            setIsOpen(false);
+        }
     };
 
     const LoadingSpinner = () => (
@@ -568,18 +688,41 @@ export default function QuickActionsMenu({ itemId, mediaType, itemData, onUpdate
                     </>
                 )}
             </button>
-            {mediaType === 'tv' && missingEpisodes > 0 && (
-                <button
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleGoToUnwatchedEpisodes();
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2"
-                >
-                    <span>📺</span>
-                    <span>{missingEpisodes} missing episode{missingEpisodes !== 1 ? 's' : ''}</span>
-                </button>
+            {mediaType === 'tv' && resolvedMissing > 0 && (
+                <>
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGoToUnwatchedEpisodes();
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2"
+                    >
+                        <span>📺</span>
+                        <span>There are missing episodes</span>
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleFillMissingAll();
+                        }}
+                        disabled={loading}
+                        className="w-full text-left px-4 py-2 hover:bg-charcoal-800 text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {loadingAction === 'fillMissing' ? (
+                            <>
+                                <LoadingSpinner />
+                                <span>Processing...</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>✓</span>
+                                <span>Mark missing as watched</span>
+                            </>
+                        )}
+                    </button>
+                </>
             )}
         </div>
     );

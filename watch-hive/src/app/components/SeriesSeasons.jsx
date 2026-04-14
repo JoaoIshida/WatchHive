@@ -20,11 +20,15 @@ const SeriesSeasons = ({
     const [skippedItems, setSkippedItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingSeriesComplete, setLoadingSeriesComplete] = useState(false);
+    const [loadingFillAll, setLoadingFillAll] = useState(false);
+    const [loadingFillSeason, setLoadingFillSeason] = useState({}); // { seasonNumber: boolean }
     const [loadingSeasons, setLoadingSeasons] = useState({}); // { seasonNumber: boolean }
     const [loadingEpisodes, setLoadingEpisodes] = useState({}); // { 'seasonNumber-episodeNumber': boolean }
     const [expandedEpisodeDesc, setExpandedEpisodeDesc] = useState({});
     const [tvmazeEpisodes, setTvmazeEpisodes] = useState({});
     const tvmazeFetchedRef = useRef(new Set());
+    /** Prefetch TMDB season JSON so per-season "Mark missing" works before expanding */
+    const seasonsBackgroundPrefetchRef = useRef({ seriesId: null, started: new Set() });
     const [displayTimeZone, setDisplayTimeZone] = useState(() => {
         try {
             return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Toronto';
@@ -39,6 +43,34 @@ const SeriesSeasons = ({
         tvmazeFetchedRef.current = new Set();
         setTvmazeEpisodes({});
     }, [seriesId]);
+
+    useEffect(() => {
+        if (!user || !seriesId || !seasons?.length) return;
+        const st = seasonsBackgroundPrefetchRef.current;
+        if (st.seriesId !== seriesId) {
+            st.seriesId = seriesId;
+            st.started = new Set();
+        }
+        for (const season of seasons) {
+            if (season.season_number <= 0) continue;
+            if (st.started.has(season.season_number)) continue;
+            st.started.add(season.season_number);
+            const sn = season.season_number;
+            void (async () => {
+                try {
+                    const response = await fetch(`/api/tv/${seriesId}/season/${sn}`);
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    setSeasonDetails((prev) => {
+                        if (prev[sn]?.episodes?.length) return prev;
+                        return { ...prev, [sn]: data };
+                    });
+                } catch (e) {
+                    console.error('Background season prefetch:', e);
+                }
+            })();
+        }
+    }, [user, seriesId, seasons]);
 
     const loadDisplayTimeZone = useCallback(async () => {
         if (!user) return;
@@ -85,6 +117,47 @@ const SeriesSeasons = ({
         },
         [seriesId]
     );
+
+    // Deep link: #episode-S-E — expand season, load details, scroll into view
+    useEffect(() => {
+        const runFromHash = () => {
+            const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+            const m = /^episode-(\d+)-(\d+)$/.exec(hash);
+            if (!m) return;
+            const sn = parseInt(m[1], 10);
+            setExpandedSeasons((prev) => ({ ...prev, [sn]: true }));
+            void loadTvmazeSchedule(sn);
+            void (async () => {
+                try {
+                    const response = await fetch(`/api/tv/${seriesId}/season/${sn}`);
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    setSeasonDetails((prev) => {
+                        if (prev[sn]?.episodes?.length) return prev;
+                        return { ...prev, [sn]: data };
+                    });
+                } catch (e) {
+                    console.error(e);
+                }
+            })();
+        };
+        runFromHash();
+        window.addEventListener('hashchange', runFromHash);
+        return () => window.removeEventListener('hashchange', runFromHash);
+    }, [seriesId, loadTvmazeSchedule]);
+
+    useEffect(() => {
+        const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
+        const m = /^episode-(\d+)-(\d+)$/.exec(hash);
+        if (!m) return;
+        const sn = parseInt(m[1], 10);
+        const en = parseInt(m[2], 10);
+        if (!seasonDetails[sn]?.episodes?.length) return;
+        const t = setTimeout(() => {
+            document.getElementById(`episode-${sn}-${en}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+        return () => clearTimeout(t);
+    }, [seasonDetails, seriesId]);
 
     useEffect(() => {
         // Load progress from API
@@ -507,6 +580,172 @@ const SeriesSeasons = ({
         setLoadingSeriesComplete(false);
     };
 
+    /** Unreleased catalog items (same shape as Mark Series Complete) for UnreleasedNotification */
+    const collectUnreleasedSkippedForSeason = async (seasonNumber) => {
+        const skipped = [];
+        const season = seasons.find((s) => s.season_number === seasonNumber);
+        if (!season) return skipped;
+
+        if (!isSeasonReleased(season)) {
+            skipped.push({
+                type: 'season',
+                seriesName: seriesName,
+                seasonName: season.name || `Season ${season.season_number}`,
+                releaseDate: formatDate(season.air_date),
+            });
+            return skipped;
+        }
+
+        let seasonData = seasonDetails[seasonNumber];
+        if (!seasonData?.episodes?.length) {
+            try {
+                const response = await fetch(`/api/tv/${seriesId}/season/${seasonNumber}`);
+                if (response.ok) {
+                    seasonData = await response.json();
+                    setSeasonDetails((prev) => ({ ...prev, [seasonNumber]: seasonData }));
+                }
+            } catch (e) {
+                console.error('Error fetching season for skip list:', e);
+            }
+        }
+
+        if (seasonData?.episodes) {
+            seasonData.episodes
+                .filter((ep) => !isEpisodeReleased(ep, seasonData))
+                .forEach((ep) => {
+                    skipped.push({
+                        type: 'episode',
+                        seriesName: seriesName,
+                        seasonName: season.name || `Season ${season.season_number}`,
+                        episodeName: ep.name || `Episode ${ep.episode_number}`,
+                        releaseDate: formatDate(ep.air_date),
+                    });
+                });
+        }
+        return skipped;
+    };
+
+    const collectUnreleasedSkippedForSeries = async () => {
+        const regularSeasonsList = seasons.filter((season) => season.season_number > 0);
+        const chunks = await Promise.all(
+            regularSeasonsList.map(async (season) => {
+                const local = [];
+                try {
+                    if (!isSeasonReleased(season)) {
+                        local.push({
+                            type: 'season',
+                            seriesName: seriesName,
+                            seasonName: season.name || `Season ${season.season_number}`,
+                            releaseDate: formatDate(season.air_date),
+                        });
+                        return local;
+                    }
+
+                    if (seasonDetails[season.season_number]?.episodes) {
+                        const seasonData = seasonDetails[season.season_number];
+                        seasonData.episodes
+                            .filter((ep) => !isEpisodeReleased(ep, seasonData))
+                            .forEach((ep) => {
+                                local.push({
+                                    type: 'episode',
+                                    seriesName: seriesName,
+                                    seasonName: season.name || `Season ${season.season_number}`,
+                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                    releaseDate: formatDate(ep.air_date),
+                                });
+                            });
+                        return local;
+                    }
+
+                    const response = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setSeasonDetails((prev) => ({ ...prev, [season.season_number]: data }));
+                        (data.episodes || [])
+                            .filter((ep) => !isEpisodeReleased(ep, data))
+                            .forEach((ep) => {
+                                local.push({
+                                    type: 'episode',
+                                    seriesName: seriesName,
+                                    seasonName: season.name || `Season ${season.season_number}`,
+                                    episodeName: ep.name || `Episode ${ep.episode_number}`,
+                                    releaseDate: formatDate(ep.air_date),
+                                });
+                            });
+                    }
+                } catch (error) {
+                    console.error(`Error fetching season ${season.season_number} for skip list:`, error);
+                }
+                return local;
+            }),
+        );
+        return chunks.flat();
+    };
+
+    const fillMissingForSeason = async (seasonNumber) => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+        const skipped = await collectUnreleasedSkippedForSeason(seasonNumber);
+        if (skipped.length > 0) {
+            setSkippedItems(skipped);
+            setShowNotification(true);
+        }
+        setLoadingFillSeason((prev) => ({ ...prev, [seasonNumber]: true }));
+        try {
+            const response = await fetch(`/api/series-progress/${seriesId}/fill-missing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seasonNumber }),
+            });
+            if (response.ok) {
+                const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+                if (progressResponse.ok) {
+                    const data = await progressResponse.json();
+                    setProgress(data);
+                }
+                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            }
+        } catch (e) {
+            console.error('Error filling missing episodes:', e);
+        } finally {
+            setLoadingFillSeason((prev) => ({ ...prev, [seasonNumber]: false }));
+        }
+    };
+
+    const fillMissingAll = async () => {
+        if (!user) {
+            window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
+            return;
+        }
+        const skipped = await collectUnreleasedSkippedForSeries();
+        if (skipped.length > 0) {
+            setSkippedItems(skipped);
+            setShowNotification(true);
+        }
+        setLoadingFillAll(true);
+        try {
+            const response = await fetch(`/api/series-progress/${seriesId}/fill-missing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            if (response.ok) {
+                const progressResponse = await fetch(`/api/series-progress/${seriesId}`);
+                if (progressResponse.ok) {
+                    const data = await progressResponse.json();
+                    setProgress(data);
+                }
+                window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            }
+        } catch (e) {
+            console.error('Error filling missing episodes:', e);
+        } finally {
+            setLoadingFillAll(false);
+        }
+    };
+
     const LoadingSpinner = () => (
         <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -530,6 +769,29 @@ const SeriesSeasons = ({
     const regularSeasons = seasons.filter(season => season.season_number > 0);
     const specials = seasons.filter(season => season.season_number === 0);
 
+    const countReleasedMissingInSeason = (seasonNumber, seasonData) => {
+        if (!seasonData?.episodes?.length) return null;
+        const watched = new Set(progress.seasons[seasonNumber]?.episodes || []);
+        return seasonData.episodes.filter(
+            (ep) => isEpisodeReleased(ep, seasonData) && !watched.has(ep.episode_number)
+        ).length;
+    };
+
+    const hasReleasedGapsToFill = () => {
+        let sawDetail = false;
+        for (const s of regularSeasons) {
+            const sd = seasonDetails[s.season_number];
+            if (sd?.episodes?.length) {
+                sawDetail = true;
+                if (countReleasedMissingInSeason(s.season_number, sd) > 0) return true;
+            }
+        }
+        if (sawDetail) return false;
+        return overallProgress.watched < overallProgress.total;
+    };
+
+    const showMarkAllMissing = user && hasReleasedGapsToFill();
+
     return (
         <div className="futuristic-card p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -540,23 +802,44 @@ const SeriesSeasons = ({
                     <div className="text-white text-sm sm:text-base text-center sm:text-left">
                         <span className="font-semibold">{overallProgress.watched}</span> / {overallProgress.total} episodes watched
                     </div>
-                    <button
-                        type="button"
-                        onClick={toggleSeriesCompleted}
-                        disabled={loadingSeriesComplete}
-                        className={`futuristic-button flex items-center justify-center gap-2 text-sm whitespace-nowrap ${isSeriesCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
-                    >
-                        {loadingSeriesComplete ? (
-                            <>
-                                <LoadingSpinner />
-                                <span>Processing...</span>
-                            </>
-                        ) : isSeriesCompleted ? (
-                            '✓ Series Completed'
-                        ) : (
-                            'Mark Series Complete'
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3">
+                        {showMarkAllMissing && (
+                            <button
+                                type="button"
+                                onClick={fillMissingAll}
+                                disabled={loadingFillAll}
+                                className={`futuristic-button flex items-center justify-center gap-2 text-sm whitespace-nowrap border border-amber-500/40 ${loadingFillAll ? 'opacity-75 cursor-not-allowed' : ''}`}
+                            >
+                                {loadingFillAll ? (
+                                    <>
+                                        <LoadingSpinner />
+                                        <span>Processing...</span>
+                                    </>
+                                ) : (
+                                    'Mark missing as watched'
+                                )}
+                            </button>
                         )}
-                    </button>
+                        {!showMarkAllMissing && (
+                        <button
+                            type="button"
+                            onClick={toggleSeriesCompleted}
+                            disabled={loadingSeriesComplete}
+                            className={`futuristic-button flex items-center justify-center gap-2 text-sm whitespace-nowrap ${isSeriesCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeriesComplete ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        >
+                            {loadingSeriesComplete ? (
+                                <>
+                                    <LoadingSpinner />
+                                    <span>Processing...</span>
+                                </>
+                            ) : isSeriesCompleted ? (
+                                '✓ Series Completed'
+                            ) : (
+                                'Mark Series Complete'
+                            )}
+                        </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -568,6 +851,7 @@ const SeriesSeasons = ({
                     const isExpanded = expandedSeasons[season.season_number];
                     const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
                     const seasonData = seasonDetails[season.season_number] || season;
+                    const releasedMissing = countReleasedMissingInSeason(season.season_number, seasonData);
                     
                     return (
                         <div key={season.id} className="futuristic-card p-4">
@@ -612,7 +896,28 @@ const SeriesSeasons = ({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex flex-row items-center justify-between gap-3 shrink-0 w-full lg:w-auto lg:justify-end">
+                                <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-2 shrink-0 w-full lg:w-auto lg:justify-end min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    {releasedMissing != null && releasedMissing > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                fillMissingForSeason(season.season_number);
+                                            }}
+                                            disabled={loadingFillSeason[season.season_number]}
+                                            className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 border border-amber-500/40 ${loadingFillSeason[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                        >
+                                            {loadingFillSeason[season.season_number] ? (
+                                                <>
+                                                    <LoadingSpinner />
+                                                    <span>...</span>
+                                                </>
+                                            ) : (
+                                                'Mark missing'
+                                            )}
+                                        </button>
+                                    )}
+                                    {!(releasedMissing != null && releasedMissing > 0) && (
                                     <button
                                         type="button"
                                         onClick={(e) => {
@@ -620,7 +925,7 @@ const SeriesSeasons = ({
                                             toggleSeasonCompleted(season.season_number);
                                         }}
                                         disabled={loadingSeasons[season.season_number]}
-                                        className={`futuristic-button text-xs sm:text-sm whitespace-nowrap px-3 py-2 flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                        className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                     >
                                         {loadingSeasons[season.season_number] ? (
                                             <>
@@ -630,11 +935,15 @@ const SeriesSeasons = ({
                                         ) : isSeasonCompleted ? (
                                             '✓ Complete'
                                         ) : (
-                                            'Mark Complete'
+                                            <>
+                                                <span className="hidden sm:inline">Mark Complete</span>
+                                                <span className="sm:hidden">Complete</span>
+                                            </>
                                         )}
                                     </button>
+                                    )}
                                     <svg
-                                        className={`w-6 h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                                        className={`w-5 h-5 sm:w-6 sm:h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
@@ -663,7 +972,8 @@ const SeriesSeasons = ({
                                         return (
                                             <div
                                                 key={episode.id}
-                                                className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors ${
+                                                id={`episode-${season.season_number}-${episode.episode_number}`}
+                                                className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors scroll-mt-24 ${
                                                     isWatched ? 'border-l-4 border-amber-500' : ''
                                                 }`}
                                             >
@@ -674,41 +984,30 @@ const SeriesSeasons = ({
                                                         </span>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <h4 className="font-semibold text-white text-sm sm:text-base">
-                                                                {episode.name || `Episode ${episode.episode_number}`}
-                                                            </h4>
-                                                            {!episodeIsReleased && (
-                                                                <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
-                                                                    Unreleased
-                                                                </span>
-                                                            )}
-                                                            {isWatched && !isEpisodeLoading && episodeIsReleased && (
-                                                                <span className="text-amber-500">✓</span>
-                                                            )}
-                                                        </div>
-                                                        {mazeEp?.airstamp ? (
-                                                            <p
-                                                                className="text-xs text-sky-300/90"
-                                                                title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
-                                                            >
-                                                                {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
-                                                            </p>
-                                                        ) : episode.air_date ? (
-                                                            <p className="text-xs text-amber-500/80">
-                                                                {formatDate(episode.air_date)}
-                                                            </p>
-                                                        ) : mazeEp?.airdate ? (
-                                                            <p className="text-xs text-amber-500/80">
-                                                                {formatDate(mazeEp.airdate)}
-                                                            </p>
-                                                        ) : null}
-                                                        {episode.overview && (
-                                                            <div className="mt-1">
-                                                                <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
-                                                                    {episode.overview}
-                                                                </p>
-                                                                {episode.overview.length > 120 && (
+                                                        <div
+                                                            className={episode.overview ? 'cursor-pointer' : ''}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (episode.overview) {
+                                                                    setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <h4 className="font-semibold text-white text-sm sm:text-base">
+                                                                    {episode.name || `Episode ${episode.episode_number}`}
+                                                                </h4>
+                                                                {!episodeIsReleased && (
+                                                                    <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
+                                                                        Unreleased
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {episode.overview && (
+                                                                <div className="mt-1">
+                                                                    <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
+                                                                        {episode.overview}
+                                                                    </p>
                                                                     <button
                                                                         type="button"
                                                                         className="text-[10px] text-amber-500 mt-1 hover:underline"
@@ -719,9 +1018,25 @@ const SeriesSeasons = ({
                                                                     >
                                                                         {descOpen ? 'Show less' : 'Show more'}
                                                                     </button>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {mazeEp?.airstamp ? (
+                                                            <p
+                                                                className="text-xs text-sky-300/90 mt-1"
+                                                                title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
+                                                            >
+                                                                {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                            </p>
+                                                        ) : episode.air_date ? (
+                                                            <p className="text-xs text-amber-500/80 mt-1">
+                                                                {formatDate(episode.air_date)}
+                                                            </p>
+                                                        ) : mazeEp?.airdate ? (
+                                                            <p className="text-xs text-amber-500/80 mt-1">
+                                                                {formatDate(mazeEp.airdate)}
+                                                            </p>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-row items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:min-w-[6rem] shrink-0 pt-2 border-t border-charcoal-700/40 sm:border-t-0 sm:pt-0">
@@ -757,7 +1072,7 @@ const SeriesSeasons = ({
                                                         ) : (
                                                             <>
                                                                 <span>+</span>
-                                                                <span>Watch</span>
+                                                                <span className="text-[10px] sm:text-xs leading-tight">Mark watched</span>
                                                             </>
                                                         )}
                                                     </button>
@@ -783,6 +1098,7 @@ const SeriesSeasons = ({
                             const isExpanded = expandedSeasons[season.season_number];
                             const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
                             const seasonData = seasonDetails[season.season_number] || season;
+                            const releasedMissingSpecial = countReleasedMissingInSeason(season.season_number, seasonData);
                             
                             return (
                                 <div key={season.id} className="futuristic-card p-4">
@@ -827,7 +1143,28 @@ const SeriesSeasons = ({
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex flex-row items-center justify-between gap-3 shrink-0 w-full lg:w-auto lg:justify-end">
+                                        <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-2 shrink-0 w-full lg:w-auto lg:justify-end min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                            {releasedMissingSpecial != null && releasedMissingSpecial > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        fillMissingForSeason(season.season_number);
+                                                    }}
+                                                    disabled={loadingFillSeason[season.season_number]}
+                                                    className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 border border-amber-500/40 ${loadingFillSeason[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                                >
+                                                    {loadingFillSeason[season.season_number] ? (
+                                                        <>
+                                                            <LoadingSpinner />
+                                                            <span>...</span>
+                                                        </>
+                                                    ) : (
+                                                        'Mark missing'
+                                                    )}
+                                                </button>
+                                            )}
+                                            {!(releasedMissingSpecial != null && releasedMissingSpecial > 0) && (
                                             <button
                                                 type="button"
                                                 onClick={(e) => {
@@ -835,7 +1172,7 @@ const SeriesSeasons = ({
                                                     toggleSeasonCompleted(season.season_number);
                                                 }}
                                                 disabled={loadingSeasons[season.season_number]}
-                                                className={`futuristic-button text-xs sm:text-sm whitespace-nowrap px-3 py-2 flex items-center gap-2 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                                className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
                                             >
                                                 {loadingSeasons[season.season_number] ? (
                                                     <>
@@ -845,11 +1182,15 @@ const SeriesSeasons = ({
                                                 ) : isSeasonCompleted ? (
                                                     '✓ Complete'
                                                 ) : (
-                                                    'Mark Complete'
+                                                    <>
+                                                        <span className="hidden sm:inline">Mark Complete</span>
+                                                        <span className="sm:hidden">Complete</span>
+                                                    </>
                                                 )}
                                             </button>
+                                            )}
                                             <svg
-                                                className={`w-6 h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                                                className={`w-5 h-5 sm:w-6 sm:h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                                 fill="none"
                                                 stroke="currentColor"
                                                 viewBox="0 0 24 24"
@@ -875,7 +1216,8 @@ const SeriesSeasons = ({
                                                 return (
                                                     <div
                                                         key={episode.id}
-                                                        className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors ${
+                                                        id={`episode-${season.season_number}-${episode.episode_number}`}
+                                                        className={`futuristic-card p-3 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4 transition-colors scroll-mt-24 ${
                                                             isWatched ? 'border-l-4 border-amber-500' : ''
                                                         }`}
                                                     >
@@ -886,41 +1228,30 @@ const SeriesSeasons = ({
                                                                 </span>
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <h4 className="font-semibold text-white text-sm sm:text-base">
-                                                                        {episode.name || `Episode ${episode.episode_number}`}
-                                                                    </h4>
-                                                                    {!episodeIsReleased && (
-                                                                        <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
-                                                                            Unreleased
-                                                                        </span>
-                                                                    )}
-                                                                    {isWatched && !isEpisodeLoading && episodeIsReleased && (
-                                                                        <span className="text-amber-500">✓</span>
-                                                                    )}
-                                                                </div>
-                                                                {mazeEp?.airstamp ? (
-                                                                    <p
-                                                                        className="text-xs text-sky-300/90"
-                                                                        title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
-                                                                    >
-                                                                        {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
-                                                                    </p>
-                                                                ) : episode.air_date ? (
-                                                                    <p className="text-xs text-amber-500/80">
-                                                                        {formatDate(episode.air_date)}
-                                                                    </p>
-                                                                ) : mazeEp?.airdate ? (
-                                                                    <p className="text-xs text-amber-500/80">
-                                                                        {formatDate(mazeEp.airdate)}
-                                                                    </p>
-                                                                ) : null}
-                                                                {episode.overview && (
-                                                                    <div className="mt-1">
-                                                                        <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
-                                                                            {episode.overview}
-                                                                        </p>
-                                                                        {episode.overview.length > 120 && (
+                                                                <div
+                                                                    className={episode.overview ? 'cursor-pointer' : ''}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (episode.overview) {
+                                                                            setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <h4 className="font-semibold text-white text-sm sm:text-base">
+                                                                            {episode.name || `Episode ${episode.episode_number}`}
+                                                                        </h4>
+                                                                        {!episodeIsReleased && (
+                                                                            <span className="text-xs text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded" title="Not yet released">
+                                                                                Unreleased
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {episode.overview && (
+                                                                        <div className="mt-1">
+                                                                            <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
+                                                                                {episode.overview}
+                                                                            </p>
                                                                             <button
                                                                                 type="button"
                                                                                 className="text-[10px] text-amber-500 mt-1 hover:underline"
@@ -931,9 +1262,25 @@ const SeriesSeasons = ({
                                                                             >
                                                                                 {descOpen ? 'Show less' : 'Show more'}
                                                                             </button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {mazeEp?.airstamp ? (
+                                                                    <p
+                                                                        className="text-xs text-sky-300/90 mt-1"
+                                                                        title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
+                                                                    >
+                                                                        {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                                    </p>
+                                                                ) : episode.air_date ? (
+                                                                    <p className="text-xs text-amber-500/80 mt-1">
+                                                                        {formatDate(episode.air_date)}
+                                                                    </p>
+                                                                ) : mazeEp?.airdate ? (
+                                                                    <p className="text-xs text-amber-500/80 mt-1">
+                                                                        {formatDate(mazeEp.airdate)}
+                                                                    </p>
+                                                                ) : null}
                                                             </div>
                                                         </div>
                                                         <div className="flex flex-row items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:min-w-[6rem] shrink-0 pt-2 border-t border-charcoal-700/40 sm:border-t-0 sm:pt-0">
@@ -969,7 +1316,7 @@ const SeriesSeasons = ({
                                                                 ) : (
                                                                     <>
                                                                         <span>+</span>
-                                                                        <span>Watch</span>
+                                                                        <span className="text-[10px] sm:text-xs leading-tight">Mark watched</span>
                                                                     </>
                                                                 )}
                                                             </button>
