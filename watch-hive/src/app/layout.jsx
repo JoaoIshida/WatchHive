@@ -10,6 +10,10 @@ import PullToRefresh from "./components/PullToRefresh";
 
 const inter = Inter({ subsets: ["latin"] });
 
+export const viewport = {
+  themeColor: "#0a0a0a",
+};
+
 export const metadata = {
   title: "WatchHive",
   description: "Movies and TV Shows",
@@ -19,7 +23,6 @@ export const metadata = {
     title: "WatchHive",
     statusBarStyle: "black-translucent",
   },
-  themeColor: "#0a0a0a",
   icons: {
     icon: {
       url: "/beengie/beengie-logo.png",
