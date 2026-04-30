@@ -9,17 +9,50 @@ import { tmdbMovieCa, tmdbTvNextAir } from "../_shared/tmdb.ts";
 const FN = "process_series_sync_queue";
 const BATCH = 12;
 
+const VALID_REMINDER_KINDS = new Set<string>([
+  "release_day",
+  "one_day_before",
+  "one_week_before",
+  "custom",
+]);
+
 type Prefs = {
   timezone: string;
   default_reminder_kind: ReminderKind;
+  /** Multiple timings from UI; used when wishlist/watching uses global defaults */
+  default_reminder_kinds: ReminderKind[];
   custom_days_before: number | null;
 };
 
 const defaultPrefs: Prefs = {
   timezone: "America/Toronto",
   default_reminder_kind: "release_day",
+  default_reminder_kinds: ["release_day"],
   custom_days_before: null,
 };
+
+function normalizeReminderKindsFromRow(row: {
+  default_reminder_kinds?: unknown;
+  default_reminder_kind?: string | null;
+}): ReminderKind[] {
+  const raw = row.default_reminder_kinds;
+  if (Array.isArray(raw) && raw.length > 0) {
+    const uniq: ReminderKind[] = [];
+    const seen = new Set<string>();
+    for (const k of raw) {
+      const s = typeof k === "string" ? k : "";
+      if (!VALID_REMINDER_KINDS.has(s) || seen.has(s)) continue;
+      seen.add(s);
+      uniq.push(s as ReminderKind);
+    }
+    if (uniq.length > 0) return uniq;
+  }
+  const one = row.default_reminder_kind;
+  if (typeof one === "string" && VALID_REMINDER_KINDS.has(one)) {
+    return [one as ReminderKind];
+  }
+  return [...defaultPrefs.default_reminder_kinds];
+}
 
 async function loadPrefs(
   supabase: SupabaseClient,
@@ -29,13 +62,18 @@ async function loadPrefs(
   if (userIds.length === 0) return out;
   const { data } = await supabase
     .from("notification_preferences")
-    .select("user_id, timezone, default_reminder_kind, custom_days_before")
+    .select(
+      "user_id, timezone, default_reminder_kind, default_reminder_kinds, custom_days_before",
+    )
     .in("user_id", userIds);
   for (const row of data ?? []) {
+    const kinds = normalizeReminderKindsFromRow(row);
     out[row.user_id] = {
       timezone: row.timezone || defaultPrefs.timezone,
       default_reminder_kind: (row.default_reminder_kind ||
+        kinds[0] ||
         defaultPrefs.default_reminder_kind) as ReminderKind,
+      default_reminder_kinds: kinds,
       custom_days_before: row.custom_days_before,
     };
   }
@@ -165,75 +203,95 @@ async function materializeForContent(
     const p = prefs[w.user_id] ?? defaultPrefs;
     const wr = wrMap.get(w.id);
     const useGlobal = wr?.use_global_default !== false;
-    const kind = (useGlobal
-      ? p.default_reminder_kind
-      : (wr?.reminder_kind ?? p.default_reminder_kind)) as ReminderKind;
+    const kindsForUser: ReminderKind[] = useGlobal
+      ? p.default_reminder_kinds
+      : [
+          (wr?.reminder_kind ?? p.default_reminder_kind) as ReminderKind,
+        ];
     const custom = useGlobal
       ? p.custom_days_before
       : wr?.custom_days_before ?? p.custom_days_before;
-    const offset = offsetDaysForKind(kind, custom);
-    const target = releaseLuxon.minus({ days: offset });
-    const targetStr = target.toISODate()!;
-    const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
-    if (targetStr !== userToday) continue;
 
-    const dedupe_key =
-      `rel:${w.user_id}:${content_id}:${media_type}:${release_date}:${offset}`;
-    const isMovie = media_type === "movie";
-    const movieWhen =
-      offset === 0
-        ? "is in theatres today (CA)"
-        : offset === 1
-        ? "opens in theatres tomorrow (CA)"
-        : `opens in theatres in ${offset} days (CA)`;
-    const tvWhen =
-      offset === 0
-        ? "premieres today (CA)"
-        : offset === 1
-        ? "premieres tomorrow (CA)"
-        : `premieres in ${offset} days (CA)`;
-    await tryInsertNotification(supabase, {
-      user_id: w.user_id,
-      title: isMovie ? `In theatres: ${title}` : `Premiere: ${title}`,
-      message: isMovie
-        ? `"${title}" ${movieWhen}.`
-        : `"${title}" ${tvWhen}.`,
-      link,
-      dedupe_key,
-    });
+    const seenOffsets = new Set<number>();
+    for (const kind of kindsForUser) {
+      if (!VALID_REMINDER_KINDS.has(kind)) continue;
+      const offset = offsetDaysForKind(kind, custom);
+      if (seenOffsets.has(offset)) continue;
+      seenOffsets.add(offset);
+
+      const target = releaseLuxon.minus({ days: offset });
+      const targetStr = target.toISODate()!;
+      const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
+      if (targetStr !== userToday) continue;
+
+      const dedupe_key =
+        `rel:${w.user_id}:${content_id}:${media_type}:${release_date}:${offset}`;
+      const isMovie = media_type === "movie";
+      const movieWhen =
+        offset === 0
+          ? "is in theatres today (CA)"
+          : offset === 1
+          ? "opens in theatres tomorrow (CA)"
+          : `opens in theatres in ${offset} days (CA)`;
+      const tvWhen =
+        offset === 0
+          ? "premieres today (CA)"
+          : offset === 1
+          ? "premieres tomorrow (CA)"
+          : `premieres in ${offset} days (CA)`;
+      await tryInsertNotification(supabase, {
+        user_id: w.user_id,
+        title: isMovie ? `In theatres: ${title}` : `Premiere: ${title}`,
+        message: isMovie
+          ? `"${title}" ${movieWhen}.`
+          : `"${title}" ${tvWhen}.`,
+        link,
+        dedupe_key,
+      });
+    }
   }
 
   for (const wc of watchingCandidates) {
     const p = prefs[wc.user_id] ?? defaultPrefs;
     const wh = whMap.get(wc.id);
     const useGlobal = wh?.use_global_default !== false;
-    const kind = (useGlobal
-      ? p.default_reminder_kind
-      : (wh?.reminder_kind ?? p.default_reminder_kind)) as ReminderKind;
+    const kindsForUser: ReminderKind[] = useGlobal
+      ? p.default_reminder_kinds
+      : [
+          (wh?.reminder_kind ?? p.default_reminder_kind) as ReminderKind,
+        ];
     const custom = useGlobal
       ? p.custom_days_before
       : wh?.custom_days_before ?? p.custom_days_before;
-    const offset = offsetDaysForKind(kind, custom);
-    const target = releaseLuxon.minus({ days: offset });
-    const targetStr = target.toISODate()!;
-    const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
-    if (targetStr !== userToday) continue;
 
-    const dedupe_key =
-      `rel:${wc.user_id}:${content_id}:${media_type}:${release_date}:${offset}:w`;
-    const epWhen =
-      offset === 0
-        ? "has a new episode airing today (CA)"
-        : offset === 1
-        ? "has a new episode airing tomorrow (CA)"
-        : `has a new episode in ${offset} days (CA)`;
-    await tryInsertNotification(supabase, {
-      user_id: wc.user_id,
-      title: `New episode: ${title}`,
-      message: `"${title}" ${epWhen}.`,
-      link,
-      dedupe_key,
-    });
+    const seenOffsets = new Set<number>();
+    for (const kind of kindsForUser) {
+      if (!VALID_REMINDER_KINDS.has(kind)) continue;
+      const offset = offsetDaysForKind(kind, custom);
+      if (seenOffsets.has(offset)) continue;
+      seenOffsets.add(offset);
+
+      const target = releaseLuxon.minus({ days: offset });
+      const targetStr = target.toISODate()!;
+      const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
+      if (targetStr !== userToday) continue;
+
+      const dedupe_key =
+        `rel:${wc.user_id}:${content_id}:${media_type}:${release_date}:${offset}:w`;
+      const epWhen =
+        offset === 0
+          ? "has a new episode airing today (CA)"
+          : offset === 1
+          ? "has a new episode airing tomorrow (CA)"
+          : `has a new episode in ${offset} days (CA)`;
+      await tryInsertNotification(supabase, {
+        user_id: wc.user_id,
+        title: `New episode: ${title}`,
+        message: `"${title}" ${epWhen}.`,
+        link,
+        dedupe_key,
+      });
+    }
   }
 }
 
