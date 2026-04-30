@@ -12,15 +12,23 @@ import HashScrollHandler from '../../components/HashScrollHandler';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
-import { fetchTMDB } from '../../api/utils';
+import { notFound } from 'next/navigation';
+import { fetchTMDB, TMDBRequestError } from '../../api/utils';
 import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
 async function getSerieDetails(id) {
-    // Directly call TMDB API (like movie page) to avoid server-side fetch issues
-    const data = await fetchTMDB(`/tv/${id}`, {
-        language: 'en-CA',
-        append_to_response: 'content_ratings',
-    });
-    
+    let data;
+    try {
+        data = await fetchTMDB(`/tv/${id}`, {
+            language: 'en-CA',
+            append_to_response: 'content_ratings',
+        });
+    } catch (e) {
+        if (e instanceof TMDBRequestError && e.status === 404) {
+            notFound();
+        }
+        throw e;
+    }
+
     // Filter seasons by season_number
     // According to TMDB: season_number >= 0 (0 is for specials, 1+ are regular seasons)
     if (data.seasons && Array.isArray(data.seasons)) {

@@ -6,6 +6,9 @@ async function getMovieDetails(id) {
     });
 
     if (!res.ok) {
+        if (res.status === 404) {
+            notFound();
+        }
         throw new Error('Failed to fetch movie details');
     }
 
@@ -73,6 +76,7 @@ async function getMovieRecommendations(id) {
     }
 }
 
+import { notFound } from 'next/navigation';
 import ImageWithFallback from '../../components/ImageWithFallback';
 import WatchedButton from '../../components/WatchedButton';
 import WishlistButton from '../../components/WishlistButton';

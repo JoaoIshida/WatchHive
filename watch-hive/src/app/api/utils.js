@@ -1,3 +1,16 @@
+/** Thrown when TMDB responds with a non-OK status; `status` is the HTTP status code. */
+export class TMDBRequestError extends Error {
+    /**
+     * @param {string} message
+     * @param {number} status
+     */
+    constructor(message, status) {
+        super(message);
+        this.name = 'TMDBRequestError';
+        this.status = status;
+    }
+}
+
 /**
  * Helper function to build query string from params object
  */
@@ -29,7 +42,10 @@ export async function fetchTMDB(endpoint, params = {}) {
     });
 
     if (!response.ok) {
-        throw new Error(`TMDB API error: ${response.status} ${response.statusText}`);
+        throw new TMDBRequestError(
+            `TMDB API error: ${response.status} ${response.statusText}`,
+            response.status
+        );
     }
 
     return response.json();
