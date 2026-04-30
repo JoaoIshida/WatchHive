@@ -104,14 +104,20 @@ self.addEventListener("push", (event) => {
       data.body = event.data.text();
     }
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/beengie/beengie-logo.png",
-      badge: "/beengie/beengie-logo.png",
-      data: { url: data.url || "/" },
-    }),
-  );
+  /**
+   * Optional `tag` + `renotify` from payload allow the daily aggregated push
+   * to replace yesterday's WatchHive notification in the OS tray instead of
+   * stacking. Friend-request payloads omit them and behave as before.
+   */
+  const options = {
+    body: data.body,
+    icon: "/beengie/beengie-logo.png",
+    badge: "/beengie/beengie-logo.png",
+    data: { url: data.url || "/" },
+  };
+  if (typeof data.tag === "string" && data.tag) options.tag = data.tag;
+  if (data.renotify === true) options.renotify = true;
+  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
