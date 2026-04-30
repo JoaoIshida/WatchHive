@@ -1,4 +1,4 @@
-import { isSeriesReleased, isSeasonReleased, isEpisodeReleased } from './releaseDateValidator';
+import { isSeriesReleased } from './releaseDateValidator';
 import { calculateSeriesProgress } from './seriesProgressCalculator';
 
 /**

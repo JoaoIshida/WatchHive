@@ -1,38 +1,7 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
-
-function isEpisodeReleased(episode, seasonData = null) {
-    if (!episode) return false;
-    let airDate = episode.air_date;
-    if (!airDate && seasonData && seasonData.air_date) {
-        airDate = seasonData.air_date;
-    }
-    if (!airDate) {
-        return true;
-    }
-    try {
-        const releaseDate = new Date(airDate);
-        releaseDate.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return releaseDate <= today;
-    } catch {
-        return true;
-    }
-}
-
-function isSeasonReleased(season) {
-    if (!season || !season.air_date) return false;
-    try {
-        const releaseDate = new Date(season.air_date);
-        releaseDate.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return releaseDate <= today;
-    } catch {
-        return false;
-    }
-}
+import { isEpisodeReleasedOrdered, isSeasonReleased } from '../../../../utils/releaseDateValidator';
+import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
 /**
  * GET /api/series-progress/[seriesId]/released-gap-count
@@ -102,8 +71,9 @@ export async function GET(req, { params }) {
             const seasonData = await fetchTMDB(`/tv/${seriesIdStr}/season/${sn}`, {
                 language: 'en-CA',
             });
+            const mazeMap = await getTvmazeEpisodeScheduleMap(seriesIdStr, sn);
             const released = (seasonData?.episodes || []).filter((ep) =>
-                isEpisodeReleased(ep, seasonData),
+                isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
             );
             const watched = watchedBySeason.get(sn) || new Set();
             for (const ep of released) {

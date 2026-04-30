@@ -1,41 +1,8 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
 import { fetchTMDB } from '../utils';
 import { syncTvWatchedContentFromProgress } from '../../utils/syncTvWatchedContent';
-
-/**
- * Check if an episode is released (server-side validation)
- * If episode has no air_date, falls back to season air_date
- * If neither has a date, allows marking (assumes released since it exists in TMDB)
- */
-function isEpisodeReleased(episode, seasonData = null) {
-    if (!episode) return false;
-    
-    // Try episode air_date first
-    let airDate = episode.air_date;
-    
-    // If episode has no air_date, try season air_date as fallback
-    if (!airDate && seasonData && seasonData.air_date) {
-        airDate = seasonData.air_date;
-    }
-    
-    // If still no date, allow marking (assume released since it exists in TMDB)
-    if (!airDate) {
-        return true;
-    }
-    
-    try {
-        const releaseDate = new Date(airDate);
-        releaseDate.setHours(0, 0, 0, 0);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        return releaseDate <= today;
-    } catch (error) {
-        // If date parsing fails, allow marking (assume released)
-        return true;
-    }
-}
+import { isEpisodeReleasedOrdered } from '../../utils/releaseDateValidator';
+import { getTvmazeEpisodeScheduleMap } from '../../lib/tvmazeEpisodeSchedule';
 
 export async function GET(req) {
     try {
@@ -228,12 +195,16 @@ export async function POST(req) {
                             const seasonData = await fetchTMDB(`/tv/${itemId}/season/${season.season_number}`, {
                                 language: 'en-CA',
                             });
-                            
-                            // Post-filter: Filter only released episodes after fetching
-                            // Pass seasonData for fallback date checking
+
+                            const mazeMap = await getTvmazeEpisodeScheduleMap(itemId, season.season_number);
+
                             const allEpisodes = seasonData?.episodes || [];
-                            const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep, seasonData));
-                            const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep, seasonData));
+                            const releasedEpisodes = allEpisodes.filter((ep) =>
+                                isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+                            );
+                            const unreleasedEpisodes = allEpisodes.filter(
+                                (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+                            );
                             
                             // Track skipped episodes
                             unreleasedEpisodes.forEach(ep => {

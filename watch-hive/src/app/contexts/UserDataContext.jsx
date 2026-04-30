@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { isEpisodeReleased } from '../utils/releaseDateValidator';
+import { isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
 
 const UserDataContext = createContext(null);
 
@@ -115,7 +115,10 @@ export function UserDataProvider({ children }) {
                             if (seasonData.episodes?.length) {
                                 const watchedEpisodes = progressData?.seasons?.[String(season.season_number)]?.episodes || [];
                                 seasonData.episodes.forEach((episode) => {
-                                    if (!isEpisodeReleased(episode, seasonData) && !watchedEpisodes.includes(episode.episode_number)) {
+                                    if (
+                                        !isEpisodeReleasedOrdered(episode, seasonData, null) &&
+                                        !watchedEpisodes.includes(episode.episode_number)
+                                    ) {
                                         const episodeAirDate = episode.air_date || seasonData.air_date;
                                         if (episodeAirDate) {
                                             upcomingEpisodesList.push({

@@ -1,11 +1,69 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { isSeasonReleased, isEpisodeReleased } from '../utils/releaseDateValidator';
+import { isSeasonReleased, isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
 import { formatDate, formatDateTimeInTimeZone } from '../utils/dateFormatter';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
 import ImageWithFallback from './ImageWithFallback';
 import UnreleasedNotification from './UnreleasedNotification';
+
+/** Pick TV Maz row for TMDB episode number (validator third arg understands `airdate` / `airstamp`). */
+function tvmazePick(mazeSeasonMap, episodeNumber) {
+    if (!mazeSeasonMap) return null;
+    return mazeSeasonMap[episodeNumber] ?? null;
+}
+
+/**
+ * Clamp long episode overviews: only show Show more when the text actually overflows ~2 lines.
+ */
+function EpisodeOverviewBlock({ overview, expanded, onToggle }) {
+    const pRef = useRef(null);
+    const [needsToggle, setNeedsToggle] = useState(false);
+
+    useLayoutEffect(() => {
+        const el = pRef.current;
+        if (!overview || !el) {
+            setNeedsToggle(false);
+            return undefined;
+        }
+        const measure = () => {
+            if (expanded) {
+                setNeedsToggle(true);
+                return;
+            }
+            setNeedsToggle(el.scrollHeight > el.clientHeight + 2);
+        };
+        measure();
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+        ro?.observe(el);
+        return () => ro?.disconnect();
+    }, [overview, expanded]);
+
+    if (!overview) return null;
+
+    return (
+        <div className="mt-1">
+            <p
+                ref={pRef}
+                className={`text-xs text-white/70 ${expanded ? '' : 'line-clamp-2'}`}
+            >
+                {overview}
+            </p>
+            {needsToggle ? (
+                <button
+                    type="button"
+                    className="text-[10px] text-amber-500 mt-1 hover:underline"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggle();
+                    }}
+                >
+                    {expanded ? 'Show less' : 'Show more'}
+                </button>
+            ) : null}
+        </div>
+    );
+}
 
 const SeriesSeasons = ({
     seriesId,
@@ -113,6 +171,29 @@ const SeriesSeasons = ({
                 setTvmazeEpisodes((prev) => ({ ...prev, [seasonNumber]: map }));
             } catch (e) {
                 console.error('TVMaze schedule fetch failed', e);
+            }
+        },
+        [seriesId]
+    );
+
+    /** Always refreshes TM schedule for critical checks (toggle watched / bulk complete); overwrites stash. */
+    const mergeTvmazeSeasonFresh = useCallback(
+        async (seasonNumber) => {
+            try {
+                const response = await fetch(`/api/tvmaze/series/${seriesId}/season/${seasonNumber}`);
+                if (!response.ok) return {};
+                const data = await response.json();
+                const map = {};
+                for (const e of data.episodes || []) {
+                    if (e?.number != null) {
+                        map[e.number] = e;
+                    }
+                }
+                tvmazeFetchedRef.current.add(seasonNumber);
+                setTvmazeEpisodes((prev) => ({ ...prev, [seasonNumber]: map }));
+                return map;
+            } catch {
+                return {};
             }
         },
         [seriesId]
@@ -272,24 +353,25 @@ const SeriesSeasons = ({
                 return;
             }
             
-            // Check if episode is released, using season data as fallback for missing dates
-            // Episodes without dates are allowed (assumed released since they exist in TMDB)
-            if (!isEpisodeReleased(episode, seasonData)) {
-                const hasDate = episode.air_date || (seasonData?.air_date);
-                if (hasDate) {
-                    // Episode has a future date
-                    setSkippedItems([{
-                        type: 'episode',
-                        seriesName: seriesName,
-                        seasonName: seasonData?.name || `Season ${seasonNumber}`,
-                        episodeName: episode.name || `Episode ${episodeNumber}`,
-                        releaseDate: formatDate(episode.air_date || seasonData?.air_date)
-                    }]);
-                    setShowNotification(true);
-                    setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
-                    return;
-                }
-                // If no date, allow marking (assume released)
+            const tvmazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
+            const tvmazeEp = tvmazePick(tvmazeSeason, episodeNumber);
+
+            if (!isEpisodeReleasedOrdered(episode, seasonData, tvmazeSeason)) {
+                const airedWhen = tvmazeEp?.airdate
+                    ? formatDate(String(tvmazeEp.airdate).slice(0, 10))
+                    : tvmazeEp?.airstamp
+                      ? formatDateTimeInTimeZone(tvmazeEp.airstamp, displayTimeZone)
+                      : formatDate(episode.air_date || seasonData?.air_date);
+                setSkippedItems([{
+                    type: 'episode',
+                    seriesName: seriesName,
+                    seasonName: seasonData?.name || `Season ${seasonNumber}`,
+                    episodeName: episode.name || `Episode ${episodeNumber}`,
+                    releaseDate: airedWhen || 'Not aired yet'
+                }]);
+                setShowNotification(true);
+                setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
+                return;
             }
         }
 
@@ -370,18 +452,28 @@ const SeriesSeasons = ({
                     }
                 }
                 
-                // Filter out unreleased episodes, passing seasonData for fallback date checking
                 const seasonDataForFilter = seasonData || seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
-                const releasedEpisodes = allEpisodes.filter(ep => isEpisodeReleased(ep, seasonDataForFilter));
-                const unreleasedEpisodes = allEpisodes.filter(ep => !isEpisodeReleased(ep, seasonDataForFilter));
-                
-                unreleasedEpisodes.forEach(ep => {
+                const mazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
+                const releasedEpisodes = allEpisodes.filter((ep) =>
+                    isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason),
+                );
+                const unreleasedEpisodes = allEpisodes.filter(
+                    (ep) => !isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason),
+                );
+
+                unreleasedEpisodes.forEach((ep) => {
+                    const me = tvmazePick(mazeSeason, ep.episode_number);
+                    const when = me?.airdate
+                        ? formatDate(String(me.airdate).slice(0, 10))
+                        : me?.airstamp
+                          ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                          : formatDate(ep.air_date);
                     skipped.push({
                         type: 'episode',
                         seriesName: seriesName,
                         seasonName: seasonData?.name || `Season ${seasonNumber}`,
                         episodeName: ep.name || `Episode ${ep.episode_number}`,
-                        releaseDate: formatDate(ep.air_date)
+                        releaseDate: when,
                     });
                 });
                 
@@ -488,52 +580,72 @@ const SeriesSeasons = ({
                         return null;
                     }
                     
+                    const mazeSeason = await mergeTvmazeSeasonFresh(season.season_number);
+
                     // Try to get from already loaded season details
                     if (seasonDetails[season.season_number] && seasonDetails[season.season_number].episodes) {
                         const seasonData = seasonDetails[season.season_number];
-                        // Filter unreleased episodes, passing seasonData for fallback date checking
-                        const releasedEpisodes = seasonData.episodes.filter(ep => isEpisodeReleased(ep, seasonData));
-                        const unreleasedEpisodes = seasonData.episodes.filter(ep => !isEpisodeReleased(ep, seasonData));
-                        
-                        unreleasedEpisodes.forEach(ep => {
+                        const releasedEpisodes = seasonData.episodes.filter((ep) =>
+                            isEpisodeReleasedOrdered(ep, seasonData, mazeSeason),
+                        );
+                        const unreleasedEpisodes = seasonData.episodes.filter(
+                            (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason),
+                        );
+
+                        unreleasedEpisodes.forEach((ep) => {
+                            const me = tvmazePick(mazeSeason, ep.episode_number);
+                            const when = me?.airdate
+                                ? formatDate(String(me.airdate).slice(0, 10))
+                                : me?.airstamp
+                                  ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                                  : formatDate(ep.air_date);
                             skipped.push({
                                 type: 'episode',
                                 seriesName: seriesName,
                                 seasonName: season.name || `Season ${season.season_number}`,
                                 episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                releaseDate: formatDate(ep.air_date)
+                                releaseDate: when,
                             });
                         });
-                        
+
                         return {
                             seasonNumber: season.season_number,
-                            data: { ...seasonData, episodes: releasedEpisodes }
+                            data: { ...seasonData, episodes: releasedEpisodes },
                         };
                     }
-                    
+
                     // Fetch from API
                     const response = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
                     if (response.ok) {
                         const data = await response.json();
-                        setSeasonDetails(prev => ({ ...prev, [season.season_number]: data }));
-                        
-                        // Filter unreleased episodes, passing season data for fallback date checking
-                        const releasedEpisodes = (data.episodes || []).filter(ep => isEpisodeReleased(ep, data));
-                        const unreleasedEpisodes = (data.episodes || []).filter(ep => !isEpisodeReleased(ep, data));
-                        
-                        unreleasedEpisodes.forEach(ep => {
+                        setSeasonDetails((prev) => ({ ...prev, [season.season_number]: data }));
+
+                        const releasedEpisodes = (data.episodes || []).filter((ep) =>
+                            isEpisodeReleasedOrdered(ep, data, mazeSeason),
+                        );
+                        const unreleasedEpisodes = (data.episodes || []).filter(
+                            (ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason),
+                        );
+
+                        unreleasedEpisodes.forEach((ep) => {
+                            const me = tvmazePick(mazeSeason, ep.episode_number);
+                            const when = me?.airdate
+                                ? formatDate(String(me.airdate).slice(0, 10))
+                                : me?.airstamp
+                                  ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                                  : formatDate(ep.air_date);
                             skipped.push({
                                 type: 'episode',
                                 seriesName: seriesName,
                                 seasonName: season.name || `Season ${season.season_number}`,
                                 episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                releaseDate: formatDate(ep.air_date)
+                                releaseDate: when,
                             });
                         });
-                        
+
                         return {
                             seasonNumber: season.season_number,
-                            data: { ...data, episodes: releasedEpisodes }
+                            data: { ...data, episodes: releasedEpisodes },
                         };
                     }
                 } catch (error) {
@@ -610,15 +722,22 @@ const SeriesSeasons = ({
         }
 
         if (seasonData?.episodes) {
+            const mazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
             seasonData.episodes
-                .filter((ep) => !isEpisodeReleased(ep, seasonData))
+                .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason))
                 .forEach((ep) => {
+                    const me = tvmazePick(mazeSeason, ep.episode_number);
+                    const when = me?.airdate
+                        ? formatDate(String(me.airdate).slice(0, 10))
+                        : me?.airstamp
+                          ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                          : formatDate(ep.air_date);
                     skipped.push({
                         type: 'episode',
                         seriesName: seriesName,
                         seasonName: season.name || `Season ${season.season_number}`,
                         episodeName: ep.name || `Episode ${ep.episode_number}`,
-                        releaseDate: formatDate(ep.air_date),
+                        releaseDate: when,
                     });
                 });
         }
@@ -643,15 +762,22 @@ const SeriesSeasons = ({
 
                     if (seasonDetails[season.season_number]?.episodes) {
                         const seasonData = seasonDetails[season.season_number];
+                        const mazeSeason = await mergeTvmazeSeasonFresh(season.season_number);
                         seasonData.episodes
-                            .filter((ep) => !isEpisodeReleased(ep, seasonData))
+                            .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason))
                             .forEach((ep) => {
+                                const me = tvmazePick(mazeSeason, ep.episode_number);
+                                const when = me?.airdate
+                                    ? formatDate(String(me.airdate).slice(0, 10))
+                                    : me?.airstamp
+                                      ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                                      : formatDate(ep.air_date);
                                 local.push({
                                     type: 'episode',
                                     seriesName: seriesName,
                                     seasonName: season.name || `Season ${season.season_number}`,
                                     episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                    releaseDate: formatDate(ep.air_date),
+                                    releaseDate: when,
                                 });
                             });
                         return local;
@@ -659,17 +785,24 @@ const SeriesSeasons = ({
 
                     const response = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
                     if (response.ok) {
+                        const mazeSeason = await mergeTvmazeSeasonFresh(season.season_number);
                         const data = await response.json();
                         setSeasonDetails((prev) => ({ ...prev, [season.season_number]: data }));
                         (data.episodes || [])
-                            .filter((ep) => !isEpisodeReleased(ep, data))
+                            .filter((ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason))
                             .forEach((ep) => {
+                                const me = tvmazePick(mazeSeason, ep.episode_number);
+                                const when = me?.airdate
+                                    ? formatDate(String(me.airdate).slice(0, 10))
+                                    : me?.airstamp
+                                      ? formatDateTimeInTimeZone(me.airstamp, displayTimeZone)
+                                      : formatDate(ep.air_date);
                                 local.push({
                                     type: 'episode',
                                     seriesName: seriesName,
                                     seasonName: season.name || `Season ${season.season_number}`,
                                     episodeName: ep.name || `Episode ${ep.episode_number}`,
-                                    releaseDate: formatDate(ep.air_date),
+                                    releaseDate: when,
                                 });
                             });
                     }
@@ -772,8 +905,10 @@ const SeriesSeasons = ({
     const countReleasedMissingInSeason = (seasonNumber, seasonData) => {
         if (!seasonData?.episodes?.length) return null;
         const watched = new Set(progress.seasons[seasonNumber]?.episodes || []);
+        const mz = tvmazeEpisodes[seasonNumber];
         return seasonData.episodes.filter(
-            (ep) => isEpisodeReleased(ep, seasonData) && !watched.has(ep.episode_number)
+            (ep) =>
+                isEpisodeReleasedOrdered(ep, seasonData, mz) && !watched.has(ep.episode_number),
         ).length;
     };
 
@@ -959,15 +1094,20 @@ const SeriesSeasons = ({
                                     {seasonData.episodes.map((episode) => {
                                         // Only check database for watched status - don't assume based on season completion
                                         const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
-                                        // Pass seasonData for fallback date checking
-                                        const episodeIsReleased = isEpisodeReleased(episode, seasonData);
-                                        // Only show as watched if episode is in the database as watched
-                                        const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
+                                        const tvmazeSeasonMap = tvmazeEpisodes[season.season_number];
+                                        const tvmazeEp = tvmazePick(tvmazeSeasonMap, episode.episode_number);
+                                        const episodeIsReleased = isEpisodeReleasedOrdered(
+                                            episode,
+                                            seasonData,
+                                            tvmazeSeasonMap,
+                                        );
+                                        const isWatched =
+                                            episodeIsReleased &&
+                                            watchedEpisodes.includes(episode.episode_number);
                                         const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
                                         const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                         const dk = episodeDescKey(season.season_number, episode.episode_number);
                                         const descOpen = !!expandedEpisodeDesc[dk];
-                                        const mazeEp = tvmazeEpisodes[season.season_number]?.[episode.episode_number];
 
                                         return (
                                             <div
@@ -984,15 +1124,6 @@ const SeriesSeasons = ({
                                                         </span>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div
-                                                            className={episode.overview ? 'cursor-pointer' : ''}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (episode.overview) {
-                                                                    setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
-                                                                }
-                                                            }}
-                                                        >
                                                             <div className="flex flex-wrap items-center gap-2">
                                                                 <h4 className="font-semibold text-white text-sm sm:text-base">
                                                                     {episode.name || `Episode ${episode.episode_number}`}
@@ -1003,38 +1134,32 @@ const SeriesSeasons = ({
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            {episode.overview && (
-                                                                <div className="mt-1">
-                                                                    <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
-                                                                        {episode.overview}
-                                                                    </p>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="text-[10px] text-amber-500 mt-1 hover:underline"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
-                                                                        }}
-                                                                    >
-                                                                        {descOpen ? 'Show less' : 'Show more'}
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {mazeEp?.airstamp ? (
+                                                            {episode.overview ? (
+                                                                <EpisodeOverviewBlock
+                                                                    overview={episode.overview}
+                                                                    expanded={descOpen}
+                                                                    onToggle={() =>
+                                                                        setExpandedEpisodeDesc((prev) => ({
+                                                                            ...prev,
+                                                                            [dk]: !prev[dk],
+                                                                        }))
+                                                                    }
+                                                                />
+                                                            ) : null}
+                                                        {tvmazeEp?.airstamp ? (
                                                             <p
                                                                 className="text-xs text-sky-300/90 mt-1"
                                                                 title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
                                                             >
-                                                                {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                                {formatDateTimeInTimeZone(tvmazeEp.airstamp, displayTimeZone)}
+                                                            </p>
+                                                        ) : tvmazeEp?.airdate ? (
+                                                            <p className="text-xs text-amber-500/80 mt-1">
+                                                                {formatDate(tvmazeEp.airdate)}
                                                             </p>
                                                         ) : episode.air_date ? (
                                                             <p className="text-xs text-amber-500/80 mt-1">
                                                                 {formatDate(episode.air_date)}
-                                                            </p>
-                                                        ) : mazeEp?.airdate ? (
-                                                            <p className="text-xs text-amber-500/80 mt-1">
-                                                                {formatDate(mazeEp.airdate)}
                                                             </p>
                                                         ) : null}
                                                     </div>
@@ -1205,13 +1330,20 @@ const SeriesSeasons = ({
                                         <div className="mt-4 space-y-2">
                                             {seasonData.episodes.map((episode) => {
                                                 const watchedEpisodes = progress.seasons[season.season_number]?.episodes || [];
-                                                const episodeIsReleased = isEpisodeReleased(episode, seasonData);
-                                                const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
+                                                const tvmazeSeasonMap = tvmazeEpisodes[season.season_number];
+                                                const tvmazeEp = tvmazePick(tvmazeSeasonMap, episode.episode_number);
+                                                const episodeIsReleased = isEpisodeReleasedOrdered(
+                                                    episode,
+                                                    seasonData,
+                                                    tvmazeSeasonMap,
+                                                );
+                                                const isWatched =
+                                                    episodeIsReleased &&
+                                                    watchedEpisodes.includes(episode.episode_number);
                                                 const episodeLoadingKey = `${season.season_number}-${episode.episode_number}`;
                                                 const isEpisodeLoading = loadingEpisodes[episodeLoadingKey];
                                                 const dk = episodeDescKey(season.season_number, episode.episode_number);
                                                 const descOpen = !!expandedEpisodeDesc[dk];
-                                                const mazeEp = tvmazeEpisodes[season.season_number]?.[episode.episode_number];
 
                                                 return (
                                                     <div
@@ -1228,15 +1360,6 @@ const SeriesSeasons = ({
                                                                 </span>
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <div
-                                                                    className={episode.overview ? 'cursor-pointer' : ''}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        if (episode.overview) {
-                                                                            setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
-                                                                        }
-                                                                    }}
-                                                                >
                                                                     <div className="flex flex-wrap items-center gap-2">
                                                                         <h4 className="font-semibold text-white text-sm sm:text-base">
                                                                             {episode.name || `Episode ${episode.episode_number}`}
@@ -1247,38 +1370,32 @@ const SeriesSeasons = ({
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    {episode.overview && (
-                                                                        <div className="mt-1">
-                                                                            <p className={`text-xs text-white/70 ${descOpen ? '' : 'line-clamp-2'}`}>
-                                                                                {episode.overview}
-                                                                            </p>
-                                                                            <button
-                                                                                type="button"
-                                                                                className="text-[10px] text-amber-500 mt-1 hover:underline"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setExpandedEpisodeDesc((prev) => ({ ...prev, [dk]: !prev[dk] }));
-                                                                                }}
-                                                                            >
-                                                                                {descOpen ? 'Show less' : 'Show more'}
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                {mazeEp?.airstamp ? (
+                                                                    {episode.overview ? (
+                                                                        <EpisodeOverviewBlock
+                                                                            overview={episode.overview}
+                                                                            expanded={descOpen}
+                                                                            onToggle={() =>
+                                                                                setExpandedEpisodeDesc((prev) => ({
+                                                                                    ...prev,
+                                                                                    [dk]: !prev[dk],
+                                                                                }))
+                                                                            }
+                                                                        />
+                                                                    ) : null}
+                                                                {tvmazeEp?.airstamp ? (
                                                                     <p
                                                                         className="text-xs text-sky-300/90 mt-1"
                                                                         title={`Scheduled air time (your timezone: ${displayTimeZone.replace(/_/g, ' ')})`}
                                                                     >
-                                                                        {formatDateTimeInTimeZone(mazeEp.airstamp, displayTimeZone)}
+                                                                        {formatDateTimeInTimeZone(tvmazeEp.airstamp, displayTimeZone)}
+                                                                    </p>
+                                                                ) : tvmazeEp?.airdate ? (
+                                                                    <p className="text-xs text-amber-500/80 mt-1">
+                                                                        {formatDate(tvmazeEp.airdate)}
                                                                     </p>
                                                                 ) : episode.air_date ? (
                                                                     <p className="text-xs text-amber-500/80 mt-1">
                                                                         {formatDate(episode.air_date)}
-                                                                    </p>
-                                                                ) : mazeEp?.airdate ? (
-                                                                    <p className="text-xs text-amber-500/80 mt-1">
-                                                                        {formatDate(mazeEp.airdate)}
                                                                     </p>
                                                                 ) : null}
                                                             </div>

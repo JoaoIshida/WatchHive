@@ -1,7 +1,7 @@
 "use client";
 import { ChevronDown } from 'lucide-react';
 import { formatDate } from '../utils/dateFormatter';
-import { isEpisodeReleased } from '../utils/releaseDateValidator';
+import { isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
 
 export default function ProfileSeriesSection({
@@ -180,7 +180,7 @@ export default function ProfileSeriesSection({
                                                 {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
                                                     <div className="mt-3 space-y-1">
                                                         {seasonData.episodes.map((episode) => {
-                                                            const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                                            const episodeIsReleased = isEpisodeReleasedOrdered(episode, seasonData, null);
                                                             const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                                             const isUpcoming = !episodeIsReleased;
                                                             return (
@@ -255,7 +255,7 @@ export default function ProfileSeriesSection({
                                                         {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
                                                             <div className="mt-3 space-y-1">
                                                                 {seasonData.episodes.map((episode) => {
-                                                                    const episodeIsReleased = isEpisodeReleased(episode, seasonData);
+                                                                    const episodeIsReleased = isEpisodeReleasedOrdered(episode, seasonData, null);
                                                                     const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                                                     const isUpcoming = !episodeIsReleased;
                                                                     return (
