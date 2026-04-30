@@ -1,0 +1,19 @@
+# Supabase CLI — https://supabase.com/docs/guides/cli/config
+# Deploy functions: npx supabase functions deploy enqueue_release_sync_candidates --no-verify-jwt
+# Also: refresh_series_progress_catalog (series TMDB totals + new_episodes notifications)
+# (Use dashboard to set JWT verification per function if needed.)
+
+[api]
+enabled = true
+
+[functions.enqueue_release_sync_candidates]
+verify_jwt = false
+
+[functions.process_series_sync_queue]
+verify_jwt = false
+
+[functions.send_due_notifications]
+verify_jwt = false
+
+[functions.refresh_series_progress_catalog]
+verify_jwt = false
