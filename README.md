@@ -1,6 +1,17 @@
 # WatchHive
 
-WatchHive is for discovering movies and series, keeping track of what you watch, and sharing with friends. Think of it as your personal shelf and watchlist, with a social layer -without needing to know how any of that is built.
+WatchHive is for discovering movies and series, keeping track of what you watch, and sharing with friends. Think of it as your personal shelf and watchlist, with a social layer, without needing to know how any of that is built.
+
+## Links
+
+- **Live app:** [whive.vercel.app](https://whive.vercel.app)
+- **Source code:** [github.com/JoaoIshida/watchhive](https://github.com/JoaoIshida/watchhive)
+
+Stack: **Next.js**, **Supabase** (auth, data, Edge Functions), **TMDB** for catalogue and images, and optionally **[Watchmode](https://api.watchmode.com/)** for streaming availability and deeplink resolution when TMDB does not expose a solid per-provider link (Watchmode complements TMDB `watch/providers`; it does not replace the catalogue).
+
+This product uses the TMDB API but is not endorsed or certified by TMDB ([themoviedb.org](https://www.themoviedb.org/)).
+
+License: [MIT](LICENSE).
 
 ---
 
@@ -24,6 +35,42 @@ Short definitions so the steps below make sense:
 
 - [Node.js](https://nodejs.org/) (LTS is fine)
 - Git clone of this repo
+
+### Environment variables (local dev)
+
+1. From the repo root, go to the app folder and copy the template (never commit your real `.env`):
+
+   ```bash
+   cd watch-hive
+   ```
+
+   **Windows (PowerShell or Command Prompt):** `copy .env.example .env`  
+   **macOS / Linux:** `cp .env.example .env`
+
+2. Fill in values. The canonical list of variable names and short hints is [`watch-hive/.env.example`](watch-hive/.env.example).
+
+**Required for a useful local app**
+
+- **Supabase:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (Dashboard → Project Settings → API).
+- **TMDB:** `TMDB_API_KEY` and `AUTH_TOKEN`. `AUTH_TOKEN` must be your TMDB **API Read Access Token** (Bearer auth on `api.themoviedb.org/3`); create both under [TMDB API settings](https://www.themoviedb.org/settings/api).
+- **Sessions:** `JWT_SECRET` — use a long random string in production (not the default).
+
+**Optional**
+
+- **TV Maze:** `TVMAZE_API_KEY` — [TV Maze API](https://www.tvmaze.com/api).
+- **Streaming deeplinks:** `WATCHMODE_API_KEY` from [Watchmode](https://api.watchmode.com/). When set, the server route `/api/watch/watchmode-resolve` can return a `web_url` for “watch on this provider” when TMDB does not already expose a good link; see [`watch-hive/src/app/utils/streamingOutboundUrlReference.md`](watch-hive/src/app/utils/streamingOutboundUrlReference.md). Without it, the app still uses TMDB and per-provider search fallbacks.
+- **Web push:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, optional `VAPID_SUBJECT`.
+- **Prime outbound links:** `NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG`.
+
+**Canonical URL:** `NEXT_PUBLIC_APP_URL` (e.g. `http://localhost:3000`) when not on Vercel; production uses `VERCEL_URL` where relevant.
+
+### Supabase for contributors
+
+1. Create a [Supabase](https://supabase.com/) project.
+2. Apply the database schema from this repo, for example with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link` then `supabase db push` from the `watch-hive` directory (migrations live under `watch-hive/supabase/migrations/`).
+3. Copy the project URL and keys into `watch-hive/.env` as described above.
+
+Edge Functions, cron jobs, and push pipelines are documented in [`watch-hive/README.md`](watch-hive/README.md). Secrets such as `CRON_SECRET`, `TMDB_API_KEY`, and VAPID keys for those jobs are configured in the **Supabase Dashboard → Edge Functions → Secrets**, not only in Next.js `.env`.
 
 ### Install and run (this machine only)
 

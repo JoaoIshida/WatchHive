@@ -1,6 +1,6 @@
 # WatchHive (app)
 
-This folder is the **Next.js** application. For a full intro (including testing on your phone over Wi‑Fi), start at the **[root README](../README.md)**.
+This folder is the **Next.js** application. For a full intro (including testing on your phone over Wi‑Fi), start at the **[root README](../README.md)**. For **environment variables** (`.env.example`, TMDB, optional Watchmode, and related keys) and **Supabase for contributors** (migrations, where Edge secrets live), see the same doc: [Environment variables (local dev)](../README.md#environment-variables-local-dev) and [Supabase for contributors](../README.md#supabase-for-contributors).
 
 Quick commands from **this** directory:
 
