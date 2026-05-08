@@ -1,7 +1,8 @@
 "use client";
 import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
+import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
+import { tvmazeProxyResponseToScheduleObject } from '../lib/tvmazeEpisodeSchedule';
 
 const UserDataContext = createContext(null);
 
@@ -106,17 +107,29 @@ export function UserDataProvider({ children }) {
             const upcomingEpisodesList = [];
             const checkSeriesUpcomingEpisodes = async (seriesId, seriesData, progressData = null) => {
                 if (!seriesData?.seasons) return;
+                const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 for (const season of seriesData.seasons) {
                     if (season.season_number < 0) continue;
                     try {
                         const seasonResponse = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
+                        let mazeSchedule = null;
+                        try {
+                            const mazeRes = await fetch(
+                                `/api/tvmaze/series/${seriesId}/season/${season.season_number}`,
+                            );
+                            if (mazeRes.ok) {
+                                mazeSchedule = tvmazeProxyResponseToScheduleObject(await mazeRes.json());
+                            }
+                        } catch {
+                            mazeSchedule = null;
+                        }
                         if (seasonResponse.ok) {
                             const seasonData = await seasonResponse.json();
                             if (seasonData.episodes?.length) {
                                 const watchedEpisodes = progressData?.seasons?.[String(season.season_number)]?.episodes || [];
                                 seasonData.episodes.forEach((episode) => {
                                     if (
-                                        !isEpisodeReleasedOrdered(episode, seasonData, null) &&
+                                        !isEpisodeReleasedOrdered(episode, seasonData, mazeSchedule, seriesTvMeta) &&
                                         !watchedEpisodes.includes(episode.episode_number)
                                     ) {
                                         const episodeAirDate = episode.air_date || seasonData.air_date;

@@ -12,6 +12,7 @@ import HashScrollHandler from '../../components/HashScrollHandler';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
 import { getSeriesInfo } from '../../utils/runtimeFormatter';
+import { buildSeriesTvReleaseMeta } from '../../utils/releaseDateValidator';
 import { notFound } from 'next/navigation';
 import { fetchTMDB, TMDBRequestError } from '../../api/utils';
 import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
@@ -237,7 +238,12 @@ const SerieDetailPage = async ({ params }) => {
             {/* Seasons & Episodes Section */}
             {tv.seasons && tv.seasons.length > 0 && (
                 <div id="seasons-episodes" className="mt-12 border-t border-charcoal-700 pt-8 scroll-mt-20">
-                    <SeriesSeasons seriesId={tv.id} seasons={tv.seasons} seriesName={tv.name} />
+                    <SeriesSeasons
+                        seriesId={tv.id}
+                        seasons={tv.seasons}
+                        seriesName={tv.name}
+                        seriesTvMeta={buildSeriesTvReleaseMeta(tv)}
+                    />
                 </div>
             )}
 

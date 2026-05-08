@@ -1,6 +1,10 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
-import { isEpisodeReleasedOrdered, isSeasonReleased } from '../../../../utils/releaseDateValidator';
+import {
+    buildSeriesTvReleaseMeta,
+    isEpisodeReleasedOrdered,
+    isSeasonReleased,
+} from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
 /**
@@ -60,6 +64,7 @@ export async function GET(req, { params }) {
         }
 
         const seriesData = await fetchTMDB(`/tv/${seriesIdStr}`, { language: 'en-CA' });
+        const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
         const allSeasons = seriesData?.seasons || [];
         const sorted = [...allSeasons]
             .filter((s) => s.season_number > 0 && isSeasonReleased(s))
@@ -72,7 +77,7 @@ export async function GET(req, { params }) {
             });
             const mazeMap = await getTvmazeEpisodeScheduleMap(seriesIdStr, sn);
             const released = (seasonData?.episodes || [])
-                .filter((ep) => isEpisodeReleasedOrdered(ep, seasonData, mazeMap))
+                .filter((ep) => isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta))
                 .sort((a, b) => a.episode_number - b.episode_number);
 
             const watched = watchedBySeason.get(sn) || new Set();

@@ -1,7 +1,7 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
 import { fetchTMDB } from '../utils';
 import { syncTvWatchedContentFromProgress } from '../../utils/syncTvWatchedContent';
-import { isEpisodeReleasedOrdered } from '../../utils/releaseDateValidator';
+import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../lib/tvmazeEpisodeSchedule';
 
 export async function GET(req) {
@@ -125,6 +125,7 @@ export async function POST(req) {
             try {
                 // Fetch series details to get seasons
                 const seriesData = await fetchTMDB(`/tv/${itemId}`, { language: 'en-CA' });
+                const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 const seasons = seriesData?.seasons || [];
                 
                 // Get or create series progress
@@ -200,10 +201,10 @@ export async function POST(req) {
 
                             const allEpisodes = seasonData?.episodes || [];
                             const releasedEpisodes = allEpisodes.filter((ep) =>
-                                isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+                                isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
                             );
                             const unreleasedEpisodes = allEpisodes.filter(
-                                (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+                                (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
                             );
                             
                             // Track skipped episodes

@@ -1,7 +1,7 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
 import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
-import { isEpisodeReleasedOrdered } from '../../../../utils/releaseDateValidator';
+import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
 /**
@@ -32,9 +32,13 @@ export async function POST(req, { params }) {
         // If marking as watched, verify the episode exists and has aired (TMDB + TV Maze when mapped)
         if (watched) {
             try {
-                const seasonData = await fetchTMDB(`/tv/${seriesId}/season/${seasonNumber}`, {
-                    language: 'en-CA',
-                });
+                const [seasonData, tvDetails] = await Promise.all([
+                    fetchTMDB(`/tv/${seriesId}/season/${seasonNumber}`, {
+                        language: 'en-CA',
+                    }),
+                    fetchTMDB(`/tv/${seriesId}`, { language: 'en-CA' }),
+                ]);
+                const seriesTvMeta = buildSeriesTvReleaseMeta(tvDetails);
 
                 const episode = seasonData?.episodes?.find((ep) => ep.episode_number === episodeNumber);
 
@@ -58,7 +62,7 @@ export async function POST(req, { params }) {
 
                 const scheduleEp = mazeMap?.get(Number(episodeNumber)) ?? null;
 
-                if (!isEpisodeReleasedOrdered(episode, seasonData, mazeMap)) {
+                if (!isEpisodeReleasedOrdered(episode, seasonData, mazeMap, seriesTvMeta)) {
                     return new Response(
                         JSON.stringify({
                             error: 'Cannot mark unreleased episode as watched',

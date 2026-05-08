@@ -1,7 +1,11 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
 import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
-import { isEpisodeReleasedOrdered, isSeasonReleased } from '../../../../utils/releaseDateValidator';
+import {
+    buildSeriesTvReleaseMeta,
+    isEpisodeReleasedOrdered,
+    isSeasonReleased,
+} from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
 /**
@@ -73,6 +77,7 @@ export async function POST(req, { params }) {
             try {
                 // Fetch series details to get all seasons
                 const seriesData = await fetchTMDB(`/tv/${seriesId}`, { language: 'en-CA' });
+                const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 const allSeasons = seriesData?.seasons || [];
                 
                 // Process each season
@@ -92,7 +97,7 @@ export async function POST(req, { params }) {
                     const mazeMap = await getTvmazeEpisodeScheduleMap(seriesId, seasonNumber);
 
                     const releasedEpisodes = (seasonData?.episodes || []).filter((ep) =>
-                        isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+                        isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
                     );
                     
                     if (releasedEpisodes.length === 0) {

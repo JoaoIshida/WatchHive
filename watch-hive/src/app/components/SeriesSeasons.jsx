@@ -69,6 +69,7 @@ const SeriesSeasons = ({
     seriesId,
     seasons,
     seriesName = 'Series',
+    seriesTvMeta = null,
 }) => {
     const { user } = useAuth();
     const [expandedSeasons, setExpandedSeasons] = useState({});
@@ -356,7 +357,7 @@ const SeriesSeasons = ({
             const tvmazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
             const tvmazeEp = tvmazePick(tvmazeSeason, episodeNumber);
 
-            if (!isEpisodeReleasedOrdered(episode, seasonData, tvmazeSeason)) {
+            if (!isEpisodeReleasedOrdered(episode, seasonData, tvmazeSeason, seriesTvMeta)) {
                 const airedWhen = tvmazeEp?.airdate
                     ? formatDate(String(tvmazeEp.airdate).slice(0, 10))
                     : tvmazeEp?.airstamp
@@ -455,10 +456,10 @@ const SeriesSeasons = ({
                 const seasonDataForFilter = seasonData || seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
                 const mazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
                 const releasedEpisodes = allEpisodes.filter((ep) =>
-                    isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason),
+                    isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason, seriesTvMeta),
                 );
                 const unreleasedEpisodes = allEpisodes.filter(
-                    (ep) => !isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason),
+                    (ep) => !isEpisodeReleasedOrdered(ep, seasonDataForFilter, mazeSeason, seriesTvMeta),
                 );
 
                 unreleasedEpisodes.forEach((ep) => {
@@ -586,10 +587,10 @@ const SeriesSeasons = ({
                     if (seasonDetails[season.season_number] && seasonDetails[season.season_number].episodes) {
                         const seasonData = seasonDetails[season.season_number];
                         const releasedEpisodes = seasonData.episodes.filter((ep) =>
-                            isEpisodeReleasedOrdered(ep, seasonData, mazeSeason),
+                            isEpisodeReleasedOrdered(ep, seasonData, mazeSeason, seriesTvMeta),
                         );
                         const unreleasedEpisodes = seasonData.episodes.filter(
-                            (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason),
+                            (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason, seriesTvMeta),
                         );
 
                         unreleasedEpisodes.forEach((ep) => {
@@ -621,10 +622,10 @@ const SeriesSeasons = ({
                         setSeasonDetails((prev) => ({ ...prev, [season.season_number]: data }));
 
                         const releasedEpisodes = (data.episodes || []).filter((ep) =>
-                            isEpisodeReleasedOrdered(ep, data, mazeSeason),
+                            isEpisodeReleasedOrdered(ep, data, mazeSeason, seriesTvMeta),
                         );
                         const unreleasedEpisodes = (data.episodes || []).filter(
-                            (ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason),
+                            (ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason, seriesTvMeta),
                         );
 
                         unreleasedEpisodes.forEach((ep) => {
@@ -724,7 +725,7 @@ const SeriesSeasons = ({
         if (seasonData?.episodes) {
             const mazeSeason = await mergeTvmazeSeasonFresh(seasonNumber);
             seasonData.episodes
-                .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason))
+                .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason, seriesTvMeta))
                 .forEach((ep) => {
                     const me = tvmazePick(mazeSeason, ep.episode_number);
                     const when = me?.airdate
@@ -764,7 +765,7 @@ const SeriesSeasons = ({
                         const seasonData = seasonDetails[season.season_number];
                         const mazeSeason = await mergeTvmazeSeasonFresh(season.season_number);
                         seasonData.episodes
-                            .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason))
+                            .filter((ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeSeason, seriesTvMeta))
                             .forEach((ep) => {
                                 const me = tvmazePick(mazeSeason, ep.episode_number);
                                 const when = me?.airdate
@@ -789,7 +790,7 @@ const SeriesSeasons = ({
                         const data = await response.json();
                         setSeasonDetails((prev) => ({ ...prev, [season.season_number]: data }));
                         (data.episodes || [])
-                            .filter((ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason))
+                            .filter((ep) => !isEpisodeReleasedOrdered(ep, data, mazeSeason, seriesTvMeta))
                             .forEach((ep) => {
                                 const me = tvmazePick(mazeSeason, ep.episode_number);
                                 const when = me?.airdate
@@ -908,7 +909,7 @@ const SeriesSeasons = ({
         const mz = tvmazeEpisodes[seasonNumber];
         return seasonData.episodes.filter(
             (ep) =>
-                isEpisodeReleasedOrdered(ep, seasonData, mz) && !watched.has(ep.episode_number),
+                isEpisodeReleasedOrdered(ep, seasonData, mz, seriesTvMeta) && !watched.has(ep.episode_number),
         ).length;
     };
 
@@ -1100,6 +1101,7 @@ const SeriesSeasons = ({
                                             episode,
                                             seasonData,
                                             tvmazeSeasonMap,
+                                            seriesTvMeta,
                                         );
                                         const isWatched =
                                             episodeIsReleased &&
@@ -1336,6 +1338,7 @@ const SeriesSeasons = ({
                                                     episode,
                                                     seasonData,
                                                     tvmazeSeasonMap,
+                                                    seriesTvMeta,
                                                 );
                                                 const isWatched =
                                                     episodeIsReleased &&

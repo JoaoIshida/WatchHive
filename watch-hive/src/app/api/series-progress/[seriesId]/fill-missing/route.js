@@ -1,7 +1,11 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
 import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
-import { isEpisodeReleasedOrdered, isSeasonReleased } from '../../../../utils/releaseDateValidator';
+import {
+    buildSeriesTvReleaseMeta,
+    isEpisodeReleasedOrdered,
+    isSeasonReleased,
+} from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
 async function getOrCreateSeason(supabase, seriesProgressId, seasonNumber) {
@@ -35,7 +39,7 @@ async function getOrCreateSeason(supabase, seriesProgressId, seasonNumber) {
  * Fill season: insert only released episodes not already in DB. Update season.completed.
  * Returns { filled, skippedUnreleased, seasonCompleted }
  */
-async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumber) {
+async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumber, seriesTvMeta) {
     const seasonData = await fetchTMDB(`/tv/${seriesIdStr}/season/${seasonNumber}`, {
         language: 'en-CA',
     });
@@ -43,7 +47,9 @@ async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumb
     const mazeMap = await getTvmazeEpisodeScheduleMap(seriesIdStr, seasonNumber);
 
     const allEps = seasonData?.episodes || [];
-    const releasedEpisodes = allEps.filter((ep) => isEpisodeReleasedOrdered(ep, seasonData, mazeMap));
+    const releasedEpisodes = allEps.filter((ep) =>
+        isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
+    );
     const skippedUnreleased = allEps.length - releasedEpisodes.length;
 
     if (releasedEpisodes.length === 0) {
@@ -96,6 +102,7 @@ async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumb
  */
 async function computeSeriesCaughtUp(supabase, seriesProgressId, seriesIdStr) {
     const seriesData = await fetchTMDB(`/tv/${seriesIdStr}`, { language: 'en-CA' });
+    const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
     const allSeasons = seriesData?.seasons || [];
 
     for (const seasonInfo of allSeasons) {
@@ -108,7 +115,7 @@ async function computeSeriesCaughtUp(supabase, seriesProgressId, seriesIdStr) {
         });
         const mazeMap = await getTvmazeEpisodeScheduleMap(seriesIdStr, sn);
         const released = (seasonData?.episodes || []).filter((ep) =>
-            isEpisodeReleasedOrdered(ep, seasonData, mazeMap),
+            isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
         );
         if (released.length === 0) continue;
 
@@ -195,11 +202,14 @@ export async function POST(req, { params }) {
                     headers: { 'Content-Type': 'application/json' },
                 });
             }
-            const r = await fillOneSeason(supabase, seriesIdStr, seriesProgress.id, sn);
+            const seriesPayload = await fetchTMDB(`/tv/${seriesIdStr}`, { language: 'en-CA' });
+            const seriesTvMeta = buildSeriesTvReleaseMeta(seriesPayload);
+            const r = await fillOneSeason(supabase, seriesIdStr, seriesProgress.id, sn, seriesTvMeta);
             totalFilled += r.filled;
             totalSkippedUnreleased += r.skippedUnreleased;
         } else {
             const seriesData = await fetchTMDB(`/tv/${seriesIdStr}`, { language: 'en-CA' });
+            const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
             const allSeasons = seriesData?.seasons || [];
             const sorted = [...allSeasons]
                 .filter((s) => s.season_number > 0 && isSeasonReleased(s))
@@ -211,6 +221,7 @@ export async function POST(req, { params }) {
                     seriesIdStr,
                     seriesProgress.id,
                     seasonInfo.season_number,
+                    seriesTvMeta,
                 );
                 totalFilled += r.filled;
                 totalSkippedUnreleased += r.skippedUnreleased;

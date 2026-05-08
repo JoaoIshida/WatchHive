@@ -56,3 +56,23 @@ export async function getTvmazeEpisodeScheduleMap(tmdbTvId, seasonNumber) {
         return null;
     }
 }
+
+/**
+ * Build the same shape `isEpisodeReleased` expects from `/api/tvmaze/series/{tmdbId}/season/{n}` JSON
+ * (client-side upcoming list, etc.).
+ *
+ * @param {{ episodes?: Array<{ number?: number, airdate?: string|null, airstamp?: string|null }> }} proxyJson
+ * @returns {Record<number, { airdate: string|null, airstamp: string|null }>}
+ */
+export function tvmazeProxyResponseToScheduleObject(proxyJson) {
+    /** @type {Record<number, { airdate: string|null, airstamp: string|null }>} */
+    const out = {};
+    for (const e of proxyJson?.episodes || []) {
+        if (typeof e?.number !== 'number') continue;
+        out[e.number] = {
+            airdate: e.airdate ?? null,
+            airstamp: e.airstamp ?? null,
+        };
+    }
+    return out;
+}

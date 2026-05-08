@@ -2,7 +2,7 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { formatDate } from '../utils/dateFormatter';
-import { isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
+import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
 import Pagination from '../components/Pagination';
 import { parsePageParam, useReplaceQuery } from './useReplaceQuery';
@@ -82,6 +82,7 @@ export default function ProfileSeriesSection({
             )}
             {pageEntries.map(([seriesId, progress]) => {
                 const seriesInfo = seriesDetails[seriesId];
+                const seriesTvMeta = buildSeriesTvReleaseMeta(seriesInfo);
                 const isExpanded = expandedSeries[seriesId];
 
                 const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
@@ -235,7 +236,12 @@ export default function ProfileSeriesSection({
                                                 {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
                                                     <div className="mt-3 space-y-1">
                                                         {seasonData.episodes.map((episode) => {
-                                                            const episodeIsReleased = isEpisodeReleasedOrdered(episode, seasonData, null);
+                                                            const episodeIsReleased = isEpisodeReleasedOrdered(
+                                                                episode,
+                                                                seasonData,
+                                                                null,
+                                                                seriesTvMeta,
+                                                            );
                                                             const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                                             const isUpcoming = !episodeIsReleased;
                                                             return (
@@ -310,7 +316,12 @@ export default function ProfileSeriesSection({
                                                         {seasonData && seasonData.episodes && seasonData.episodes.length > 0 ? (
                                                             <div className="mt-3 space-y-1">
                                                                 {seasonData.episodes.map((episode) => {
-                                                                    const episodeIsReleased = isEpisodeReleasedOrdered(episode, seasonData, null);
+                                                                    const episodeIsReleased = isEpisodeReleasedOrdered(
+                                                                        episode,
+                                                                        seasonData,
+                                                                        null,
+                                                                        seriesTvMeta,
+                                                                    );
                                                                     const isWatched = episodeIsReleased && watchedEpisodes.includes(episode.episode_number);
                                                                     const isUpcoming = !episodeIsReleased;
                                                                     return (
