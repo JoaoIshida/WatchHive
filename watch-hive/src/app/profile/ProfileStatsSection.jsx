@@ -1,10 +1,17 @@
 "use client";
+import { useEffect, useMemo, useRef } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageWithFallback from '../components/ImageWithFallback';
+import Pagination from '../components/Pagination';
 import { formatDate } from '../utils/dateFormatter';
 import { isSeriesCompletedByEpisodes, calculateSeriesProgress } from '../utils/seriesProgressCalculator';
+import { parsePageParam, useReplaceQuery } from './useReplaceQuery';
+
+const SERIES_SUMMARY_PAGE_SIZE = 10;
+/** Query key for “Series Progress Summary” pagination on /profile (Statistics). */
+const SERIES_SUMMARY_PAGE_KEY = 'ssp';
 
 export default function ProfileStatsSection({
     stats,
@@ -18,6 +25,63 @@ export default function ProfileStatsSection({
     seriesSummaryExpanded,
     setSeriesSummaryExpanded,
 }) {
+    const { replaceParams, searchParams } = useReplaceQuery();
+    const seriesSummaryPage = useMemo(() => parsePageParam(searchParams, SERIES_SUMMARY_PAGE_KEY), [searchParams]);
+
+    const sortedSeriesSummaries = useMemo(() => {
+        const entries = Object.entries(seriesProgress);
+        const withCompleted = entries.map(([seriesId, progress]) => ({
+            seriesId,
+            progress,
+            completedByEpisodes: isSeriesCompletedByEpisodes(progress, seriesDetails[seriesId]?.seasons || [], {}),
+        }));
+        return withCompleted.sort((a, b) =>
+            a.completedByEpisodes === b.completedByEpisodes ? 0 : a.completedByEpisodes ? 1 : -1
+        );
+    }, [seriesProgress, seriesDetails]);
+
+    const seriesSummaryTotalPages = Math.max(
+        1,
+        Math.ceil(sortedSeriesSummaries.length / SERIES_SUMMARY_PAGE_SIZE)
+    );
+    const seriesSummarySafePage = Math.min(seriesSummaryPage, seriesSummaryTotalPages);
+    const seriesSummarySlice = sortedSeriesSummaries.slice(
+        (seriesSummarySafePage - 1) * SERIES_SUMMARY_PAGE_SIZE,
+        seriesSummarySafePage * SERIES_SUMMARY_PAGE_SIZE
+    );
+
+    const seriesIdsKey = useMemo(
+        () => Object.keys(seriesProgress).sort().join(','),
+        [seriesProgress]
+    );
+
+    const prevSeriesIdsKeyRef = useRef(null);
+    useEffect(() => {
+        if (prevSeriesIdsKeyRef.current === null) {
+            prevSeriesIdsKeyRef.current = seriesIdsKey;
+            return;
+        }
+        if (prevSeriesIdsKeyRef.current !== seriesIdsKey) {
+            prevSeriesIdsKeyRef.current = seriesIdsKey;
+            replaceParams((next) => next.delete(SERIES_SUMMARY_PAGE_KEY));
+        }
+    }, [seriesIdsKey, replaceParams]);
+
+    useEffect(() => {
+        if (seriesSummaryPage > seriesSummaryTotalPages) {
+            replaceParams((next) => {
+                if (seriesSummaryTotalPages <= 1) next.delete(SERIES_SUMMARY_PAGE_KEY);
+                else next.set(SERIES_SUMMARY_PAGE_KEY, String(seriesSummaryTotalPages));
+            });
+        }
+    }, [seriesSummaryTotalPages, seriesSummaryPage, replaceParams]);
+
+    const setSeriesSummaryPageInUrl = (newPage) =>
+        replaceParams((next) => {
+            if (newPage <= 1) next.delete(SERIES_SUMMARY_PAGE_KEY);
+            else next.set(SERIES_SUMMARY_PAGE_KEY, String(newPage));
+        });
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -258,66 +322,59 @@ export default function ProfileStatsSection({
                     </button>
                     {seriesSummaryExpanded && (
                         <div className="mt-4 space-y-3">
-                            {(() => {
-                                const entries = Object.entries(seriesProgress);
-                                const withCompleted = entries.map(([seriesId, progress]) => ({
-                                    seriesId,
-                                    progress,
-                                    completedByEpisodes: isSeriesCompletedByEpisodes(progress, seriesDetails[seriesId]?.seasons || [], {}),
-                                }));
-                                const sorted = withCompleted.sort((a, b) => (a.completedByEpisodes === b.completedByEpisodes ? 0 : a.completedByEpisodes ? 1 : -1));
-                                const latest = sorted.slice(0, 10);
+                            {sortedSeriesSummaries.length > SERIES_SUMMARY_PAGE_SIZE && (
+                                <p className="text-sm text-amber-500/80">
+                                    Showing {(seriesSummarySafePage - 1) * SERIES_SUMMARY_PAGE_SIZE + 1}–
+                                    {(seriesSummarySafePage - 1) * SERIES_SUMMARY_PAGE_SIZE + seriesSummarySlice.length} of{' '}
+                                    {sortedSeriesSummaries.length} series
+                                </p>
+                            )}
+                            {seriesSummarySlice.map(({ seriesId, progress, completedByEpisodes }) => {
+                                const seriesInfo = seriesDetails[seriesId];
+                                const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
+                                const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
+                                const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
+                                const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
+                                const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
+                                const totalEpisodesWatched = Object.entries(progress.seasons || {})
+                                    .filter(([seasonNum]) => parseInt(seasonNum) > 0)
+                                    .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
+                                const seriesProgressData = calculateSeriesProgress(progress, seriesInfo?.seasons, {});
                                 return (
-                                    <>
-                                        {latest.map(({ seriesId, progress, completedByEpisodes }) => {
-                                            const seriesInfo = seriesDetails[seriesId];
-                                            const totalSeasonsFromTMDB = seriesInfo?.seasons?.filter(s => s.season_number > 0).length || 0;
-                                            const watchedSeasonsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) > 0).length;
-                                            const totalSeasons = totalSeasonsFromTMDB > 0 ? totalSeasonsFromTMDB : watchedSeasonsCount;
-                                            const specialsCount = seriesInfo?.seasons?.filter(s => s.season_number === 0).length || 0;
-                                            const watchedSpecialsCount = Object.keys(progress.seasons || {}).filter(seasonNum => parseInt(seasonNum) === 0).length;
-                                            const totalEpisodesWatched = Object.entries(progress.seasons || {})
-                                                .filter(([seasonNum]) => parseInt(seasonNum) > 0)
-                                                .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
-                                            const seriesProgressData = calculateSeriesProgress(progress, seriesInfo?.seasons, {});
-                                            return (
-                                                <a
-                                                    key={seriesId}
-                                                    href={`/series/${seriesId}`}
-                                                    className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
-                                                >
-                                                    <div className="flex-1">
-                                                        <div className="text-white font-semibold">
-                                                            {seriesInfo?.name || <span className="text-amber-500/60 animate-pulse">Loading series...</span>}
-                                                        </div>
-                                                        <div className="text-sm text-amber-500/80 mt-1">
-                                                            {watchedSeasonsCount}/{totalSeasons} seasons • {totalEpisodesWatched} episodes watched
-                                                            {specialsCount > 0 && <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>}
-                                                            {seriesProgressData.total > 0 && <span className="ml-2">• {seriesProgressData.percentage}%</span>}
-                                                        </div>
-                                                    </div>
-                                                    <div className={`px-3 py-1 rounded font-semibold ${completedByEpisodes ? 'bg-amber-500 text-black' : 'bg-charcoal-800 text-white'}`}>
-                                                        {completedByEpisodes ? 'Completed' : 'In Progress'}
-                                                    </div>
-                                                </a>
-                                            );
-                                        })}
-                                        {entries.length > 10 ? (
-                                            <div className="pt-2 text-center">
-                                                <Link href="/profile/series" className="text-amber-500 hover:text-amber-400 font-semibold">
-                                                    View more ({entries.length - 10} more) &rarr;
-                                                </Link>
+                                    <a
+                                        key={seriesId}
+                                        href={`/series/${seriesId}`}
+                                        className="flex items-center justify-between p-3 bg-charcoal-800/50 rounded hover:bg-charcoal-700/50 transition-colors"
+                                    >
+                                        <div className="flex-1">
+                                            <div className="text-white font-semibold">
+                                                {seriesInfo?.name || <span className="text-amber-500/60 animate-pulse">Loading series...</span>}
                                             </div>
-                                        ) : (
-                                            <div className="pt-2 text-center">
-                                                <Link href="/profile/series" className="text-amber-500 hover:text-amber-400 font-semibold">
-                                                    View all in Series tab &rarr;
-                                                </Link>
+                                            <div className="text-sm text-amber-500/80 mt-1">
+                                                {watchedSeasonsCount}/{totalSeasons} seasons • {totalEpisodesWatched} episodes watched
+                                                {specialsCount > 0 && <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>}
+                                                {seriesProgressData.total > 0 && <span className="ml-2">• {seriesProgressData.percentage}%</span>}
                                             </div>
-                                        )}
-                                    </>
+                                        </div>
+                                        <div className={`px-3 py-1 rounded font-semibold ${completedByEpisodes ? 'bg-amber-500 text-black' : 'bg-charcoal-800 text-white'}`}>
+                                            {completedByEpisodes ? 'Completed' : 'In Progress'}
+                                        </div>
+                                    </a>
                                 );
-                            })()}
+                            })}
+                            {seriesSummaryTotalPages > 1 && (
+                                <Pagination
+                                    page={seriesSummarySafePage}
+                                    totalPages={seriesSummaryTotalPages}
+                                    onPageChange={setSeriesSummaryPageInUrl}
+                                    className="!my-4"
+                                />
+                            )}
+                            <div className="pt-2 text-center">
+                                <Link href="/profile/series" className="text-amber-500 hover:text-amber-400 font-semibold">
+                                    Open Series Progress tab &rarr;
+                                </Link>
+                            </div>
                         </div>
                     )}
                 </div>

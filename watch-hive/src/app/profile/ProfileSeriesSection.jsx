@@ -1,8 +1,13 @@
 "use client";
+import { useMemo, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { formatDate } from '../utils/dateFormatter';
 import { isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
 import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
+import Pagination from '../components/Pagination';
+import { parsePageParam, useReplaceQuery } from './useReplaceQuery';
+
+const SERIES_PAGE_SIZE = 10;
 
 export default function ProfileSeriesSection({
     seriesProgress,
@@ -12,6 +17,51 @@ export default function ProfileSeriesSection({
     seriesSeasonDetails,
     setSeriesSeasonDetails,
 }) {
+    const { replaceParams, searchParams } = useReplaceQuery();
+    const page = useMemo(() => parsePageParam(searchParams, 'page'), [searchParams]);
+
+    const seriesIdsKey = useMemo(() => Object.keys(seriesProgress).sort().join(','), [seriesProgress]);
+    const prevSeriesIdsKeyRef = useRef(null);
+    useEffect(() => {
+        if (prevSeriesIdsKeyRef.current === null) {
+            prevSeriesIdsKeyRef.current = seriesIdsKey;
+            return;
+        }
+        if (prevSeriesIdsKeyRef.current !== seriesIdsKey) {
+            prevSeriesIdsKeyRef.current = seriesIdsKey;
+            replaceParams((next) => next.delete('page'));
+        }
+    }, [seriesIdsKey, replaceParams]);
+
+    const sortedEntries = useMemo(() => {
+        return Object.entries(seriesProgress).sort(([idA], [idB]) => {
+            const nameA = seriesDetails[idA]?.name || '';
+            const nameB = seriesDetails[idB]?.name || '';
+            const byName = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
+            if (byName !== 0) return byName;
+            return String(idA).localeCompare(String(idB));
+        });
+    }, [seriesProgress, seriesDetails]);
+
+    const totalPages = Math.max(1, Math.ceil(sortedEntries.length / SERIES_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageEntries = sortedEntries.slice((safePage - 1) * SERIES_PAGE_SIZE, safePage * SERIES_PAGE_SIZE);
+
+    useEffect(() => {
+        if (page > totalPages) {
+            replaceParams((next) => {
+                if (totalPages <= 1) next.delete('page');
+                else next.set('page', String(totalPages));
+            });
+        }
+    }, [totalPages, page, replaceParams]);
+
+    const setPageInUrl = (newPage) =>
+        replaceParams((next) => {
+            if (newPage <= 1) next.delete('page');
+            else next.set('page', String(newPage));
+        });
+
     if (Object.keys(seriesProgress).length === 0) {
         return (
             <div>
@@ -25,7 +75,12 @@ export default function ProfileSeriesSection({
 
     return (
         <div className="space-y-4">
-            {Object.entries(seriesProgress).map(([seriesId, progress]) => {
+            {sortedEntries.length > SERIES_PAGE_SIZE && (
+                <p className="text-sm text-amber-500/80">
+                    Showing {(safePage - 1) * SERIES_PAGE_SIZE + 1}–{(safePage - 1) * SERIES_PAGE_SIZE + pageEntries.length} of {sortedEntries.length} series
+                </p>
+            )}
+            {pageEntries.map(([seriesId, progress]) => {
                 const seriesInfo = seriesDetails[seriesId];
                 const isExpanded = expandedSeries[seriesId];
 
@@ -295,6 +350,14 @@ export default function ProfileSeriesSection({
                     </div>
                 );
             })}
+            {totalPages > 1 && (
+                <Pagination
+                    page={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPageInUrl}
+                    className="!my-4"
+                />
+            )}
         </div>
     );
 }

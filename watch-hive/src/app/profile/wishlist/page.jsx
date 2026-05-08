@@ -1,6 +1,7 @@
 "use client";
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useUserData } from '../../contexts/UserDataContext';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import ProfileWishlistSection from '../ProfileWishlistSection';
 
 export default function ProfileWishlistPage() {
@@ -26,9 +27,14 @@ export default function ProfileWishlistPage() {
             loadingProfileEnrichment);
 
     return (
-        <ProfileWishlistSection
-            loadingWishlistDetails={loadingList}
-            wishlistDetails={wishlistDetails}
-        />
+        <Suspense
+            fallback={
+                <div className="flex justify-center py-12">
+                    <LoadingSpinner size="lg" text="Loading…" />
+                </div>
+            }
+        >
+            <ProfileWishlistSection loadingWishlistDetails={loadingList} wishlistDetails={wishlistDetails} />
+        </Suspense>
     );
 }

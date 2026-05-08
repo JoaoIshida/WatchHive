@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useUserData } from '../../contexts/UserDataContext';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import ProfileWatchedSection from '../ProfileWatchedSection';
 
 export default function ProfileWatchedPage() {
@@ -26,11 +27,19 @@ export default function ProfileWatchedPage() {
         (loadingWatchedDetails || loadingProfileEnrichment);
 
     return (
-        <ProfileWatchedSection
-            watchedDetails={watchedDetails}
-            watchedFilter={watchedFilter}
-            setWatchedFilter={setWatchedFilter}
-            loadingDetails={loadingDetails}
-        />
+        <Suspense
+            fallback={
+                <div className="flex justify-center py-12">
+                    <LoadingSpinner size="lg" text="Loading…" />
+                </div>
+            }
+        >
+            <ProfileWatchedSection
+                watchedDetails={watchedDetails}
+                watchedFilter={watchedFilter}
+                setWatchedFilter={setWatchedFilter}
+                loadingDetails={loadingDetails}
+            />
+        </Suspense>
     );
 }

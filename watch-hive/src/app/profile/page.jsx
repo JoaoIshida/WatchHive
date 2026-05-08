@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useUserData } from '../contexts/UserDataContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { isSeriesCompletedByEpisodes } from '../utils/seriesProgressCalculator';
 import ProfileStatsSection from './ProfileStatsSection';
 
@@ -79,17 +80,25 @@ export default function ProfileStatsPage() {
     };
 
     return (
-        <ProfileStatsSection
-            stats={stats}
-            loadingUpcoming={loadingUpcoming}
-            upcomingEpisodes={upcomingEpisodes}
-            upcomingWishlistMovies={upcomingWishlistMovies}
-            expandedUpcomingSeries={expandedUpcomingSeries}
-            setExpandedUpcomingSeries={setExpandedUpcomingSeries}
-            seriesProgress={seriesProgress}
-            seriesDetails={seriesDetails}
-            seriesSummaryExpanded={seriesSummaryExpanded}
-            setSeriesSummaryExpanded={setSeriesSummaryExpanded}
-        />
+        <Suspense
+            fallback={
+                <div className="flex justify-center py-12">
+                    <LoadingSpinner size="lg" text="Loading…" />
+                </div>
+            }
+        >
+            <ProfileStatsSection
+                stats={stats}
+                loadingUpcoming={loadingUpcoming}
+                upcomingEpisodes={upcomingEpisodes}
+                upcomingWishlistMovies={upcomingWishlistMovies}
+                expandedUpcomingSeries={expandedUpcomingSeries}
+                setExpandedUpcomingSeries={setExpandedUpcomingSeries}
+                seriesProgress={seriesProgress}
+                seriesDetails={seriesDetails}
+                seriesSummaryExpanded={seriesSummaryExpanded}
+                setSeriesSummaryExpanded={setSeriesSummaryExpanded}
+            />
+        </Suspense>
     );
 }

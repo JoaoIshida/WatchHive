@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useUserData } from '../../contexts/UserDataContext';
 import ProfileSeriesSection from '../ProfileSeriesSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -36,13 +36,21 @@ export default function ProfileSeriesPage() {
     }
 
     return (
-        <ProfileSeriesSection
-            seriesProgress={seriesProgress}
-            seriesDetails={seriesDetails}
-            expandedSeries={expandedSeries}
-            setExpandedSeries={setExpandedSeries}
-            seriesSeasonDetails={seriesSeasonDetails}
-            setSeriesSeasonDetails={setSeriesSeasonDetails}
-        />
+        <Suspense
+            fallback={
+                <div className="flex justify-center py-12">
+                    <LoadingSpinner size="lg" text="Loading…" />
+                </div>
+            }
+        >
+            <ProfileSeriesSection
+                seriesProgress={seriesProgress}
+                seriesDetails={seriesDetails}
+                expandedSeries={expandedSeries}
+                setExpandedSeries={setExpandedSeries}
+                seriesSeasonDetails={seriesSeasonDetails}
+                setSeriesSeasonDetails={setSeriesSeasonDetails}
+            />
+        </Suspense>
     );
 }
