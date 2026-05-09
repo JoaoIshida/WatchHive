@@ -104,8 +104,8 @@ function decideVariant(rows: PendingRow[]): Variant {
  * Best-effort series-title extraction from existing row strings.
  * Title patterns produced upstream:
  *   - process_series_sync_queue: "New episode: <title>", "Premiere: <title>", "In theatres: <title>"
- *   - refresh_series_progress_catalog: "New episodes in the guide" (title) - falls back to message
- *   - weekly_series_catchup_notifications: "Episodes waiting" (title) - message starts with "<title> has..."
+ *   - refresh_series_progress_catalog: message "<title> now has new episodes listed..."
+ *   - weekly_series_catchup_notifications: message "<title> has N episodes not watched yet..." (single show)
  * If nothing matches, fall back to "your show".
  */
 function extractSeriesName(rows: PendingRow[]): string {
@@ -114,6 +114,14 @@ function extractSeriesName(rows: PendingRow[]): string {
       /^(?:New episode|Premiere|In theatres|Episodes waiting):\s*(.+)$/i,
     );
     if (fromTitle?.[1]) return fromTitle[1].trim();
+  }
+  for (const r of rows) {
+    const catalog = r.message.match(/^(.+?)\s+now has new episodes listed\./);
+    if (catalog?.[1]) return catalog[1].trim();
+  }
+  for (const r of rows) {
+    const weekly = r.message.match(/^(.+?)\s+has\s+\d+\s+episodes not watched yet\./);
+    if (weekly?.[1]) return weekly[1].trim();
   }
   for (const r of rows) {
     const fromMsg = r.message.match(/^[“"](?<name>[^"”]+)[”"]\s/);

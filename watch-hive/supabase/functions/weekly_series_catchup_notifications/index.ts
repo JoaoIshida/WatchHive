@@ -14,6 +14,13 @@ type ProgressRow = {
   catalog_total_episodes: number | null;
 };
 
+type WeeklyCandidate = {
+  user_id: string;
+  series_id: number;
+  title: string;
+  unwatched: number;
+};
+
 function isoWeekUtcKey(d = new Date()): string {
   const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const dayNum = target.getUTCDay() || 7;
@@ -111,6 +118,7 @@ Deno.serve(async (req) => {
   let notificationsInserted = 0;
   let candidatesSkipped = 0;
   const errors: string[] = [];
+  const weeklyCandidates: WeeklyCandidate[] = [];
 
   for (const row of progressList) {
     const total = row.catalog_total_episodes;
@@ -122,27 +130,72 @@ Deno.serve(async (req) => {
         continue;
       }
       const title = await seriesTitle(row.series_id);
-      const dedupeKey = `weekly_catchup:${row.user_id}:${row.series_id}:${weekKey}`;
-      const { error: insErr } = await supabase.from("notifications").insert({
+      const unwatched = total - watched;
+      weeklyCandidates.push({
         user_id: row.user_id,
-        type: "series_catchup",
-        title: "Episodes waiting",
-        message: `${title} has ${total} episodes on TMDB; you’ve marked ${watched} watched. Catch up when you’re ready.`,
-        link: `/series/${row.series_id}`,
-        read: false,
-        dedupe_key: dedupeKey,
+        series_id: row.series_id,
+        title,
+        unwatched,
       });
-      if (insErr) {
-        if (insErr.code !== "23505") {
-          console.error("weekly_catchup insert", insErr);
-          errors.push(`series ${row.series_id} user ${row.user_id}: ${insErr.message}`);
-        }
-      } else {
-        notificationsInserted += 1;
-      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`progress ${row.id}: ${msg}`);
+      console.error(e);
+    }
+  }
+
+  const byUser = new Map<string, WeeklyCandidate[]>();
+  for (const c of weeklyCandidates) {
+    const list = byUser.get(c.user_id) ?? [];
+    list.push(c);
+    byUser.set(c.user_id, list);
+  }
+
+  for (const [userId, list] of byUser) {
+    try {
+      if (list.length === 1) {
+        const c = list[0];
+        const dedupeKey = `weekly_catchup:${userId}:${c.series_id}:${weekKey}`;
+        const { error: insErr } = await supabase.from("notifications").insert({
+          user_id: userId,
+          type: "series_catchup",
+          title: "Episodes waiting",
+          message: `${c.title} has ${c.unwatched} episodes not watched yet. Catch up when you're ready.`,
+          link: `/series/${c.series_id}`,
+          read: false,
+          dedupe_key: dedupeKey,
+        });
+        if (insErr) {
+          if (insErr.code !== "23505") {
+            console.error("weekly_catchup insert", insErr);
+            errors.push(`series ${c.series_id} user ${userId}: ${insErr.message}`);
+          }
+        } else {
+          notificationsInserted += 1;
+        }
+      } else {
+        const dedupeKey = `weekly_catchup:${userId}:multi:${weekKey}`;
+        const { error: insErr } = await supabase.from("notifications").insert({
+          user_id: userId,
+          type: "series_catchup",
+          title: "Episodes waiting",
+          message: `A few titles aren't finalized yet. Catch up when you're ready.`,
+          link: "/profile/notifications",
+          read: false,
+          dedupe_key: dedupeKey,
+        });
+        if (insErr) {
+          if (insErr.code !== "23505") {
+            console.error("weekly_catchup multi insert", insErr);
+            errors.push(`multi user ${userId}: ${insErr.message}`);
+          }
+        } else {
+          notificationsInserted += 1;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`user ${userId}: ${msg}`);
       console.error(e);
     }
   }

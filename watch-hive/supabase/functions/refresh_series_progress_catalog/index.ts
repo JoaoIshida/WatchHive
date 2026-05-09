@@ -128,8 +128,8 @@ Deno.serve(async (req) => {
           const { error: insErr } = await supabase.from("notifications").insert({
             user_id: row.user_id,
             type: "catalog_expanded",
-            title: "New episodes in the guide",
-            message: `${title} now lists ${totalEpisodes} episodes on TMDB (was ${oldTotal}). You’ve marked ${watched} as watched — open the show when you’re ready to continue.`,
+            title: "New episodes",
+            message: `${title} now has new episodes listed. Open the show when you're ready.`,
             link: `/series/${sid}`,
             read: false,
             dedupe_key: dedupeKey,
