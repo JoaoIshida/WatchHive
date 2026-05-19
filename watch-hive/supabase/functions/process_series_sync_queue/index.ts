@@ -154,17 +154,19 @@ async function materializeForContent(
   const { data: progressRows } = await supabase
     .from("series_progress")
     .select("user_id, series_id, completed")
-    .eq("series_id", content_id)
-    .eq("completed", false);
+    .eq("series_id", content_id);
 
-  const activeUsers = new Set(
-    (progressRows ?? []).map((p) => p.user_id),
+  const progressByUser = new Map(
+    (progressRows ?? []).map((p) => [p.user_id, p]),
   );
 
   const watchingCandidates: { id: string; user_id: string }[] = [];
   for (const wc of watchedRows ?? []) {
     if (media_type !== "tv") continue;
-    if (!activeUsers.has(wc.user_id)) continue;
+    const prog = progressByUser.get(wc.user_id);
+    if (!prog) continue;
+    /** Caught-up users still get reminders when TMDB reports a next air date (e.g. season finale). */
+    if (prog.completed && !release_date) continue;
     watchingCandidates.push({ id: wc.id, user_id: wc.user_id });
     userIds.add(wc.user_id);
   }

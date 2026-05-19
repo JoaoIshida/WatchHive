@@ -37,16 +37,6 @@ Deno.serve(async (req) => {
       .eq("media_type", "tv");
     if (tvErr) throw tvErr;
 
-    const { data: inProgress, error: pErr } = await supabase
-      .from("series_progress")
-      .select("user_id, series_id")
-      .eq("completed", false);
-    if (pErr) throw pErr;
-
-    const progressSet = new Set(
-      (inProgress ?? []).map((p) => `${p.user_id}:${p.series_id}`),
-    );
-
     const candidates = new Map<string, MediaRow>();
 
     for (const w of wishlistRows ?? []) {
@@ -55,7 +45,6 @@ Deno.serve(async (req) => {
     }
 
     for (const row of watchedTv ?? []) {
-      if (!progressSet.has(`${row.user_id}:${row.content_id}`)) continue;
       const r: MediaRow = { content_id: row.content_id, media_type: "tv" };
       candidates.set(keyOf(r), r);
     }
@@ -63,7 +52,6 @@ Deno.serve(async (req) => {
     edgeLog(FN, "sources", {
       wishlistRows: (wishlistRows ?? []).length,
       watchedTv: (watchedTv ?? []).length,
-      inProgress: (inProgress ?? []).length,
       distinctCandidates: candidates.size,
     });
 
