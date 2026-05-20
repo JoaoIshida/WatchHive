@@ -48,32 +48,17 @@ async function getSerieDetails(id) {
 }
 
 async function getSerieMoreDetails(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers?language=en-CA`, {
-        headers: {
-            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-        },
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch TV more details');
+    try {
+        return await fetchTMDB(`/tv/${id}/watch/providers`, { language: 'en-CA' });
+    } catch (error) {
+        console.error('Error fetching TV watch providers:', error);
+        return { results: {} };
     }
-
-    return res.json();
 }
 
 async function getSerieTrailer(id) {
     try {
-        const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/videos`, {
-            headers: {
-                Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-            },
-        });
-
-        if (!res.ok) {
-            return { results: [] };
-        }
-
-        return res.json();
+        return await fetchTMDB(`/tv/${id}/videos`);
     } catch (error) {
         console.error('Error fetching series trailer:', error);
         return { results: [] };
@@ -222,9 +207,9 @@ const SerieDetailPage = async ({ params }) => {
 
                         {/* Watch Providers */}
                         <WatchProvidersSection
-                            flatrate={tv_more.results.CA?.flatrate}
-                            rent={tv_more.results.CA?.rent}
-                            buy={tv_more.results.CA?.buy}
+                            flatrate={tv_more.results?.CA?.flatrate}
+                            rent={tv_more.results?.CA?.rent}
+                            buy={tv_more.results?.CA?.buy}
                             title={tv.name}
                             mediaType="tv"
                             movieId={tv.id}

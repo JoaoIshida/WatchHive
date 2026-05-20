@@ -155,6 +155,36 @@ body {
     @apply flex gap-4 min-w-max;
   }
 
+  /* Touch-friendly horizontal strip: visible x-scrollbar + drag-to-scroll */
+  .horizontal-scroll-touch {
+    @apply overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    cursor: grab;
+    scrollbar-width: thin;
+    scrollbar-color: #f59e0b #161b22;
+  }
+
+  .horizontal-scroll-touch:active {
+    cursor: grabbing;
+  }
+
+  .horizontal-scroll-touch::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+  }
+
+  .horizontal-scroll-touch::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border-radius: 4px;
+    border: 1px solid #161b22;
+  }
+
+  .horizontal-scroll-touch::-webkit-scrollbar-track {
+    background-color: #161b22;
+    border-radius: 4px;
+  }
+
   /* Content Card Wrapper */
   .content-card-wrapper {
     @apply flex-shrink-0 w-32 md:w-40 lg:w-48;

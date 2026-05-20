@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { BarChart3, Eye, Bookmark, Heart, Tv, List, Users, Settings, RefreshCw, Bell } from 'lucide-react';
+import { BarChart3, Eye, Bookmark, Heart, List, Users, Settings, RefreshCw, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { usePathname } from 'next/navigation';
@@ -12,11 +12,9 @@ const TABS = [
     { href: '/profile/watched', label: 'Watched', icon: Eye },
     { href: '/profile/wishlist', label: 'Wishlist', icon: Bookmark },
     { href: '/profile/favorites', label: 'Favorites', icon: Heart },
-    { href: '/profile/series', label: 'Series Progress', icon: Tv },
     { href: '/profile/lists', label: 'Lists', icon: List },
     { href: '/profile/friends', label: 'Friends', icon: Users, hasBadge: true },
     { href: '/profile/notifications', label: 'Notifications', icon: Bell },
-    { href: '/profile/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function ProfileLayout({ children }) {
@@ -91,17 +89,28 @@ export default function ProfileLayout({ children }) {
 
     return (
         <div className="page-container max-w-7xl">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between gap-3 mb-6">
                 <h1 className="page-title mb-0">Dashboard</h1>
-                <button
-                    onClick={refreshUserData}
-                    className="futuristic-button flex items-center gap-2"
-                    title="Refresh data"
-                    aria-label="Refresh data"
-                >
-                    <RefreshCw className="w-5 h-5" />
-                    <span className="hidden sm:inline">Refresh</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        onClick={refreshUserData}
+                        className="futuristic-button flex items-center gap-2"
+                        title="Refresh data"
+                        aria-label="Refresh data"
+                    >
+                        <RefreshCw className="w-5 h-5" />
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
+                    <Link
+                        href="/profile/settings"
+                        className="futuristic-button flex items-center gap-2"
+                        title="Settings"
+                    >
+                        <Settings className="w-5 h-5" />
+                        <span className="hidden sm:inline">Settings</span>
+                    </Link>
+                </div>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-6 border-b border-charcoal-700/30">

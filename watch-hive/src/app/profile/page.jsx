@@ -30,7 +30,6 @@ export default function ProfileStatsPage() {
     }, [loading, userDataHydrated, loadDbStats, loadProfileContentEnrichment]);
 
     const [expandedUpcomingSeries, setExpandedUpcomingSeries] = useState({});
-    const [seriesSummaryExpanded, setSeriesSummaryExpanded] = useState(false);
 
     const watchedMovies = watched.filter(w => w.media_type === 'movie').length;
     const watchedSeries = watched.filter(w => w.media_type === 'tv').length;
@@ -96,8 +95,6 @@ export default function ProfileStatsPage() {
                 setExpandedUpcomingSeries={setExpandedUpcomingSeries}
                 seriesProgress={seriesProgress}
                 seriesDetails={seriesDetails}
-                seriesSummaryExpanded={seriesSummaryExpanded}
-                setSeriesSummaryExpanded={setSeriesSummaryExpanded}
             />
         </Suspense>
     );
