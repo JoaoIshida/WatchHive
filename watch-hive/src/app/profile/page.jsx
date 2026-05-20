@@ -2,7 +2,10 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useUserData } from '../contexts/UserDataContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { isSeriesCompletedByEpisodes } from '../utils/seriesProgressCalculator';
+import {
+    buildSeriesTvReleaseMeta,
+    isSeriesCompletedByEpisodes,
+} from '../utils/seriesProgressCalculator';
 import ProfileStatsSection from './ProfileStatsSection';
 
 export default function ProfileStatsPage() {
@@ -46,8 +49,10 @@ export default function ProfileStatsPage() {
         let completed = 0;
         seriesIds.forEach(seriesId => {
             const progress = seriesProgress[seriesId];
-            const seasons = seriesDetails[seriesId]?.seasons;
-            if (isSeriesCompletedByEpisodes(progress, seasons || [], {})) completed++;
+            const seriesInfo = seriesDetails[seriesId];
+            const seasons = seriesInfo?.seasons;
+            const seriesTvMeta = buildSeriesTvReleaseMeta(seriesInfo);
+            if (isSeriesCompletedByEpisodes(progress, seasons || [], {}, seriesTvMeta)) completed++;
             else if (Object.keys(progress?.seasons || {}).length > 0) inProgress++;
         });
         seriesInProgressCount = inProgress;

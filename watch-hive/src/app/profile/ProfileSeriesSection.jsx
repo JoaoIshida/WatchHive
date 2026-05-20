@@ -96,7 +96,13 @@ export default function ProfileSeriesSection({
                     .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
 
                 const getSeriesOverallProgress = () => {
-                    return calculateSeriesProgress(progress, seriesInfo?.seasons, seriesSeasonDetails[seriesId]);
+                    return calculateSeriesProgress(
+                        progress,
+                        seriesInfo?.seasons,
+                        seriesSeasonDetails[seriesId],
+                        seriesTvMeta,
+                        null,
+                    );
                 };
                 const overallProgress = getSeriesOverallProgress();
 
@@ -138,7 +144,14 @@ export default function ProfileSeriesSection({
 
                 const getSeasonProgress = (seasonNumber) => {
                     const seasonData = seriesSeasonDetails[seriesId]?.[seasonNumber];
-                    return calculateSeasonProgress(parseInt(seasonNumber), progress, seasonData, seriesInfo?.seasons);
+                    return calculateSeasonProgress(
+                        parseInt(seasonNumber, 10),
+                        progress,
+                        seasonData,
+                        seriesInfo?.seasons,
+                        seriesTvMeta,
+                        null,
+                    );
                 };
 
                 return (
@@ -147,7 +160,7 @@ export default function ProfileSeriesSection({
                             className="flex items-center justify-between mb-4 cursor-pointer"
                             onClick={toggleSeries}
                         >
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                                 <h3 className="text-xl font-bold text-white">
                                     <a
                                         href={`/series/${seriesId}`}
@@ -159,30 +172,27 @@ export default function ProfileSeriesSection({
                                         )}
                                     </a>
                                 </h3>
-                                <div className="flex items-center gap-4 mt-2">
-                                    <p className="text-sm text-amber-500/80">
-                                        {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
-                                        {specialsCount > 0 && (
-                                            <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>
-                                        )}
-                                    </p>
-                                    {overallProgress.total > 0 && (
-                                        <>
-                                            <span className="text-sm text-white/60">•</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 bg-charcoal-800 rounded-full h-2">
-                                                    <div
-                                                        className="bg-amber-500 h-2 rounded-full transition-all"
-                                                        style={{ width: `${overallProgress.percentage}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-sm text-amber-500/80">{overallProgress.percentage}%</span>
-                                            </div>
-                                        </>
+                                <p className="text-sm text-amber-500/80 mt-2">
+                                    {watchedSeasonsCount}/{totalSeasons} seasons watched • {completedSeasons} completed • {totalEpisodesWatched} episodes watched
+                                    {specialsCount > 0 && (
+                                        <span className="ml-2">• {watchedSpecialsCount}/{specialsCount} specials</span>
                                     )}
-                                </div>
+                                </p>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 shrink-0">
+                                {overallProgress.total > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-24 bg-charcoal-800 rounded-full h-2">
+                                            <div
+                                                className="bg-amber-500 h-2 rounded-full transition-all"
+                                                style={{ width: `${overallProgress.percentage}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-sm text-amber-500/80 tabular-nums">
+                                            {overallProgress.percentage}%
+                                        </span>
+                                    </div>
+                                )}
                                 <a
                                     href={`/series/${seriesId}`}
                                     className="futuristic-button text-sm"

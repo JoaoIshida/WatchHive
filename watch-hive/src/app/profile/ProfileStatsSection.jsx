@@ -23,7 +23,20 @@ export default function ProfileStatsSection({
                 seriesDetails={seriesDetails}
             />
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <Link
+                    href="/profile/series"
+                    className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"
+                >
+                    <div className="text-4xl font-bold text-amber-500 mb-2">
+                        {stats.seriesInProgress}
+                    </div>
+                    <div className="text-white font-semibold">Series in progress</div>
+                    <div className="text-sm text-amber-500/80 mt-2">
+                        {stats.completedSeries} completed
+                    </div>
+                </Link>
+
                 <Link
                     href="/profile/watched"
                     className="futuristic-card p-6 text-center block transition-colors hover:border-amber-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl"

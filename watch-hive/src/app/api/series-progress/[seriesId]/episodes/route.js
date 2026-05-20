@@ -1,6 +1,7 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
 import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
+import { syncSeriesCompletionFlag } from '../../../../utils/syncSeriesCompletionFlag';
 import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
 
@@ -203,6 +204,8 @@ export async function POST(req, { params }) {
             parseInt(seriesId, 10),
             seriesProgress.id,
         );
+
+        await syncSeriesCompletionFlag(supabase, seriesProgress.id, seriesId);
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,

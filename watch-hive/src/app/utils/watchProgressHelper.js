@@ -1,12 +1,11 @@
 import { isSeriesReleased } from './releaseDateValidator';
-import { calculateSeriesProgress } from './seriesProgressCalculator';
+import { buildSeriesTvReleaseMeta, calculateSeriesProgress } from './seriesProgressCalculator';
 
 /**
  * Get watch progress for a series
  * Returns { isWatched, percentage, watchedEpisodes, totalEpisodes }
  * Note: This function now requires progress data to be passed in since it's fetched from API
- * Total episodes includes ALL episodes (released + unreleased)
- * Watched episodes only includes released episodes that are marked as watched
+ * Total episodes counts released / markable episodes only (specials excluded at series level).
  * Uses shared utility for consistent calculation with SeriesSeasons and Profile page
  */
 export function getSeriesWatchProgress(seriesId, seriesData = null, progress = null, isWatched = false) {
@@ -25,7 +24,13 @@ export function getSeriesWatchProgress(seriesId, seriesData = null, progress = n
     }
     
     // Use shared utility to calculate progress (same logic as SeriesSeasons and Profile)
-    const progressData = calculateSeriesProgress(progress, seriesData?.seasons || [], seasonDetails);
+    const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
+    const progressData = calculateSeriesProgress(
+        progress,
+        seriesData?.seasons || [],
+        seasonDetails,
+        seriesTvMeta,
+    );
     const watchedEpisodes = progressData.watched;
     const totalEpisodes = progressData.total;
     const percentage = progressData.percentage;

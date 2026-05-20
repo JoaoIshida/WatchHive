@@ -11,6 +11,7 @@ export async function fetchTvCatalogTotals(
     throw new Error(`TMDB tv/${seriesId}: ${res.status} ${t.slice(0, 200)}`);
   }
   const tv = await res.json();
+  // TMDB season 0 = specials; never include in catalog_total_episodes
   const seasons = (tv.seasons || []) as Array<{ season_number: number; episode_count?: number }>;
   let totalEpisodes = 0;
   for (const s of seasons) {

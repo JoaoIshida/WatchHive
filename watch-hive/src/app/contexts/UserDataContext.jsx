@@ -428,6 +428,24 @@ export function UserDataProvider({ children }) {
         loadUserData();
     }, [user?.id, authLoading, loadUserData, clearUserData]);
 
+    /** Refresh stats + series progress when episodes/series are marked watched (profile series_in_progress / completed_series). */
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const onWatchDataUpdated = () => {
+            void loadDbStats();
+            void fetch('/api/series-progress')
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                    if (data && typeof data === 'object') setSeriesProgress(data);
+                })
+                .catch((e) => console.error('Error refreshing series progress:', e));
+        };
+
+        window.addEventListener('watchhive-data-updated', onWatchDataUpdated);
+        return () => window.removeEventListener('watchhive-data-updated', onWatchDataUpdated);
+    }, [user?.id, loadDbStats]);
+
     const value = {
         watched,
         wishlist,

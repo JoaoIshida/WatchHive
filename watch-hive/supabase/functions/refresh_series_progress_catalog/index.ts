@@ -3,6 +3,7 @@ import { createServiceClient } from "../_shared/supabase.ts";
 import { assertCronOrServiceRequest } from "../_shared/cron-auth.ts";
 import { fetchTvCatalogTotals } from "../_shared/tmdb.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
+import { countWatchedRegularEpisodes } from "../_shared/watch-count.ts";
 
 const FN = "refresh_series_progress_catalog";
 const DEFAULT_LIMIT = 40;
@@ -13,25 +14,6 @@ type ProgressRow = {
   series_id: number;
   catalog_total_episodes: number | null;
 };
-
-async function countWatchedEpisodes(
-  supabase: ReturnType<typeof createServiceClient>,
-  progressId: string,
-): Promise<number> {
-  const { data: seasons, error: se } = await supabase
-    .from("series_seasons")
-    .select("id")
-    .eq("series_progress_id", progressId);
-  if (se) throw se;
-  const seasonIds = (seasons || []).map((s: { id: string }) => s.id);
-  if (seasonIds.length === 0) return 0;
-  const { count, error: ce } = await supabase
-    .from("series_episodes")
-    .select("id", { count: "exact", head: true })
-    .in("series_season_id", seasonIds);
-  if (ce) throw ce;
-  return count ?? 0;
-}
 
 Deno.serve(async (req) => {
   edgeLog(FN, "request", { method: req.method });
@@ -109,7 +91,7 @@ Deno.serve(async (req) => {
 
       for (const row of progressList) {
         const oldTotal = row.catalog_total_episodes;
-        const watched = await countWatchedEpisodes(supabase, row.id);
+        const watched = await countWatchedRegularEpisodes(supabase, row.id);
         const grew = oldTotal !== null && totalEpisodes > oldTotal;
         const behind = totalEpisodes > 0 && watched < totalEpisodes;
         /** TMDB regular-season episode count increased; user still behind on watch progress. */

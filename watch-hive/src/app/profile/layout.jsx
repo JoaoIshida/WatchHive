@@ -113,7 +113,10 @@ export default function ProfileLayout({ children }) {
                 </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-6 border-b border-charcoal-700/30">
+            <nav
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-6 pb-4 border-b border-charcoal-700/30"
+                aria-label="Profile sections"
+            >
                 {TABS.map((tab) => {
                     const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
                     const TabIcon = tab.icon;
@@ -128,26 +131,30 @@ export default function ProfileLayout({ children }) {
                             key={tab.href}
                             href={tab.href}
                             title={tabTitle}
-                            className={`px-4 py-2 font-semibold transition-colors flex items-center gap-2 relative ${isActive ? 'text-amber-500 border-b-2 border-amber-500' : 'text-white hover:text-amber-500'}`}
+                            className={`px-3 py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 relative text-sm ${
+                                isActive
+                                    ? 'text-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40'
+                                    : 'text-white hover:text-amber-500 hover:bg-charcoal-800/60'
+                            }`}
                         >
                             <TabIcon className="w-4 h-4 shrink-0" aria-hidden />
-                            {tab.label}
+                            <span className="truncate">{tab.label}</span>
                             {tab.href === '/profile/notifications' && unreadNotificationsCount > 0 && (
                                 <span
-                                    className="ml-0.5 w-2 h-2 bg-red-500 rounded-full shrink-0"
+                                    className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full shrink-0"
                                     title={`${unreadNotificationsCount} unread`}
                                     aria-hidden
                                 />
                             )}
                             {tab.hasBadge && pendingInvitesCount > 0 && (
-                                <span className="bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center">
+                                <span className="bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center shrink-0">
                                     {pendingInvitesCount > 99 ? '99+' : pendingInvitesCount}
                                 </span>
                             )}
                         </Link>
                     );
                 })}
-            </div>
+            </nav>
 
             {children}
         </div>

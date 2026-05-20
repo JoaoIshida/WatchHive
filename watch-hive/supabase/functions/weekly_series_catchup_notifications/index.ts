@@ -3,6 +3,7 @@ import { createServiceClient } from "../_shared/supabase.ts";
 import { assertCronOrServiceRequest } from "../_shared/cron-auth.ts";
 import { fetchTvCatalogTotals } from "../_shared/tmdb.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
+import { countWatchedRegularEpisodes } from "../_shared/watch-count.ts";
 
 const FN = "weekly_series_catchup_notifications";
 const DEFAULT_BATCH = 350;
@@ -30,25 +31,6 @@ function isoWeekUtcKey(d = new Date()): string {
     ((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
   );
   return `${target.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
-
-async function countWatchedEpisodes(
-  supabase: ReturnType<typeof createServiceClient>,
-  progressId: string,
-): Promise<number> {
-  const { data: seasons, error: se } = await supabase
-    .from("series_seasons")
-    .select("id")
-    .eq("series_progress_id", progressId);
-  if (se) throw se;
-  const seasonIds = (seasons || []).map((s: { id: string }) => s.id);
-  if (seasonIds.length === 0) return 0;
-  const { count, error: ce } = await supabase
-    .from("series_episodes")
-    .select("id", { count: "exact", head: true })
-    .in("series_season_id", seasonIds);
-  if (ce) throw ce;
-  return count ?? 0;
 }
 
 Deno.serve(async (req) => {
@@ -124,7 +106,7 @@ Deno.serve(async (req) => {
     const total = row.catalog_total_episodes;
     if (total == null || total <= 0) continue;
     try {
-      const watched = await countWatchedEpisodes(supabase, row.id);
+      const watched = await countWatchedRegularEpisodes(supabase, row.id);
       if (watched >= total) {
         candidatesSkipped += 1;
         continue;

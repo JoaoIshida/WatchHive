@@ -889,11 +889,25 @@ const SeriesSeasons = ({
 
     const getSeasonProgress = (seasonNumber) => {
         const seasonData = seasonDetails[seasonNumber] || seasons.find(s => s.season_number === seasonNumber);
-        return calculateSeasonProgress(seasonNumber, progress, seasonData, seasons);
+        const scheduleMap = tvmazeEpisodes[seasonNumber];
+        return calculateSeasonProgress(
+            seasonNumber,
+            progress,
+            seasonData,
+            seasons,
+            seriesTvMeta,
+            scheduleMap,
+        );
     };
 
     const getOverallProgress = () => {
-        return calculateSeriesProgress(progress, seasons, seasonDetails);
+        return calculateSeriesProgress(
+            progress,
+            seasons,
+            seasonDetails,
+            seriesTvMeta,
+            tvmazeEpisodes,
+        );
     };
 
     const overallProgress = getOverallProgress();

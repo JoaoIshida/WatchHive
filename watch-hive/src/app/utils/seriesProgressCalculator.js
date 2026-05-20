@@ -1,104 +1,209 @@
 /**
  * Utility functions for calculating series progress
  * Shared between SeriesSeasons component and Profile page
+ *
+ * Specials (TMDB season_number === 0) are never included in series-level progress.
  */
 
-/**
- * Calculate overall series progress
- * @param {Object} progress - Progress data from API
- * @param {Array} seasons - Seasons array from series info (TMDB)
- * @param {Object} seasonDetails - Fetched season details (optional, for more accurate counts)
- * @returns {Object} { watched, total, percentage }
- */
+import {
+    buildSeriesTvReleaseMeta,
+    isEpisodeReleased,
+    isEpisodeReleasedOrdered,
+    isSeasonReleased,
+} from './releaseDateValidator';
+
+/** @param {number} seasonNumber */
+export const isRegularSeason = (seasonNumber) => Number(seasonNumber) > 0;
+
+function seasonProgressEntry(progress, seasonNumber) {
+    const map = progress?.seasons || {};
+    return map[seasonNumber] ?? map[String(seasonNumber)] ?? null;
+}
+
 function watchedCountFromProgressSeasons(progress) {
     let watched = 0;
     const map = progress?.seasons || {};
     for (const key of Object.keys(map)) {
         const seasonNumber = Number(key);
-        if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) continue;
+        if (!isRegularSeason(seasonNumber)) continue;
         watched += (map[key]?.episodes || []).length;
     }
     return watched;
 }
 
-export const calculateSeriesProgress = (progress, seasons, seasonDetails = {}) => {
-    const catalogTotal = progress?.catalogTotalEpisodes;
-    if (typeof catalogTotal === 'number' && catalogTotal > 0) {
-        const watchedEpisodes = watchedCountFromProgressSeasons(progress);
-        const percentage = Math.round((watchedEpisodes / catalogTotal) * 100);
-        return { watched: watchedEpisodes, total: catalogTotal, percentage };
+function countMarkableEpisodesInSeason(seasonData, seriesTvMeta, scheduleMap = null) {
+    if (!seasonData?.episodes?.length) return 0;
+    if (scheduleMap) {
+        return seasonData.episodes.filter((ep) =>
+            isEpisodeReleasedOrdered(ep, seasonData, scheduleMap, seriesTvMeta),
+        ).length;
     }
+    return seasonData.episodes.filter((ep) =>
+        isEpisodeReleased(ep, seasonData, null, seriesTvMeta),
+    ).length;
+}
 
+/** Every premiered regular season in TMDB has completed=true in user progress. */
+export function allRegularSeasonsMarkedComplete(progress, seasons) {
+    const regularSeasons =
+        seasons?.filter((s) => isRegularSeason(s.season_number) && isSeasonReleased(s)) || [];
+    if (regularSeasons.length === 0) return false;
+    return regularSeasons.every((season) => {
+        const entry = seasonProgressEntry(progress, season.season_number);
+        return entry?.completed === true;
+    });
+}
+
+function totalEpisodesFromRegularSeasons(
+    progress,
+    seasons,
+    seasonDetails = {},
+    seriesTvMeta = null,
+    tvmazeBySeason = null,
+) {
+    const regularSeasons = seasons?.filter((season) => isRegularSeason(season.season_number)) || [];
     let totalEpisodes = 0;
-    let watchedEpisodes = 0;
 
-    // Only count regular seasons (exclude specials)
-    const regularSeasons = seasons?.filter(season => season.season_number > 0) || [];
-
-    regularSeasons.forEach(season => {
+    regularSeasons.forEach((season) => {
         const seasonNumber = season.season_number;
-        const watchedEpisodesList = progress?.seasons?.[seasonNumber]?.episodes || [];
+        const entry = seasonProgressEntry(progress, seasonNumber);
+        const watchedList = entry?.episodes || [];
+        const detail = seasonDetails[seasonNumber] ?? seasonDetails[String(seasonNumber)];
+        const scheduleMap =
+            tvmazeBySeason?.[seasonNumber] ?? tvmazeBySeason?.[String(seasonNumber)] ?? null;
 
-        // Try to get accurate episode count from season details first
-        if (seasonDetails[seasonNumber] && seasonDetails[seasonNumber].episodes) {
-            // Use actual episode count from fetched season data (includes all episodes, released + unreleased)
-            totalEpisodes += seasonDetails[seasonNumber].episodes.length;
-        } else if (season.episode_count) {
-            // Fallback to episode_count from series info
-            totalEpisodes += season.episode_count;
+        // Mark-season-complete persists released episodes only — use that as this season's total
+        if (entry?.completed === true && watchedList.length > 0) {
+            totalEpisodes += watchedList.length;
+            return;
         }
 
-        // Count watched episodes (only those in database)
-        watchedEpisodes += watchedEpisodesList.length;
+        if (detail?.episodes?.length) {
+            const markable = countMarkableEpisodesInSeason(detail, seriesTvMeta, scheduleMap);
+            const cap =
+                typeof season.episode_count === 'number' && season.episode_count > 0
+                    ? season.episode_count
+                    : markable;
+            totalEpisodes += Math.min(markable, cap);
+            return;
+        }
+
+        if (!isSeasonReleased(season)) {
+            return;
+        }
+
+        if (typeof season.episode_count === 'number' && season.episode_count > 0) {
+            totalEpisodes += season.episode_count;
+        }
     });
 
-    const percentage = totalEpisodes > 0 ? Math.round((watchedEpisodes / totalEpisodes) * 100) : 0;
+    return totalEpisodes;
+}
+
+export const calculateSeriesProgress = (
+    progress,
+    seasons,
+    seasonDetails = {},
+    seriesTvMeta = null,
+    tvmazeBySeason = null,
+) => {
+    const watchedEpisodes = watchedCountFromProgressSeasons(progress);
+    const regularSeasons = seasons?.filter((s) => isRegularSeason(s.season_number)) || [];
+
+    if (allRegularSeasonsMarkedComplete(progress, seasons) && watchedEpisodes > 0) {
+        return {
+            watched: watchedEpisodes,
+            total: watchedEpisodes,
+            percentage: 100,
+        };
+    }
+
+    let totalEpisodes = totalEpisodesFromRegularSeasons(
+        progress,
+        seasons,
+        seasonDetails,
+        seriesTvMeta,
+        tvmazeBySeason,
+    );
+
+    if (totalEpisodes === 0 && regularSeasons.length === 0) {
+        const catalogTotal = progress?.catalogTotalEpisodes;
+        if (typeof catalogTotal === 'number' && catalogTotal > 0) {
+            totalEpisodes = catalogTotal;
+        }
+    }
+
+    const percentage =
+        totalEpisodes > 0
+            ? Math.min(100, Math.round((watchedEpisodes / totalEpisodes) * 100))
+            : 0;
 
     return { watched: watchedEpisodes, total: totalEpisodes, percentage };
 };
 
-/**
- * Whether a series is completed based on episode progress (all episodes watched), not DB completed flag.
- * @param {Object} progress - Progress data from API
- * @param {Array} seasons - Seasons array from series info (TMDB)
- * @param {Object} seasonDetails - Fetched season details (optional)
- * @returns {boolean}
- */
-export const isSeriesCompletedByEpisodes = (progress, seasons, seasonDetails = {}) => {
-    const { watched, total, percentage } = calculateSeriesProgress(progress, seasons, seasonDetails);
+export const isSeriesCompletedByEpisodes = (
+    progress,
+    seasons,
+    seasonDetails = {},
+    seriesTvMeta = null,
+    tvmazeBySeason = null,
+) => {
+    if (allRegularSeasonsMarkedComplete(progress, seasons) && watchedCountFromProgressSeasons(progress) > 0) {
+        return true;
+    }
+    const { total, percentage } = calculateSeriesProgress(
+        progress,
+        seasons,
+        seasonDetails,
+        seriesTvMeta,
+        tvmazeBySeason,
+    );
     return total > 0 && percentage === 100;
 };
 
-/**
- * Calculate season progress
- * @param {number} seasonNumber - Season number
- * @param {Object} progress - Progress data from API
- * @param {Object} seasonData - Season data (from seasonDetails or seasons array)
- * @param {Array} seasons - Seasons array from series info (fallback)
- * @returns {Object} { watched, total, percentage }
- */
-export const calculateSeasonProgress = (seasonNumber, progress, seasonData, seasons = []) => {
-    const watchedEpisodes = progress?.seasons?.[seasonNumber]?.episodes || [];
-    
-    // If we have detailed episode data, use that (most accurate)
+export const calculateSeasonProgress = (
+    seasonNumber,
+    progress,
+    seasonData,
+    seasons = [],
+    seriesTvMeta = null,
+    scheduleMap = null,
+) => {
+    const watchedEpisodes =
+        progress?.seasons?.[seasonNumber]?.episodes ||
+        progress?.seasons?.[String(seasonNumber)]?.episodes ||
+        [];
+
     if (seasonData?.episodes && seasonData.episodes.length > 0) {
-        const total = seasonData.episodes.length; // All episodes (released + unreleased)
-        const watched = watchedEpisodes.length;
-        return { 
-            watched, 
-            total, 
-            percentage: total > 0 ? Math.round((watched / total) * 100) : 0 
+        const released = scheduleMap
+            ? seasonData.episodes.filter((ep) =>
+                  isEpisodeReleasedOrdered(ep, seasonData, scheduleMap, seriesTvMeta),
+              )
+            : seasonData.episodes.filter((ep) =>
+                  isEpisodeReleased(ep, seasonData, null, seriesTvMeta),
+              );
+        const total = released.length;
+        const watched = watchedEpisodes.filter((epNum) =>
+            released.some((ep) => ep.episode_number === epNum),
+        ).length;
+        return {
+            watched,
+            total,
+            percentage: total > 0 ? Math.round((watched / total) * 100) : 0,
         };
     }
-    
-    // Fallback: use episode_count from season data or series info
-    const episodeCount = seasonData?.episode_count || 
-                        seasons.find(s => s.season_number === seasonNumber)?.episode_count || 0;
-    
-    return { 
-        watched: watchedEpisodes.length, 
+
+    const episodeCount =
+        seasonData?.episode_count ||
+        seasons.find((s) => s.season_number === seasonNumber)?.episode_count ||
+        0;
+
+    return {
+        watched: watchedEpisodes.length,
         total: episodeCount,
-        percentage: episodeCount > 0 ? Math.round((watchedEpisodes.length / episodeCount) * 100) : 0
+        percentage:
+            episodeCount > 0 ? Math.round((watchedEpisodes.length / episodeCount) * 100) : 0,
     };
 };
 
+export { buildSeriesTvReleaseMeta };

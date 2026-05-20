@@ -1,6 +1,7 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
 import { fetchTMDB } from '../../../utils';
 import { syncTvWatchedContentFromProgress } from '../../../../utils/syncTvWatchedContent';
+import { syncSeriesCompletionFlag } from '../../../../utils/syncSeriesCompletionFlag';
 import {
     buildSeriesTvReleaseMeta,
     isEpisodeReleasedOrdered,
@@ -80,10 +81,13 @@ export async function POST(req, { params }) {
                 const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 const allSeasons = seriesData?.seasons || [];
                 
-                // Process each season
+                // Process each regular season (TMDB season 0 = specials, excluded from completion)
                 for (const seasonInfo of allSeasons) {
                     const seasonNumber = seasonInfo.season_number;
-                    
+                    if (seasonNumber == null || seasonNumber <= 0) {
+                        continue;
+                    }
+
                     // Skip unreleased seasons
                     if (!isSeasonReleased(seasonInfo)) {
                         continue;
@@ -160,8 +164,11 @@ export async function POST(req, { params }) {
                 // If seasonsData was provided in the request, use it as fallback
                 if (seasonsData && typeof seasonsData === 'object') {
                     for (const [seasonNumStr, seasonData] of Object.entries(seasonsData)) {
-                        const seasonNumber = parseInt(seasonNumStr);
-                        
+                        const seasonNumber = parseInt(seasonNumStr, 10);
+                        if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) {
+                            continue;
+                        }
+
                         // Get or create season
                         let { data: season, error: seasonError } = await supabase
                             .from('series_seasons')
@@ -245,6 +252,8 @@ export async function POST(req, { params }) {
             seriesProgress.id,
             { forceWatched: completed, removeIfNoEpisodes: true },
         );
+
+        await syncSeriesCompletionFlag(supabase, seriesProgress.id, seriesId);
 
         return new Response(JSON.stringify({ success: true }), {
             status: 200,

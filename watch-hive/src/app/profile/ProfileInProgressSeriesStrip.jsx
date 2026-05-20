@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import ImageWithFallback from '../components/ImageWithFallback';
 import HorizontalScrollArea from '../components/HorizontalScrollArea';
 import {
+    buildSeriesTvReleaseMeta,
     calculateSeriesProgress,
     isSeriesCompletedByEpisodes,
 } from '../utils/seriesProgressCalculator';
@@ -13,13 +14,25 @@ export default function ProfileInProgressSeriesStrip({ seriesProgress, seriesDet
     const inProgressSeries = useMemo(() => {
         return Object.entries(seriesProgress)
             .map(([seriesId, progress]) => {
-                const seasons = seriesDetails[seriesId]?.seasons || [];
+                const seriesInfo = seriesDetails[seriesId];
+                const seasons =
+                    seriesInfo?.seasons?.filter((s) => s.season_number > 0) || [];
+                if (seasons.length === 0) {
+                    return null;
+                }
+                const seriesTvMeta = buildSeriesTvReleaseMeta(seriesInfo);
                 const completedByEpisodes = isSeriesCompletedByEpisodes(
                     progress,
                     seasons,
                     {},
+                    seriesTvMeta,
                 );
-                const { percentage } = calculateSeriesProgress(progress, seasons, {});
+                const { percentage } = calculateSeriesProgress(
+                    progress,
+                    seasons,
+                    {},
+                    seriesTvMeta,
+                );
                 return {
                     seriesId,
                     completedByEpisodes,
@@ -29,6 +42,7 @@ export default function ProfileInProgressSeriesStrip({ seriesProgress, seriesDet
                     posterPath: seriesDetails[seriesId]?.poster_path,
                 };
             })
+            .filter(Boolean)
             .filter((row) => !row.completedByEpisodes && row.percentage < 100)
             .sort((a, b) => {
                 const ta = a.lastWatched ? new Date(a.lastWatched).getTime() : 0;
@@ -46,12 +60,13 @@ export default function ProfileInProgressSeriesStrip({ seriesProgress, seriesDet
 
     return (
         <section className="space-y-2" aria-label="Series in progress">
-            <div className="flex justify-end">
+            <div className="flex items-center justify-start gap-2">
+                <h2 className="text-sm font-bold text-amber-500">Series in progress</h2>
                 <Link
                     href="/profile/series"
-                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-500 hover:text-amber-400 transition-colors"
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-500/80 hover:text-amber-400 transition-colors"
                 >
-                    Series progress
+                    View all
                     <ChevronRight className="w-3.5 h-3.5" aria-hidden />
                 </Link>
             </div>

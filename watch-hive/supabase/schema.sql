@@ -617,12 +617,13 @@ BEGIN
         WHERE id = NEW.series_season_id;
     END IF;
     
-    -- Check if all seasons are completed
+    -- Check if all regular seasons are completed (specials / season_number 0 excluded)
     SELECT COUNT(*) = 0 INTO all_seasons_completed
     FROM series_seasons ss
     WHERE ss.series_progress_id = (
         SELECT series_progress_id FROM series_seasons WHERE id = NEW.series_season_id
     )
+    AND ss.season_number > 0
     AND ss.completed = FALSE;
     
     -- If all seasons are completed, mark series as completed
@@ -1651,6 +1652,7 @@ END $$;
 --   20260328150000_user_favorites.sql          — user_favorites table + RLS (if not using this full schema)
 --   20260329120000_display_name_ci_unique_resolve.sql — UNIQUE idx LOWER(TRIM(display_name)), profile_id_for_display_name()
 --   20260330120000_get_user_stats_favorites_count.sql — get_user_stats() + favorites_count column
+--   20260519170000_exclude_specials_from_series_completion.sql — update_series_completion() ignores season 0
 -- A greenfield run of this schema.sql already includes those objects; use migrations only for upgrades.
 
 -- ============================================================================
