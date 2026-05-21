@@ -2,7 +2,11 @@ import { DateTime } from "https://esm.sh/luxon@3.5.0";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { assertCronAuthorized } from "../_shared/cron-auth.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
-import { offsetDaysForKind, type ReminderKind } from "../_shared/reminders.ts";
+import {
+  MAX_REMINDER_OFFSET_DAYS,
+  offsetDaysForKind,
+  type ReminderKind,
+} from "../_shared/reminders.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { tmdbMovieCa, tmdbTvNextAir } from "../_shared/tmdb.ts";
 
@@ -427,11 +431,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    /** Daily pass: create reminders from cache (covers release_day + custom offsets up to 30 days). */
+    let materializedFromCache = 0;
+    const windowStart = DateTime.utc()
+      .minus({ days: 1 })
+      .toISODate()!;
+    const windowEnd = DateTime.utc()
+      .plus({ days: MAX_REMINDER_OFFSET_DAYS + 1 })
+      .toISODate()!;
+    const { data: dueCaches, error: cacheErr } = await supabase
+      .from("release_cache")
+      .select("content_id, media_type, title, release_date")
+      .not("release_date", "is", null)
+      .gte("release_date", windowStart)
+      .lte("release_date", windowEnd);
+    if (cacheErr) throw cacheErr;
+    for (const c of dueCaches ?? []) {
+      const mt = c.media_type;
+      if (mt !== "movie" && mt !== "tv") continue;
+      await materializeForContent(
+        supabase,
+        c.content_id,
+        mt,
+        c.title ?? "",
+        c.release_date,
+      );
+      materializedFromCache++;
+    }
+    edgeLog(FN, "materialized_from_cache", {
+      materializedFromCache,
+      windowStart,
+      windowEnd,
+    });
+
     const body = {
       ok: true,
       picked: (pending ?? []).length,
       processed,
       failed,
+      materializedFromCache,
     };
     edgeLog(FN, "done", body);
     return new Response(JSON.stringify(body), {

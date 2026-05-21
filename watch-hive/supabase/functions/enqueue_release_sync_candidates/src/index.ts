@@ -20,10 +20,6 @@ Deno.serve(async (req) => {
   edgeLog(FN, "auth_ok");
 
   try {
-    const ttlSec = Number(Deno.env.get("SYNC_TTL_SECONDS") || "604800");
-    const cutoff = new Date(Date.now() - ttlSec * 1000).toISOString();
-    edgeLog(FN, "config", { ttlSec, cutoff });
-
     const supabase = serviceClient();
 
     const { data: wishlistRows, error: wErr } = await supabase
@@ -56,22 +52,9 @@ Deno.serve(async (req) => {
     });
 
     let enqueued = 0;
-    let skippedFresh = 0;
     let skippedPending = 0;
 
     for (const { content_id, media_type } of candidates.values()) {
-      const { data: cache } = await supabase
-        .from("release_cache")
-        .select("refreshed_at")
-        .eq("content_id", content_id)
-        .eq("media_type", media_type)
-        .maybeSingle();
-
-      if (cache?.refreshed_at && new Date(cache.refreshed_at) >= new Date(cutoff)) {
-        skippedFresh++;
-        continue;
-      }
-
       const { data: pending } = await supabase
         .from("series_sync_queue")
         .select("id")
@@ -102,7 +85,6 @@ Deno.serve(async (req) => {
       ok: true,
       distinctTitles: candidates.size,
       enqueued,
-      skippedFresh,
       skippedPending,
     };
     edgeLog(FN, "done", body);

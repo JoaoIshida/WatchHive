@@ -4,6 +4,9 @@ export type ReminderKind =
   | "one_week_before"
   | "custom";
 
+/** Largest offset used when scanning release_cache for daily reminder materialization. */
+export const MAX_REMINDER_OFFSET_DAYS = 30;
+
 export function offsetDaysForKind(
   kind: ReminderKind,
   customDays: number | null,
