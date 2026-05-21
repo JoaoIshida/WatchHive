@@ -20,6 +20,7 @@
 -- Reviews (optional):         reviews, review_votes
 -- Embeddings / vectors:       content_embeddings, user_preference_embeddings
 -- Edge / cache:               release_cache, series_sync_queue
+-- Release pipeline:           catalog_episodes, regional_airings, notification_queue
 -- Watching reminders:         watching_reminders
 -- ============================================================================
 
@@ -49,6 +50,12 @@ CREATE TYPE reminder_kind AS ENUM ('release_day', 'one_day_before', 'one_week_be
 
 -- TMDB sync queue row status
 CREATE TYPE sync_queue_status AS ENUM ('pending', 'processing', 'done', 'failed');
+
+-- Airing metadata source (TVMaze preferred, TMDB fallback)
+CREATE TYPE airing_source AS ENUM ('tvmaze', 'tmdb');
+
+-- Precomputed notification delivery queue
+CREATE TYPE notification_queue_status AS ENUM ('pending', 'materialized', 'failed');
 
 -- ============================================================================
 -- CORE TABLES (MVP)
@@ -413,6 +420,64 @@ CREATE TABLE series_sync_queue (
 );
 
 COMMENT ON TABLE series_sync_queue IS 'Pending TMDB fetches; dedupe one pending row per (content_id, media_type)';
+
+-- ----------------------------------------------------------------------------
+-- catalog_episodes - Global TV episode catalog (TVMaze / TMDB ingestion)
+-- ----------------------------------------------------------------------------
+CREATE TABLE catalog_episodes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    show_id INTEGER NOT NULL,
+    season_number INTEGER NOT NULL CHECK (season_number >= 0),
+    episode_number INTEGER NOT NULL CHECK (episode_number > 0),
+    title TEXT,
+    source airing_source NOT NULL DEFAULT 'tvmaze',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (show_id, season_number, episode_number)
+);
+
+COMMENT ON TABLE catalog_episodes IS 'TV episode catalog keyed by TMDB show id; used for regional airings';
+
+-- ----------------------------------------------------------------------------
+-- regional_airings - Factual release instant per region (episode or movie)
+-- ----------------------------------------------------------------------------
+CREATE TABLE regional_airings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    show_id INTEGER,
+    episode_id UUID REFERENCES catalog_episodes(id) ON DELETE CASCADE,
+    content_id INTEGER,
+    media_type media_type,
+    region_code TEXT NOT NULL DEFAULT 'CA',
+    release_at_utc TIMESTAMPTZ NOT NULL,
+    source airing_source NOT NULL DEFAULT 'tvmaze',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CHECK (
+        (episode_id IS NOT NULL AND show_id IS NOT NULL AND content_id IS NULL AND media_type IS NULL)
+        OR (episode_id IS NULL AND show_id IS NULL AND content_id IS NOT NULL AND media_type IS NOT NULL)
+    )
+);
+
+COMMENT ON TABLE regional_airings IS 'Per-episode or per-movie release instant in UTC for a region';
+
+-- ----------------------------------------------------------------------------
+-- notification_queue - Precomputed release reminders (dispatch → notifications)
+-- ----------------------------------------------------------------------------
+CREATE TABLE notification_queue (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'release_reminder',
+    send_at_utc TIMESTAMPTZ NOT NULL,
+    dedupe_key TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    status notification_queue_status NOT NULL DEFAULT 'pending',
+    materialized_notification_id UUID REFERENCES notifications(id) ON DELETE SET NULL,
+    last_error TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE notification_queue IS 'Precomputed release reminders; dispatch inserts into notifications';
 
 -- ----------------------------------------------------------------------------
 -- wishlist_reminders - Override release reminder per wishlist row
@@ -851,6 +916,21 @@ CREATE TRIGGER update_series_sync_queue_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
+CREATE TRIGGER update_catalog_episodes_updated_at
+    BEFORE UPDATE ON catalog_episodes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER update_regional_airings_updated_at
+    BEFORE UPDATE ON regional_airings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER update_notification_queue_updated_at
+    BEFORE UPDATE ON notification_queue
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
 CREATE TRIGGER update_wishlist_reminders_updated_at
     BEFORE UPDATE ON wishlist_reminders
     FOR EACH ROW
@@ -902,6 +982,9 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE release_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE series_sync_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE catalog_episodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE regional_airings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlist_reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE watching_reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_embeddings ENABLE ROW LEVEL SECURITY;
@@ -1378,7 +1461,8 @@ CREATE POLICY "Users can delete own push subscriptions"
     ON push_subscriptions FOR DELETE
     USING (auth.uid() = user_id);
 
--- release_cache and series_sync_queue: RLS enabled, no policies — service role only
+-- release_cache, series_sync_queue, catalog_episodes, regional_airings, notification_queue:
+-- RLS enabled, no policies — service role only
 
 -- ----------------------------------------------------------------------------
 -- wishlist_reminders RLS Policies
@@ -1597,6 +1681,31 @@ CREATE INDEX idx_series_sync_queue_pending_created ON series_sync_queue (created
 CREATE UNIQUE INDEX idx_series_sync_queue_pending_unique ON series_sync_queue (content_id, media_type)
     WHERE status = 'pending';
 
+CREATE UNIQUE INDEX idx_regional_airings_episode_region
+    ON regional_airings (episode_id, region_code)
+    WHERE episode_id IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_regional_airings_content_region
+    ON regional_airings (content_id, media_type, region_code)
+    WHERE episode_id IS NULL;
+
+CREATE INDEX idx_regional_airings_region_release
+    ON regional_airings (region_code, release_at_utc);
+
+CREATE INDEX idx_regional_airings_show_id
+    ON regional_airings (show_id)
+    WHERE show_id IS NOT NULL;
+
+CREATE INDEX idx_catalog_episodes_show_id ON catalog_episodes (show_id);
+
+CREATE UNIQUE INDEX idx_notification_queue_user_dedupe_active
+    ON notification_queue (user_id, dedupe_key)
+    WHERE status IN ('pending', 'materialized');
+
+CREATE INDEX idx_notification_queue_pending_send
+    ON notification_queue (send_at_utc)
+    WHERE status = 'pending';
+
 CREATE INDEX idx_wishlist_reminders_wishlist_id ON wishlist_reminders(wishlist_id);
 CREATE INDEX idx_watching_reminders_watched_content_id ON watching_reminders(watched_content_id);
 
@@ -1653,6 +1762,8 @@ END $$;
 --   20260329120000_display_name_ci_unique_resolve.sql — UNIQUE idx LOWER(TRIM(display_name)), profile_id_for_display_name()
 --   20260330120000_get_user_stats_favorites_count.sql — get_user_stats() + favorites_count column
 --   20260519170000_exclude_specials_from_series_completion.sql — update_series_completion() ignores season 0
+--   20260521120000_precompute_release_notifications.sql — catalog_episodes, regional_airings, notification_queue
+--   20260521130000_notification_pipeline_cron.sql — pg_cron templates for ingest / precompute / dispatch
 -- A greenfield run of this schema.sql already includes those objects; use migrations only for upgrades.
 
 -- ============================================================================

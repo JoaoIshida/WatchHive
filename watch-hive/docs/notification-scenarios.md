@@ -4,7 +4,7 @@ Examples below match the strings built in code. Placeholders use **bold** labels
 
 **In-app feed:** Every row below is stored in `notifications` and appears under **`/profile/notifications`** whether or not Web Push succeeds (push is a separate step that sets `push_sent_at` when it works).
 
-## `release_reminder` (Edge: `process_series_sync_queue`)
+## `release_reminder` (Edge: `precompute_release_notifications` → `dispatch_notification_queue`)
 
 Wishlist reminders use the user’s reminder offset vs release date; copy uses **(CA)** for calendar semantics.
 
@@ -82,7 +82,7 @@ When a user has **more than one** pending row of types `release_reminder`, `cata
 
 | Type | Code |
 |------|------|
-| `release_reminder` | `supabase/functions/process_series_sync_queue/index.ts` (`materializeForContent`, `tryInsertNotification`) |
+| `release_reminder` | `supabase/functions/precompute_release_notifications/index.ts`, `dispatch_notification_queue/index.ts`, `_shared/releaseNotifyCopy.ts` |
 | `catalog_expanded` | `supabase/functions/refresh_series_progress_catalog/index.ts` |
 | `series_catchup` | `supabase/functions/weekly_series_catchup_notifications/index.ts` |
 | `friend_request` | `src/app/lib/friend-request-notify.js` |
@@ -90,4 +90,21 @@ When a user has **more than one** pending row of types `release_reminder`, `cata
 
 ---
 
-*Examples documented from repo; last updated 2026-05-08.*
+## Cron pipeline notes
+
+### Release reminders (precomputed)
+
+1. **`ingest_regional_airings`** — TVMaze episode `airstamp` / `airdate` (or TMDB fallback) → `catalog_episodes` + `regional_airings.release_at_utc`.
+2. **`precompute_release_notifications`** — For each airing in the next **30** days, enqueue `notification_queue` with `send_at_utc` (user timezone, 09:00 local on reminder day).
+3. **`dispatch_notification_queue`** — `send_at_utc <= now()` → insert `notifications` (no external APIs).
+4. **`daily_push_dispatcher`** — Web Push from pending `notifications` rows.
+
+TMDB cache refresh (titles/posters, movie dates) still uses **`enqueue_release_sync_candidates`** + **`process_series_sync_queue`** → `release_cache` only.
+
+### Other types
+
+- **`enqueue_release_sync_candidates`** enqueues every wishlist + watched TV title daily. Only skips if a row is already `pending` in `series_sync_queue`.
+
+---
+
+*Examples documented from repo; last updated 2026-05-21.*

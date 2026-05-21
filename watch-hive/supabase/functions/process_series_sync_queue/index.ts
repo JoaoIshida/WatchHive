@@ -1,305 +1,15 @@
-import { DateTime } from "https://esm.sh/luxon@3.5.0";
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { assertCronAuthorized } from "../_shared/cron-auth.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
-import {
-  MAX_REMINDER_OFFSET_DAYS,
-  offsetDaysForKind,
-  type ReminderKind,
-} from "../_shared/reminders.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { tmdbMovieCa, tmdbTvNextAir } from "../_shared/tmdb.ts";
 
+/**
+ * Drains series_sync_queue and refreshes release_cache (TMDB metadata only).
+ * Release reminders are precomputed via ingest_regional_airings →
+ * precompute_release_notifications → dispatch_notification_queue.
+ */
 const FN = "process_series_sync_queue";
 const BATCH = 12;
-
-const VALID_REMINDER_KINDS = new Set<string>([
-  "release_day",
-  "one_day_before",
-  "one_week_before",
-  "custom",
-]);
-
-type Prefs = {
-  timezone: string;
-  default_reminder_kind: ReminderKind;
-  /** Multiple timings from UI; used when wishlist/watching uses global defaults */
-  default_reminder_kinds: ReminderKind[];
-  custom_days_before: number | null;
-};
-
-const defaultPrefs: Prefs = {
-  timezone: "America/Toronto",
-  default_reminder_kind: "release_day",
-  default_reminder_kinds: ["release_day"],
-  custom_days_before: null,
-};
-
-function normalizeReminderKindsFromRow(row: {
-  default_reminder_kinds?: unknown;
-  default_reminder_kind?: string | null;
-}): ReminderKind[] {
-  const raw = row.default_reminder_kinds;
-  if (Array.isArray(raw) && raw.length > 0) {
-    const uniq: ReminderKind[] = [];
-    const seen = new Set<string>();
-    for (const k of raw) {
-      const s = typeof k === "string" ? k : "";
-      if (!VALID_REMINDER_KINDS.has(s) || seen.has(s)) continue;
-      seen.add(s);
-      uniq.push(s as ReminderKind);
-    }
-    if (uniq.length > 0) return uniq;
-  }
-  const one = row.default_reminder_kind;
-  if (typeof one === "string" && VALID_REMINDER_KINDS.has(one)) {
-    return [one as ReminderKind];
-  }
-  return [...defaultPrefs.default_reminder_kinds];
-}
-
-async function loadPrefs(
-  supabase: SupabaseClient,
-  userIds: string[],
-): Promise<Record<string, Prefs>> {
-  const out: Record<string, Prefs> = {};
-  if (userIds.length === 0) return out;
-  const { data } = await supabase
-    .from("notification_preferences")
-    .select(
-      "user_id, timezone, default_reminder_kind, default_reminder_kinds, custom_days_before",
-    )
-    .in("user_id", userIds);
-  for (const row of data ?? []) {
-    const kinds = normalizeReminderKindsFromRow(row);
-    out[row.user_id] = {
-      timezone: row.timezone || defaultPrefs.timezone,
-      default_reminder_kind: (row.default_reminder_kind ||
-        kinds[0] ||
-        defaultPrefs.default_reminder_kind) as ReminderKind,
-      default_reminder_kinds: kinds,
-      custom_days_before: row.custom_days_before,
-    };
-  }
-  return out;
-}
-
-async function tryInsertNotification(
-  supabase: SupabaseClient,
-  row: {
-    user_id: string;
-    title: string;
-    message: string;
-    link: string;
-    dedupe_key: string;
-  },
-) {
-  const { error } = await supabase.from("notifications").insert({
-    user_id: row.user_id,
-    type: "release_reminder",
-    title: row.title,
-    message: row.message,
-    link: row.link,
-    dedupe_key: row.dedupe_key,
-    read: false,
-  });
-  if (error?.code === "23505") return;
-  if (error) throw error;
-  edgeLog(FN, "release_reminder_inserted", {
-    user_id: row.user_id,
-    dedupe_key: row.dedupe_key,
-  });
-}
-
-async function materializeForContent(
-  supabase: SupabaseClient,
-  content_id: number,
-  media_type: "movie" | "tv",
-  title: string,
-  release_date: string | null,
-) {
-  if (!release_date) return;
-
-  const userIds = new Set<string>();
-
-  const { data: wishRows } = await supabase
-    .from("wishlist")
-    .select("id, user_id")
-    .eq("content_id", content_id)
-    .eq("media_type", media_type);
-
-  const wishlistIds = (wishRows ?? []).map((w) => w.id);
-  let wrMap = new Map<
-    string,
-    { use_global_default: boolean; reminder_kind: ReminderKind | null; custom_days_before: number | null }
-  >();
-  if (wishlistIds.length) {
-    const { data: wr } = await supabase
-      .from("wishlist_reminders")
-      .select("wishlist_id, use_global_default, reminder_kind, custom_days_before")
-      .in("wishlist_id", wishlistIds);
-    for (const r of wr ?? []) {
-      wrMap.set(r.wishlist_id, {
-        use_global_default: r.use_global_default,
-        reminder_kind: r.reminder_kind as ReminderKind | null,
-        custom_days_before: r.custom_days_before,
-      });
-    }
-  }
-
-  for (const w of wishRows ?? []) userIds.add(w.user_id);
-
-  const { data: watchedRows } = await supabase
-    .from("watched_content")
-    .select("id, user_id")
-    .eq("content_id", content_id)
-    .eq("media_type", "tv");
-
-  const { data: progressRows } = await supabase
-    .from("series_progress")
-    .select("user_id, series_id, completed")
-    .eq("series_id", content_id);
-
-  const progressByUser = new Map(
-    (progressRows ?? []).map((p) => [p.user_id, p]),
-  );
-
-  const watchingCandidates: { id: string; user_id: string }[] = [];
-  for (const wc of watchedRows ?? []) {
-    if (media_type !== "tv") continue;
-    const prog = progressByUser.get(wc.user_id);
-    if (!prog) continue;
-    /** Caught-up users still get reminders when TMDB reports a next air date (e.g. season finale). */
-    if (prog.completed && !release_date) continue;
-    watchingCandidates.push({ id: wc.id, user_id: wc.user_id });
-    userIds.add(wc.user_id);
-  }
-
-  let whMap = new Map<
-    string,
-    { use_global_default: boolean; reminder_kind: ReminderKind | null; custom_days_before: number | null }
-  >();
-  if (watchingCandidates.length) {
-    const { data: wh } = await supabase
-      .from("watching_reminders")
-      .select("watched_content_id, use_global_default, reminder_kind, custom_days_before")
-      .in(
-        "watched_content_id",
-        watchingCandidates.map((c) => c.id),
-      );
-    for (const r of wh ?? []) {
-      whMap.set(r.watched_content_id, {
-        use_global_default: r.use_global_default,
-        reminder_kind: r.reminder_kind as ReminderKind | null,
-        custom_days_before: r.custom_days_before,
-      });
-    }
-  }
-
-  const prefs = await loadPrefs(supabase, [...userIds]);
-
-  const link =
-    media_type === "movie"
-      ? `/movies/${content_id}`
-      : `/series/${content_id}`;
-
-  const releaseLuxon = DateTime.fromISO(release_date, { zone: "utc" }).startOf("day");
-
-  for (const w of wishRows ?? []) {
-    const p = prefs[w.user_id] ?? defaultPrefs;
-    const wr = wrMap.get(w.id);
-    const useGlobal = wr?.use_global_default !== false;
-    const kindsForUser: ReminderKind[] = useGlobal
-      ? p.default_reminder_kinds
-      : [
-          (wr?.reminder_kind ?? p.default_reminder_kind) as ReminderKind,
-        ];
-    const custom = useGlobal
-      ? p.custom_days_before
-      : wr?.custom_days_before ?? p.custom_days_before;
-
-    const seenOffsets = new Set<number>();
-    for (const kind of kindsForUser) {
-      if (!VALID_REMINDER_KINDS.has(kind)) continue;
-      const offset = offsetDaysForKind(kind, custom);
-      if (seenOffsets.has(offset)) continue;
-      seenOffsets.add(offset);
-
-      const target = releaseLuxon.minus({ days: offset });
-      const targetStr = target.toISODate()!;
-      const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
-      if (targetStr !== userToday) continue;
-
-      const dedupe_key =
-        `rel:${w.user_id}:${content_id}:${media_type}:${release_date}:${offset}`;
-      const isMovie = media_type === "movie";
-      const movieWhen =
-        offset === 0
-          ? "is in theatres today (CA)"
-          : offset === 1
-          ? "opens in theatres tomorrow (CA)"
-          : `opens in theatres in ${offset} days (CA)`;
-      const tvWhen =
-        offset === 0
-          ? "premieres today (CA)"
-          : offset === 1
-          ? "premieres tomorrow (CA)"
-          : `premieres in ${offset} days (CA)`;
-      await tryInsertNotification(supabase, {
-        user_id: w.user_id,
-        title: isMovie ? `In theatres: ${title}` : `Premiere: ${title}`,
-        message: isMovie
-          ? `"${title}" ${movieWhen}.`
-          : `"${title}" ${tvWhen}.`,
-        link,
-        dedupe_key,
-      });
-    }
-  }
-
-  for (const wc of watchingCandidates) {
-    const p = prefs[wc.user_id] ?? defaultPrefs;
-    const wh = whMap.get(wc.id);
-    const useGlobal = wh?.use_global_default !== false;
-    const kindsForUser: ReminderKind[] = useGlobal
-      ? p.default_reminder_kinds
-      : [
-          (wh?.reminder_kind ?? p.default_reminder_kind) as ReminderKind,
-        ];
-    const custom = useGlobal
-      ? p.custom_days_before
-      : wh?.custom_days_before ?? p.custom_days_before;
-
-    const seenOffsets = new Set<number>();
-    for (const kind of kindsForUser) {
-      if (!VALID_REMINDER_KINDS.has(kind)) continue;
-      const offset = offsetDaysForKind(kind, custom);
-      if (seenOffsets.has(offset)) continue;
-      seenOffsets.add(offset);
-
-      const target = releaseLuxon.minus({ days: offset });
-      const targetStr = target.toISODate()!;
-      const userToday = DateTime.now().setZone(p.timezone).toISODate()!;
-      if (targetStr !== userToday) continue;
-
-      const dedupe_key =
-        `rel:${wc.user_id}:${content_id}:${media_type}:${release_date}:${offset}:w`;
-      const epWhen =
-        offset === 0
-          ? "has a new episode airing today (CA)"
-          : offset === 1
-          ? "has a new episode airing tomorrow (CA)"
-          : `has a new episode in ${offset} days (CA)`;
-      await tryInsertNotification(supabase, {
-        user_id: wc.user_id,
-        title: `New episode: ${title}`,
-        message: `"${title}" ${epWhen}.`,
-        link,
-        dedupe_key,
-      });
-    }
-  }
-}
 
 Deno.serve(async (req) => {
   edgeLog(FN, "request", { method: req.method });
@@ -334,7 +44,6 @@ Deno.serve(async (req) => {
     edgeLog(FN, "queue_fetched", {
       pendingCount: (pending ?? []).length,
       batchLimit: BATCH,
-      queueIds: (pending ?? []).map((r) => r.id),
     });
 
     let processed = 0;
@@ -348,16 +57,7 @@ Deno.serve(async (req) => {
         .eq("status", "pending")
         .select("id")
         .maybeSingle();
-      if (lockErr || !locked) {
-        edgeLog(FN, "lock_skipped", { queueId: row.id, lockErr: lockErr?.message });
-        continue;
-      }
-
-      edgeLog(FN, "processing_row", {
-        queueId: row.id,
-        content_id: row.content_id,
-        media_type: row.media_type,
-      });
+      if (lockErr || !locked) continue;
 
       try {
         let title: string;
@@ -392,20 +92,6 @@ Deno.serve(async (req) => {
         );
         if (upErr) throw upErr;
 
-        await materializeForContent(
-          supabase,
-          row.content_id,
-          row.media_type,
-          title,
-          release_date,
-        );
-
-        edgeLog(FN, "row_tmdb_ok", {
-          queueId: row.id,
-          title,
-          release_date,
-        });
-
         await supabase
           .from("series_sync_queue")
           .update({
@@ -431,45 +117,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    /** Daily pass: create reminders from cache (covers release_day + custom offsets up to 30 days). */
-    let materializedFromCache = 0;
-    const windowStart = DateTime.utc()
-      .minus({ days: 1 })
-      .toISODate()!;
-    const windowEnd = DateTime.utc()
-      .plus({ days: MAX_REMINDER_OFFSET_DAYS + 1 })
-      .toISODate()!;
-    const { data: dueCaches, error: cacheErr } = await supabase
-      .from("release_cache")
-      .select("content_id, media_type, title, release_date")
-      .not("release_date", "is", null)
-      .gte("release_date", windowStart)
-      .lte("release_date", windowEnd);
-    if (cacheErr) throw cacheErr;
-    for (const c of dueCaches ?? []) {
-      const mt = c.media_type;
-      if (mt !== "movie" && mt !== "tv") continue;
-      await materializeForContent(
-        supabase,
-        c.content_id,
-        mt,
-        c.title ?? "",
-        c.release_date,
-      );
-      materializedFromCache++;
-    }
-    edgeLog(FN, "materialized_from_cache", {
-      materializedFromCache,
-      windowStart,
-      windowEnd,
-    });
-
     const body = {
       ok: true,
       picked: (pending ?? []).length,
       processed,
       failed,
-      materializedFromCache,
     };
     edgeLog(FN, "done", body);
     return new Response(JSON.stringify(body), {

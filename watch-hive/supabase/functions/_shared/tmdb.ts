@@ -70,11 +70,17 @@ export async function tmdbMovieCa(
   return { title, release_date, poster_path };
 }
 
+export type TmdbNextEpisode = {
+  air_date: string | null;
+  season_number: number | null;
+  episode_number: number | null;
+};
+
 /** TV series: next episode air date from TMDB (null if none scheduled). */
 export async function tmdbTvNextAir(
   apiKey: string,
   seriesId: number,
-): Promise<TmdbReleaseRow> {
+): Promise<TmdbReleaseRow & { next?: TmdbNextEpisode | null }> {
   const url = `${TMDB_BASE}/tv/${seriesId}?api_key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) {
@@ -84,10 +90,24 @@ export async function tmdbTvNextAir(
   const tv = await res.json();
   const title = typeof tv.name === "string" ? tv.name : `Series ${seriesId}`;
   const poster_path = typeof tv.poster_path === "string" ? tv.poster_path : null;
-  const next = tv.next_episode_to_air as { air_date?: string } | null | undefined;
+  const next = tv.next_episode_to_air as {
+    air_date?: string;
+    season_number?: number;
+    episode_number?: number;
+  } | null | undefined;
   let release_date: string | null = null;
-  if (next && typeof next.air_date === "string" && next.air_date.length > 0) {
-    release_date = next.air_date.slice(0, 10);
+  let nextEp: TmdbNextEpisode | null = null;
+  if (next) {
+    if (typeof next.air_date === "string" && next.air_date.length > 0) {
+      release_date = next.air_date.slice(0, 10);
+    }
+    nextEp = {
+      air_date: release_date,
+      season_number:
+        typeof next.season_number === "number" ? next.season_number : null,
+      episode_number:
+        typeof next.episode_number === "number" ? next.episode_number : null,
+    };
   }
-  return { title, release_date, poster_path };
+  return { title, release_date, poster_path, next: nextEp };
 }

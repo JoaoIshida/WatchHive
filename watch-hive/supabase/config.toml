@@ -26,3 +26,12 @@ verify_jwt = false
 
 [functions.weekly_series_catchup_notifications]
 verify_jwt = false
+
+[functions.ingest_regional_airings]
+verify_jwt = false
+
+[functions.precompute_release_notifications]
+verify_jwt = false
+
+[functions.dispatch_notification_queue]
+verify_jwt = false
