@@ -1764,6 +1764,7 @@ END $$;
 --   20260519170000_exclude_specials_from_series_completion.sql — update_series_completion() ignores season 0
 --   20260521120000_precompute_release_notifications.sql — catalog_episodes, regional_airings, notification_queue
 --   20260521130000_notification_pipeline_cron.sql — pg_cron templates for ingest / precompute / dispatch
+--   20260522130000_weekly_catchup_cron.sql — series_catchup Fridays 9 PM America/Toronto (EDT)
 -- A greenfield run of this schema.sql already includes those objects; use migrations only for upgrades.
 
 -- ============================================================================

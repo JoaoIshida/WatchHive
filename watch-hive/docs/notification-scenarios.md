@@ -44,6 +44,8 @@ Shown when the catalog episode count for a series increased and the user is stil
 
 Weekly nudge for in-progress series where `catalog_total_episodes` is known and the user has **not** marked every episode watched. **`x`** is **episodes not watched yet** (`catalog_total` minus marked watched).
 
+**Schedule (pg_cron, UTC):** `0 1 * * 6` — Saturday 01:00 UTC = **Friday 9:00 PM** in `America/Toronto` during daylight saving (EDT). In-app row is created then; Web Push is sent with the next `daily_push_dispatcher` run (09:00 UTC) if `push_catchup` is enabled.
+
 | Case | `title` | `message` | `link` |
 |------|---------|-------------|--------|
 | **One** qualifying show this run for the user | `Episodes waiting` | `**The Bear** has **8** episodes not watched yet. Catch up when you're ready.` | `/series/{id}` |
