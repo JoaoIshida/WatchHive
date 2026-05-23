@@ -13,6 +13,7 @@ import {
   buildWishlistReleaseCopyWithLink,
   releaseKeyForEpisode,
   releaseKeyForMovie,
+  releaseKeyForWishlistTv,
   watchingDedupeKey,
   wishlistDedupeKey,
 } from "../_shared/releaseNotifyCopy.ts";
@@ -79,14 +80,20 @@ Deno.serve(async (req) => {
     let updated = 0;
     let skipped = 0;
 
-    for (const airing of (airings ?? []) as AiringRow[]) {
-      const title = await resolveTitle(supabase, apiKey, airing);
-      if (!title) {
-        skipped++;
-        continue;
-      }
+    const rows = (airings ?? []) as AiringRow[];
+    const tvByShow = new Map<number, AiringRow[]>();
 
+    for (const airing of rows) {
       if (airing.media_type === "movie" && airing.content_id) {
+        const title = await resolveTitle(supabase, apiKey, airing);
+        if (!title) {
+          skipped++;
+          edgeLog(FN, "skip_no_title", {
+            content_id: airing.content_id,
+            media_type: "movie",
+          });
+          continue;
+        }
         const r = await precomputeMovie(
           supabase,
           airing.content_id,
@@ -99,16 +106,45 @@ Deno.serve(async (req) => {
       }
 
       if (airing.show_id && airing.episode_id && airing.catalog_episodes) {
-        const r = await precomputeTvEpisode(
+        const list = tvByShow.get(airing.show_id) ?? [];
+        list.push(airing);
+        tvByShow.set(airing.show_id, list);
+      }
+    }
+
+    for (const [showId, showAirings] of tvByShow) {
+      showAirings.sort((a, b) =>
+        a.release_at_utc.localeCompare(b.release_at_utc)
+      );
+      const anchor = showAirings[0];
+      const title = await resolveTitle(supabase, apiKey, anchor);
+      if (!title) {
+        skipped += showAirings.length;
+        edgeLog(FN, "skip_no_title", { show_id: showId, media_type: "tv" });
+        continue;
+      }
+
+      const wishR = await precomputeWishlistTvShow(
+        supabase,
+        showId,
+        title,
+        anchor.release_at_utc,
+      );
+      queued += wishR.queued;
+      updated += wishR.updated;
+
+      for (const airing of showAirings) {
+        const ep = airing.catalog_episodes!;
+        const watchR = await precomputeWatchingEpisode(
           supabase,
-          airing.show_id,
-          airing.catalog_episodes.season_number,
-          airing.catalog_episodes.episode_number,
+          showId,
+          ep.season_number,
+          ep.episode_number,
           title,
           airing.release_at_utc,
         );
-        queued += r.queued;
-        updated += r.updated;
+        queued += watchR.queued;
+        updated += watchR.updated;
       }
     }
 
@@ -161,7 +197,32 @@ async function precomputeMovie(
   );
 }
 
-async function precomputeTvEpisode(
+/** One wishlist premiere row per show (nearest upcoming air date), not per episode. */
+async function precomputeWishlistTvShow(
+  supabase: SupabaseClient,
+  showId: number,
+  title: string,
+  releaseAtUtcIso: string,
+) {
+  const { data: wishRows } = await supabase
+    .from("wishlist")
+    .select("id, user_id")
+    .eq("content_id", showId)
+    .eq("media_type", "tv");
+
+  return precomputeWishlistUsers(
+    supabase,
+    wishRows ?? [],
+    showId,
+    "tv",
+    title,
+    releaseAtUtcIso,
+    releaseKeyForWishlistTv(showId, releaseAtUtcIso),
+    `/series/${showId}`,
+  );
+}
+
+async function precomputeWatchingEpisode(
   supabase: SupabaseClient,
   showId: number,
   season: number,
@@ -174,24 +235,6 @@ async function precomputeTvEpisode(
 
   let queued = 0;
   let updated = 0;
-
-  const { data: wishRows } = await supabase
-    .from("wishlist")
-    .select("id, user_id")
-    .eq("content_id", showId)
-    .eq("media_type", "tv");
-  const w = await precomputeWishlistUsers(
-    supabase,
-    wishRows ?? [],
-    showId,
-    "tv",
-    title,
-    releaseAtUtcIso,
-    releaseKey,
-    link,
-  );
-  queued += w.queued;
-  updated += w.updated;
 
   const { data: watchedRows } = await supabase
     .from("watched_content")

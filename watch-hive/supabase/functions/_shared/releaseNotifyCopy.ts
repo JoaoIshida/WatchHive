@@ -85,3 +85,11 @@ export function releaseKeyForEpisode(
 ): string {
   return `s${season}e${episode}:${releaseAtUtc.slice(0, 10)}`;
 }
+
+/** Wishlist TV: one reminder per show per air date per offset (not per episode). */
+export function releaseKeyForWishlistTv(
+  showId: number,
+  releaseAtUtc: string,
+): string {
+  return `show:${showId}:${releaseAtUtc.slice(0, 10)}`;
+}
