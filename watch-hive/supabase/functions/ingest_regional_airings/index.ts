@@ -3,6 +3,7 @@ import { assertCronAuthorized } from "../_shared/cron-auth.ts";
 import { releaseAtUtc } from "../_shared/airingTime.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
 import { serviceClient } from "../_shared/supabase.ts";
+import { ensureReleaseCacheTitle } from "../_shared/releaseCacheTitle.ts";
 import { tmdbMovieCa, tmdbTvNextAir } from "../_shared/tmdb.ts";
 import { fetchUpcomingTvmazeEpisodes } from "../_shared/tvmaze.ts";
 
@@ -63,6 +64,8 @@ Deno.serve(async (req) => {
     let tvmazeMiss = 0;
 
     for (const showId of showIds) {
+      await ensureReleaseCacheTitle(supabase, apiKey, showId);
+
       const eps = await fetchUpcomingTvmazeEpisodes(showId, apiKey, 4);
       if (eps.length === 0) {
         tvmazeMiss++;
@@ -223,6 +226,7 @@ async function syncAiringsFromReleaseCache(
       continue;
     }
     if (c.media_type === "tv" && tvShowIds.includes(c.content_id)) {
+      await ensureReleaseCacheTitle(supabase, apiKey, c.content_id);
       const { data: existing } = await supabase
         .from("regional_airings")
         .select("id")

@@ -38,7 +38,7 @@ next-env.d.ts
 #env
 .env
 
-#supabase/
+supabase/migrations/*
 supabase/.temp/
 todo.txt
 internal_docs/

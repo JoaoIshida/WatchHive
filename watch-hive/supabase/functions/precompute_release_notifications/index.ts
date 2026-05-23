@@ -22,6 +22,7 @@ import {
   type ReminderKind,
 } from "../_shared/reminders.ts";
 import { serviceClient } from "../_shared/supabase.ts";
+import { resolveContentTitle } from "../_shared/releaseCacheTitle.ts";
 
 const FN = "precompute_release_notifications";
 const REGION = "CA";
@@ -50,6 +51,14 @@ Deno.serve(async (req) => {
   const authErr = assertCronAuthorized(req);
   if (authErr) return authErr;
 
+  const apiKey = Deno.env.get("TMDB_API_KEY");
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "Missing TMDB_API_KEY" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabase = serviceClient();
     const now = DateTime.utc();
@@ -71,7 +80,7 @@ Deno.serve(async (req) => {
     let skipped = 0;
 
     for (const airing of (airings ?? []) as AiringRow[]) {
-      const title = await resolveTitle(supabase, airing);
+      const title = await resolveTitle(supabase, apiKey, airing);
       if (!title) {
         skipped++;
         continue;
@@ -120,18 +129,13 @@ Deno.serve(async (req) => {
 
 async function resolveTitle(
   supabase: SupabaseClient,
+  apiKey: string,
   airing: AiringRow,
 ): Promise<string | null> {
   const contentId = airing.content_id ?? airing.show_id;
   const mediaType = airing.media_type ?? (airing.show_id ? "tv" : null);
   if (!contentId || !mediaType) return null;
-  const { data } = await supabase
-    .from("release_cache")
-    .select("title")
-    .eq("content_id", contentId)
-    .eq("media_type", mediaType)
-    .maybeSingle();
-  return (data?.title as string) ?? `Title ${contentId}`;
+  return resolveContentTitle(supabase, apiKey, contentId, mediaType);
 }
 
 async function precomputeMovie(
