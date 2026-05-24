@@ -1,5 +1,9 @@
 import { assertCronAuthorized } from "../_shared/cron-auth.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
+import {
+  type PendingNotificationRow,
+  pushPendingNotifications,
+} from "../_shared/pushDispatch.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 
 const FN = "dispatch_notification_queue";
@@ -37,6 +41,7 @@ Deno.serve(async (req) => {
     let materialized = 0;
     let failed = 0;
     let deduped = 0;
+    const materializedRows: PendingNotificationRow[] = [];
 
     for (const row of (pending ?? []) as QueueRow[]) {
       const title = row.payload?.title ?? "WatchHive";
@@ -54,7 +59,7 @@ Deno.serve(async (req) => {
           dedupe_key: row.dedupe_key,
           read: false,
         })
-        .select("id")
+        .select("id, user_id, type, title, message, link")
         .maybeSingle();
 
       if (insErr?.code === "23505") {
@@ -97,6 +102,20 @@ Deno.serve(async (req) => {
         })
         .eq("id", row.id);
       materialized++;
+
+      if (notif?.id) {
+        materializedRows.push(notif as PendingNotificationRow);
+      }
+    }
+
+    let pushSummary = null;
+    if (materializedRows.length > 0) {
+      pushSummary = await pushPendingNotifications(
+        FN,
+        supabase,
+        materializedRows,
+      );
+      edgeLog(FN, "push_after_materialize", pushSummary);
     }
 
     const body = {
@@ -105,6 +124,7 @@ Deno.serve(async (req) => {
       materialized,
       deduped,
       failed,
+      push: pushSummary,
     };
     edgeLog(FN, "done", body);
     return new Response(JSON.stringify(body), {

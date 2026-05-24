@@ -1,6 +1,6 @@
 /* WatchHive service worker — push, offline shell cache, background sync signal */
 
-const CACHE_SHELL = "watchhive-shell-v4";
+const CACHE_SHELL = "watchhive-shell-v5";
 const SYNC_TAG = "watchhive-sync";
 
 /** Same-origin paths precached for offline shell (layout + assets only). */
@@ -117,7 +117,18 @@ self.addEventListener("push", (event) => {
   };
   if (typeof data.tag === "string" && data.tag) options.tag = data.tag;
   if (data.renotify === true) options.renotify = true;
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title, options),
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: "REFRESH_NOTIFICATIONS" });
+          });
+        }),
+    ]),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

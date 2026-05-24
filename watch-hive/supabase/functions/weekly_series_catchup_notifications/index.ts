@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         const { error: insErr } = await supabase.from("notifications").insert({
           user_id: userId,
           type: "series_catchup",
-          title: "Episodes waiting",
+          title: `Weekly reminder: ${c.title}`,
           message: `${c.title} has ${c.unwatched} episodes not watched yet. Catch up when you're ready.`,
           link: `/series/${c.series_id}`,
           read: false,
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
         const { error: insErr } = await supabase.from("notifications").insert({
           user_id: userId,
           type: "series_catchup",
-          title: "Episodes waiting",
+          title: "Weekly reminder",
           message: `A few titles aren't finalized yet. Catch up when you're ready.`,
           link: "/profile/notifications",
           read: false,

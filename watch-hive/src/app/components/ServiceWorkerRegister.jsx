@@ -10,6 +10,9 @@ export default function ServiceWorkerRegister() {
       if (event.data?.type === "WATCHHIVE_SYNC") {
         window.dispatchEvent(new CustomEvent("watchhive:sync"));
       }
+      if (event.data?.type === "REFRESH_NOTIFICATIONS") {
+        window.dispatchEvent(new CustomEvent("refreshNotifications"));
+      }
     };
     navigator.serviceWorker.addEventListener("message", onSwMessage);
 

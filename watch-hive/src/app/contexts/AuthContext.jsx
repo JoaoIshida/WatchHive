@@ -23,6 +23,26 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const syncSupabaseSession = async () => {
+        try {
+            const response = await fetch('/api/auth/realtime-session', {
+                method: 'GET',
+                credentials: 'include',
+            });
+            if (!response.ok) return;
+            const result = await response.json();
+            if (result.session?.access_token && result.session?.refresh_token) {
+                const { error: sErr } = await supabase.auth.setSession({
+                    access_token: result.session.access_token,
+                    refresh_token: result.session.refresh_token,
+                });
+                if (sErr) console.warn('Supabase Realtime session sync failed', sErr);
+            }
+        } catch (error) {
+            console.warn('Supabase Realtime session sync skipped', error);
+        }
+    };
+
     // Check authentication status from server
     const checkAuthStatus = async () => {
         try {
@@ -36,6 +56,7 @@ export const AuthProvider = ({ children }) => {
                 // Only set user if we have a valid user object with an id
                 if (result.user && result.user.id) {
                     setUser(result.user);
+                    await syncSupabaseSession();
                 } else {
                     setUser(null);
                 }

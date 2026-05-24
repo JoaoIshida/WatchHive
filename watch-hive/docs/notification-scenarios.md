@@ -23,7 +23,7 @@ Watching reminders apply when you have watch progress for the series. If you mar
 | **Watching**, offset **N** | `New episode: **Show Name**` | `"**Show Name**" has a new episode in **N** days (CA).` |
 
 - **Link:** `/movies/{id}` or `/series/{id}`.
-- **Web push (batched):** `daily_push_dispatcher` usually mirrors the row’s `title` / `message` when there is **one** pending row for that user; see [Aggregated push](#aggregated-push-daily_push_dispatcher) when there are several.
+- **Web push:** Sent in the same run as in-app materialization (`dispatch_notification_queue` → `_shared/pushDispatch.ts`). When there is **one** row for that user, push mirrors `title` / `message`; see [Aggregated push](#aggregated-push-pushdispatch) when there are several. `daily_push_dispatcher` remains a catch-up safety net for any rows still missing `push_sent_at`.
 
 ---
 
@@ -44,12 +44,12 @@ Shown when the catalog episode count for a series increased and the user is stil
 
 Weekly nudge for in-progress series where `catalog_total_episodes` is known and the user has **not** marked every episode watched. **`x`** is **episodes not watched yet** (`catalog_total` minus marked watched).
 
-**Schedule (pg_cron, UTC):** `0 1 * * 6` — Saturday 01:00 UTC = **Friday 9:00 PM** in `America/Toronto` during daylight saving (EDT). In-app row is created then; Web Push is sent with the next `daily_push_dispatcher` run (09:00 UTC) if `push_catchup` is enabled.
+**Schedule (pg_cron, UTC):** `0 1 * * 6` — Saturday 01:00 UTC = **Friday 9:00 PM** in `America/Toronto` during daylight saving (EDT). In-app row is created then; Web Push follows in the same Edge run when `push_catchup` is enabled (or on the next `daily_push_dispatcher` catch-up).
 
 | Case | `title` | `message` | `link` |
 |------|---------|-------------|--------|
-| **One** qualifying show this run for the user | `Episodes waiting` | `**The Bear** has **8** episodes not watched yet. Catch up when you're ready.` | `/series/{id}` |
-| **Two or more** qualifying shows in the same run | `Episodes waiting` | `A few titles aren't finalized yet. Catch up when you're ready.` | `/profile/notifications` |
+| **One** qualifying show this run for the user | `Weekly reminder: **The Bear**` | `**The Bear** has **8** episodes not watched yet. Catch up when you're ready.` | `/series/{id}` |
+| **Two or more** qualifying shows in the same run | `Weekly reminder` | `A few titles aren't finalized yet. Catch up when you're ready.` | `/profile/notifications` |
 
 The multi-show row uses dedupe `weekly_catchup:{user_id}:multi:{week}` so the user gets one summary for that week instead of one notification per title.
 
@@ -68,9 +68,9 @@ Immediate Web Push (not the daily dispatcher). In-app and push bodies differ sli
 
 ---
 
-## Aggregated push (`daily_push_dispatcher`)
+## Aggregated push (`pushDispatch`)
 
-When a user has **more than one** pending row of types `release_reminder`, `catalog_expanded`, or `series_catchup` (same run, `push_sent_at` still null), the push may **not** match a single row verbatim:
+When a user has **more than one** pending row of types `release_reminder`, `catalog_expanded`, or `series_catchup` (same push run, `push_sent_at` still null), the push may **not** match a single row verbatim:
 
 | Case | Push `title` | Push `body` | `url` |
 |------|--------------|-------------|-------|
@@ -88,7 +88,7 @@ When a user has **more than one** pending row of types `release_reminder`, `cata
 | `catalog_expanded` | `supabase/functions/refresh_series_progress_catalog/index.ts` |
 | `series_catchup` | `supabase/functions/weekly_series_catchup_notifications/index.ts` |
 | `friend_request` | `src/app/lib/friend-request-notify.js` |
-| Batched push copy | `supabase/functions/daily_push_dispatcher/index.ts` (`decideVariant`, `extractSeriesName`) |
+| Batched push copy | `supabase/functions/_shared/pushDispatch.ts` (`decideVariant`, `extractSeriesName`); used by `dispatch_notification_queue` and `daily_push_dispatcher` |
 
 ---
 
@@ -98,8 +98,8 @@ When a user has **more than one** pending row of types `release_reminder`, `cata
 
 1. **`ingest_regional_airings`** — TVMaze episode `airstamp` / `airdate` (or TMDB fallback) → `catalog_episodes` + `regional_airings.release_at_utc`.
 2. **`precompute_release_notifications`** — For each airing in the next **30** days, enqueue `notification_queue` with `send_at_utc` (user timezone, 09:00 local on reminder day).
-3. **`dispatch_notification_queue`** — `send_at_utc <= now()` → insert `notifications` (no external APIs).
-4. **`daily_push_dispatcher`** — Web Push from pending `notifications` rows.
+3. **`dispatch_notification_queue`** — `send_at_utc <= now()` → insert `notifications`, then Web Push for those rows (same run).
+4. **`daily_push_dispatcher`** — Catch-up Web Push for any `notifications` rows still missing `push_sent_at`.
 
 TMDB cache refresh (titles/posters, movie dates) still uses **`enqueue_release_sync_candidates`** + **`process_series_sync_queue`** → `release_cache` only.
 
