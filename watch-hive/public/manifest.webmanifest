@@ -1,7 +1,7 @@
 {
   "name": "WatchHive",
   "short_name": "WatchHive",
-  "description": "Movies and TV Shows",
+  "description": "Discover and track movies and TV series, build watchlists, and stay on top of new releases.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
