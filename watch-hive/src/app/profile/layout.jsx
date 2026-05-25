@@ -1,11 +1,40 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { BarChart3, Eye, Bookmark, Heart, List, Users, Settings, RefreshCw, Bell } from 'lucide-react';
+import { BarChart3, Eye, Bookmark, Heart, List, Users, Settings, RefreshCw, Bell, Share2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ProfilePageSkeleton } from '../components/Skeleton';
+
+function ShareProfileButton({ userId }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleShare = async () => {
+        if (!userId) return;
+        const url = `${window.location.origin}/profile/${userId}`;
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            window.prompt('Copy your profile link:', url);
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/60 hover:text-amber-500 transition-colors shrink-0"
+            title="Copy link to your public profile"
+            aria-label={copied ? 'Profile link copied' : 'Share your profile'}
+        >
+            <Share2 className="w-4 h-4" aria-hidden />
+            {copied ? 'Copied' : 'Share'}
+        </button>
+    );
+}
 
 const TABS = [
     { href: '/profile', label: 'Statistics', icon: BarChart3, exact: true },
@@ -90,7 +119,10 @@ export default function ProfileLayout({ children }) {
     return (
         <div className="page-container max-w-7xl">
             <div className="flex items-center justify-between gap-3 mb-6">
-                <h1 className="page-title mb-0">Dashboard</h1>
+                <div className="flex items-center gap-4 min-w-0 flex-wrap">
+                    <h1 className="page-title mb-0">Dashboard</h1>
+                    <ShareProfileButton userId={user.id} />
+                </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <button
                         type="button"

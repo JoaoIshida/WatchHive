@@ -1,9 +1,23 @@
 import { createServerClient } from '../../../lib/supabase-server';
 import { fetchTMDB } from '../../../api/utils';
+import { getMockPublicList, isMockListId } from '../../../utils/mockPublicLists';
+import { isLocalhostRequest } from '../../../utils/mockUser';
 
 export async function GET(req, { params }) {
     try {
         const { listId } = await params;
+
+        if (isLocalhostRequest(req) && isMockListId(listId)) {
+            const mockList = getMockPublicList(listId);
+            return new Response(JSON.stringify({ list: mockList }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-store',
+                },
+            });
+        }
+
         const supabase = await createServerClient();
 
         const { data: list, error: listError } = await supabase

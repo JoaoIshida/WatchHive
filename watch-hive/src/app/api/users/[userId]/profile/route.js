@@ -1,4 +1,5 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
+import { attachPostersToListSummaries } from '../../../../lib/social-profile-posters';
 
 /**
  * GET /api/users/[userId]/profile
@@ -80,6 +81,8 @@ export async function GET(req, { params }) {
             id: profile.id,
             display_name: profile.display_name,
             avatar_url: profile.avatar_url,
+            viewer_is_friend: !!(caller?.id && caller.id !== userId && isFriend),
+            viewer_is_self: caller?.id === userId,
         };
 
         const { data: watchedRows } = await supabase
@@ -110,11 +113,12 @@ export async function GET(req, { params }) {
                 itemsCounts[row.list_id] = (itemsCounts[row.list_id] || 0) + 1;
             });
         }
-        payload.public_lists = (publicLists || []).map((l) => ({
+        const publicListSummaries = (publicLists || []).map((l) => ({
             id: l.id,
             name: l.name,
             items_count: itemsCounts[l.id] || 0,
         }));
+        payload.public_lists = await attachPostersToListSummaries(supabase, publicListSummaries);
 
         if (caller?.id && isFriend && caller.id !== userId) {
             const { data: sharedLists } = await supabase
@@ -139,14 +143,17 @@ export async function GET(req, { params }) {
                         sharedCounts[row.list_id] = (sharedCounts[row.list_id] || 0) + 1;
                     });
                 }
-                payload.shared_with_you = (lists || []).map((l) => ({
+                const sharedSummaries = (lists || []).map((l) => ({
                     id: l.id,
                     name: l.name,
                     items_count: sharedCounts[l.id] || 0,
                 }));
+                payload.shared_with_you = await attachPostersToListSummaries(supabase, sharedSummaries);
             } else {
                 payload.shared_with_you = [];
             }
+        } else {
+            payload.shared_with_you = [];
         }
 
         return new Response(JSON.stringify(payload), {

@@ -3,6 +3,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import debounce from 'lodash.debounce';
 import ImageWithFallback from '../components/ImageWithFallback';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ListGridSection from '../components/ListGridSection';
+import { enrichListSummariesWithPosters } from '../utils/socialProfileHelpers';
 import { highlightText } from '../utils/highlightText';
 
 const BrowsePage = () => {
@@ -49,7 +51,7 @@ const BrowsePage = () => {
 
         const [collectionData, listData] = await Promise.all(promises);
         setCollections(collectionData.results || []);
-        setLists(listData.lists || []);
+        setLists(enrichListSummariesWithPosters(listData.lists || []));
         setLoading(false);
     };
 
@@ -173,44 +175,23 @@ const BrowsePage = () => {
 
             {/* Public Lists Results */}
             {!loading && lists.length > 0 && showLists && (
-                <div>
-                    <h2 className="text-2xl font-bold text-amber-500 mb-4">
-                        Public Lists ({lists.length})
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {lists.map((list) => (
-                                <a
-                                    key={list.id}
-                                    href={`/lists/${list.id}`}
-                                    className="futuristic-card p-4 flex gap-4 hover:border-amber-500/50 transition-all group"
-                                >
-                                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                                        <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-white font-semibold group-hover:text-amber-500 transition-colors truncate">
-                                            {query.trim() ? highlightText(list.name || '', query) : (list.name || '')}
-                                        </h3>
-                                        {list.description && (
-                                            <p className="text-white/50 text-sm mt-1 line-clamp-2">
-                                                {query.trim() ? highlightText(list.description, query) : list.description}
-                                            </p>
-                                        )}
-                                        <p className="text-white/30 text-xs mt-1">
-                                            Created {new Date(list.created_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                    <div className="flex-shrink-0 self-center">
-                                        <svg className="w-5 h-5 text-white/30 group-hover:text-amber-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
-                                </a>
-                            ))}
-                    </div>
-                </div>
+                <ListGridSection
+                    lists={lists}
+                    className=""
+                    sectionTitle={
+                        <h2 className="text-2xl font-bold text-amber-500 mb-4">
+                            Public Lists ({lists.length})
+                        </h2>
+                    }
+                    getNameHighlight={(list) =>
+                        query.trim() ? highlightText(list.name || '', query) : undefined
+                    }
+                    getDescriptionHighlight={(list) =>
+                        query.trim() && list.description
+                            ? highlightText(list.description, query)
+                            : undefined
+                    }
+                />
             )}
         </div>
     );

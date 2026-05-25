@@ -25,6 +25,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [maxRuntimeInput, setMaxRuntimeInput] = useState('');
     const [selectedProviders, setSelectedProviders] = useState([]);
     const [watchProviders, setWatchProviders] = useState([]);
+    const [providerSearchQuery, setProviderSearchQuery] = useState('');
     const [contentType, setContentType] = useState('all'); // 'all', 'trending', 'upcoming'
     const keywordSearchRef = useRef(null);
     
@@ -38,8 +39,15 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
     const [dateFiltersExpanded, setDateFiltersExpanded] = useState(false); // Mobile: closed
     const [watchProvidersExpanded, setWatchProvidersExpanded] = useState(false); // Mobile: closed
     
-    // Available certifications (Brazilian ratings)
     const certifications = ['L', '10', '12', '14', '16', '18'];
+
+    const filteredWatchProviders = useMemo(() => {
+        const query = providerSearchQuery.trim().toLowerCase();
+        if (!query) return watchProviders;
+        return watchProviders.filter((provider) =>
+            provider.provider_name?.toLowerCase().includes(query)
+        );
+    }, [watchProviders, providerSearchQuery]);
     
     // Collapsible section component
     const CollapsibleSection = ({ title, expanded, onToggle, children, mobileOnly = false, desktopOnly = false }) => (
@@ -385,6 +393,7 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
         setSeasonsMaxFilter(20);
         setMaxSeasonsInput('');
         setSelectedProviders([]);
+        setProviderSearchQuery('');
         setSortBy('popularity');
         setSortOrder('desc');
         onSortChange({ sortBy: 'popularity', sortOrder: 'desc' });
@@ -601,11 +610,6 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-[10px] text-white/55 mt-2 leading-relaxed">
-                                        {mediaType === 'movie'
-                                            ? 'Movie ratings use BR (Brazil) certifications via TMDB discover.'
-                                            : 'TV: TMDB discover does not apply age ratings like movies; results may not match this filter.'}
-                                    </p>
                                 </CollapsibleSection>
 
                                 {/* Date Info Section - Mobile: Year Search + Date Range */}
@@ -621,9 +625,6 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                                 selectedYears={selectedYears}
                                                 onYearsChange={handleYearsChange}
                                             />
-                                            <p className="text-[10px] text-white/55 -mt-2 leading-relaxed">
-                                                If you pick several years, TMDB discover uses only the first year.
-                                            </p>
                                             <div>
                                                 <label className="block text-xs font-semibold text-amber-500/90 mb-2">Date Range</label>
                                                 <select
@@ -762,10 +763,18 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                 >
                                     <div className="mb-4">
                                         <h3 className="text-xs font-semibold text-amber-500/90 mb-2">Streaming Services (Canada)</h3>
+                                        <input
+                                            type="search"
+                                            value={providerSearchQuery}
+                                            onChange={(e) => setProviderSearchQuery(e.target.value)}
+                                            placeholder="Search streaming services..."
+                                            className="w-full mb-2 px-3 py-2 bg-charcoal-800/80 border border-charcoal-700/40 rounded-lg text-white text-xs placeholder-white/40 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+                                        />
                                         {watchProviders.length > 0 ? (
                                             <div className="max-h-48 overflow-y-auto scrollbar futuristic-card p-3 bg-charcoal-900/40 border border-charcoal-700/20 rounded-lg">
+                                                {filteredWatchProviders.length > 0 ? (
                                                 <div className="grid grid-cols-3 gap-2">
-                                                    {watchProviders.map((provider) => (
+                                                    {filteredWatchProviders.map((provider) => (
                                                         <button
                                                             key={provider.provider_id}
                                                             onClick={() => handleProviderToggle(provider.provider_id)}
@@ -796,6 +805,9 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                                         </button>
                                                     ))}
                                                 </div>
+                                                ) : (
+                                                    <p className="text-xs text-white/60 text-center py-2">No services match your search.</p>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="text-xs text-white/60 text-center py-4">
@@ -929,11 +941,6 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     ))}
                                 </div>
                             </div>
-                            <p className="text-xs text-white/55 mt-2 leading-relaxed">
-                                {mediaType === 'movie'
-                                    ? 'Movie ratings use BR (Brazil) certifications via TMDB discover.'
-                                    : 'TV: TMDB discover does not apply age ratings like movies; results may not match this filter.'}
-                            </p>
                         </div>
                     </div>
 
@@ -1046,10 +1053,18 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                     <div className="futuristic-card p-4">
                         <div className="mb-6">
                             <h3 className="text-sm font-semibold text-amber-500/90 mb-3">Streaming Services (Canada)</h3>
+                            <input
+                                type="search"
+                                value={providerSearchQuery}
+                                onChange={(e) => setProviderSearchQuery(e.target.value)}
+                                placeholder="Search streaming services..."
+                                className="w-full mb-3 px-3 py-2 bg-charcoal-800/80 border border-charcoal-700/40 rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+                            />
                             {watchProviders.length > 0 ? (
                                 <div className="max-h-64 overflow-y-auto scrollbar futuristic-card p-3 bg-charcoal-900/40 border border-charcoal-700/20 rounded-lg">
+                                    {filteredWatchProviders.length > 0 ? (
                                     <div className="grid grid-cols-3 gap-2">
-                                        {watchProviders.map((provider) => (
+                                        {filteredWatchProviders.map((provider) => (
                                             <button
                                                 key={provider.provider_id}
                                                 onClick={() => handleProviderToggle(provider.provider_id)}
@@ -1080,6 +1095,9 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                             </button>
                                         ))}
                                     </div>
+                                    ) : (
+                                        <p className="text-sm text-white/60 text-center py-2">No services match your search.</p>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-sm text-white/60 text-center py-4">
@@ -1097,9 +1115,6 @@ const UnifiedFilter = memo(({ onSortChange, onFilterChange, genres = [], showDat
                                     selectedYears={selectedYears}
                                     onYearsChange={handleYearsChange}
                                 />
-                                <p className="text-xs text-white/55 mt-2 leading-relaxed">
-                                    If you pick several years, TMDB discover uses only the first year.
-                                </p>
                             </div>
 
                             <div className="mb-6">

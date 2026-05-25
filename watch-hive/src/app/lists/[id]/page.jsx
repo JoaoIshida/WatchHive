@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 import ContentCard from '../../components/ContentCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { MOCK_FRIEND_USER_ID, isLocalhost } from '../../utils/mockUser';
+import { isMockListId } from '../../utils/mockPublicLists';
+import { getListIconMeta } from '../../utils/listIconHelper';
 
 const PublicListPage = () => {
     const params = useParams();
@@ -48,17 +52,36 @@ const PublicListPage = () => {
     }
 
     const items = (list?.items || []).filter((item) => item.details);
+    const { Icon: ListIcon, className: listIconClassName } = getListIconMeta(list, {
+        shared: list && !list.is_public,
+    });
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-7xl">
             <div className="mb-8">
-                <h1 className="text-4xl font-bold text-amber-500 mb-2">{list.name}</h1>
+                {isLocalhost() && isMockListId(listId) && (
+                    <Link
+                        href={`/profile/${MOCK_FRIEND_USER_ID}`}
+                        className="text-white/50 hover:text-amber-500 text-sm mb-4 inline-block"
+                    >
+                        ← Back to Mock Friend&apos;s profile
+                    </Link>
+                )}
+                <h1 className="text-4xl font-bold text-amber-500 mb-2 flex items-center gap-3">
+                    <ListIcon className={`w-9 h-9 flex-shrink-0 ${listIconClassName}`} aria-hidden />
+                    {list.name}
+                </h1>
                 {list.description && (
                     <p className="text-white/70 text-base mb-4">{list.description}</p>
                 )}
-                <div className="flex items-center gap-4 text-sm text-white/40">
+                <div className="flex flex-wrap items-center gap-4 text-sm text-white/40">
                     <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                    <span>Created {new Date(list.created_at).toLocaleDateString()}</span>
+                    {isLocalhost() && isMockListId(listId) && (
+                        <span className="text-amber-500/70 text-xs">Sample preview data</span>
+                    )}
+                    {!list.is_public && (
+                        <span className="text-amber-500/80 text-xs font-semibold uppercase tracking-wide">Shared</span>
+                    )}
                 </div>
             </div>
 
