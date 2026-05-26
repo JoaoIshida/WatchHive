@@ -27,11 +27,11 @@ function overviewSimilarity(overview1, overview2) {
 
 /**
  * Fetches a title's profile from TMDB: genres, keywords, title, overview, and for movies collection.
- * Pass `existingGenres` to skip the detail fetch; pass `existingDetails` to avoid refetching details when caller already has them.
+ * Pass `existingDetails` to avoid refetching details when the caller already has them (needed for collection lookup).
  */
 export async function fetchTitleProfile(titleId, mediaType, { existingGenres, existingDetails } = {}) {
     const type = mediaType === 'movie' ? 'movie' : 'tv';
-    const skipDetails = !!existingDetails || (!!existingGenres && !existingDetails);
+    const skipDetails = !!existingDetails;
 
     const [details, keywordsData] = await Promise.all([
         skipDetails
@@ -251,6 +251,41 @@ export function scoreResults(results, sourceProfile) {
 }
 
 /**
+ * Puts same-franchise collection movies first, then fills remaining slots from scored discover results.
+ */
+export function prioritizeCollectionInResults(scored, sourceProfile, { limit = 20, excludeIds = [] } = {}) {
+    const excludeSet = new Set(excludeIds.map(Number));
+    const collectionParts = (sourceProfile.collectionParts || [])
+        .filter((part) => part?.id && !excludeSet.has(part.id))
+        .sort((a, b) => (a.release_date || '').localeCompare(b.release_date || ''));
+
+    if (!collectionParts.length) {
+        return scored.slice(0, limit);
+    }
+
+    const scoredById = new Map(scored.map((item) => [item.id, item]));
+    const results = [];
+    const usedIds = new Set();
+
+    for (const part of collectionParts) {
+        if (results.length >= limit) break;
+        const item = scoredById.get(part.id) || { ...part, media_type: part.media_type || 'movie' };
+        results.push(item);
+        usedIds.add(part.id);
+    }
+
+    for (const item of scored) {
+        if (results.length >= limit) break;
+        if (!usedIds.has(item.id)) {
+            results.push(item);
+            usedIds.add(item.id);
+        }
+    }
+
+    return results;
+}
+
+/**
  * Full recommendation flow for a single title.
  * Fetches profile, queries discover, merges same-collection movies (movies only), scores, and returns filtered results.
  */
@@ -285,7 +320,10 @@ export async function getDiscoverRecommendations(
     }
 
     const scored = scoreResults(allResults, profile);
-    return scored.slice(0, limit);
+    return prioritizeCollectionInResults(scored, profile, {
+        limit,
+        excludeIds: [Number(titleId), ...excludeIds],
+    });
 }
 
 /**
@@ -358,5 +396,12 @@ export async function getMultiTitleRecommendations(
         results = results.filter(item => (item.media_type || item.mediaType) === filterMediaType);
     }
 
-    return results.slice(0, limit);
+    const excludeIds = [...movieIds, ...seriesIds];
+    if (discoverTypes.includes('movie') && merged.collectionParts?.length) {
+        results = prioritizeCollectionInResults(results, merged, { limit, excludeIds });
+    } else {
+        results = results.slice(0, limit);
+    }
+
+    return results;
 }

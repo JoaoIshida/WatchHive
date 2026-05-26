@@ -46,29 +46,21 @@ async function getMovieTrailer(id) {
     return res.json();
 }
 
-function getRecommendationsBaseUrl() {
-    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-}
-
 async function getMovieCollection(movie) {
     if (!movie.belongs_to_collection?.id) return null;
     try {
-        const base = getRecommendationsBaseUrl();
-        const res = await fetch(
-            `${base}/api/collections/${movie.belongs_to_collection.id}`,
-            { next: { revalidate: 86400 } }
-        );
-        if (!res.ok) return null;
-        return res.json();
+        return await fetchTMDB(`/collection/${movie.belongs_to_collection.id}`, { language: 'en-CA' });
     } catch {
         return null;
     }
 }
 
-async function getMovieRecommendations(id) {
+async function getMovieRecommendations(id, movie) {
     try {
-        const recommendations = await getDiscoverRecommendations(id, 'movie', { limit: 10 });
+        const recommendations = await getDiscoverRecommendations(id, 'movie', {
+            limit: 10,
+            existingDetails: movie,
+        });
         return { results: recommendations || [] };
     } catch (error) {
         console.error('Error fetching movie recommendations:', error);
@@ -86,6 +78,7 @@ import ContentCard from '../../components/ContentCard';
 import TrailerPlayer from '../../components/TrailerPlayer';
 import WatchProvidersSection from '../../components/WatchProvidersSection';
 import ContentRatingBadge from '../../components/ContentRatingBadge';
+import { fetchTMDB } from '../../api/utils';
 import { getDiscoverRecommendations } from '../../utils/recommendationEngine';
 import { getBestTrailer } from '../../utils/trailerHelper';
 import { formatDate } from '../../utils/dateFormatter';
@@ -96,7 +89,7 @@ const MovieDetailPage = async ({ params }) => {
     const movie_more = await getMovieMoreDetails(id);
     const movie_trailer = await getMovieTrailer(id);
     const [movie_recommendations, movie_collection] = await Promise.all([
-        getMovieRecommendations(id),
+        getMovieRecommendations(id, movie),
         getMovieCollection(movie),
     ]);
 
