@@ -1,9 +1,15 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Sparkles } from 'lucide-react';
 import ImageWithFallback from '../../components/ImageWithFallback';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+    loadAiSearchSession,
+    saveAiSearchSession,
+    clearAiSearchSession,
+} from './aiSearchSession';
 
 const MAX_QUERY_LENGTH = 200;
 const INITIAL_VISIBLE_COUNT = 8;
@@ -18,6 +24,7 @@ async function fetchAiSearch(body) {
         const response = await fetch('/api/ai-search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify(body),
             signal: controller.signal,
         });
@@ -89,7 +96,7 @@ function MatchScoreRing({ score, note }) {
     return (
         <div
             className="flex items-center gap-1.5 flex-shrink-0"
-            title={note ? `${score}% — ${note}` : `${score}% match`}
+            title={note ? `${score}%: ${note}` : `${score}% match`}
         >
             <div
                 className="relative flex-shrink-0"
@@ -202,6 +209,7 @@ function AiSearchLoadingRows() {
 }
 
 const AiSearchPage = () => {
+    const { user, loading: authLoading } = useAuth();
     const [query, setQuery] = useState('');
     const [mediaType, setMediaType] = useState('both');
     const [results, setResults] = useState([]);
@@ -212,6 +220,70 @@ const AiSearchPage = () => {
     const [activeQuery, setActiveQuery] = useState('');
     const [error, setError] = useState('');
     const [hasSearched, setHasSearched] = useState(false);
+    const [sessionReady, setSessionReady] = useState(false);
+    const sessionReadyRef = useRef(false);
+
+    useEffect(() => {
+        if (authLoading) return;
+
+        if (!user) {
+            clearAiSearchSession();
+            setQuery('');
+            setResults([]);
+            setVisibleCount(INITIAL_VISIBLE_COUNT);
+            setCanLoadMore(false);
+            setActiveQuery('');
+            setHasSearched(false);
+            setError('');
+            sessionReadyRef.current = true;
+            setSessionReady(true);
+            return;
+        }
+
+        const saved = loadAiSearchSession();
+        if (saved) {
+            setQuery(saved.query);
+            setMediaType(saved.mediaType);
+            setResults(saved.results);
+            setVisibleCount(saved.visibleCount);
+            setCanLoadMore(saved.canLoadMore);
+            setActiveQuery(saved.activeQuery);
+            setHasSearched(saved.hasSearched);
+        }
+
+        sessionReadyRef.current = true;
+        setSessionReady(true);
+    }, [authLoading, user]);
+
+    useEffect(() => {
+        if (!sessionReadyRef.current || loading || loadingMore || !user) return;
+
+        if (!hasSearched) {
+            clearAiSearchSession();
+            return;
+        }
+
+        saveAiSearchSession({
+            query,
+            mediaType,
+            results,
+            visibleCount,
+            canLoadMore,
+            activeQuery,
+            hasSearched,
+        });
+    }, [
+        query,
+        mediaType,
+        results,
+        visibleCount,
+        canLoadMore,
+        activeQuery,
+        hasSearched,
+        loading,
+        loadingMore,
+        user,
+    ]);
 
     const visibleResults = results.slice(0, visibleCount);
     const hasHiddenResults = visibleCount < results.length;
@@ -230,6 +302,8 @@ const AiSearchPage = () => {
     };
 
     const handleSearch = async (searchQuery = query) => {
+        if (!user) return;
+
         const trimmed = searchQuery.trim().slice(0, MAX_QUERY_LENGTH);
         if (!trimmed) return;
 
@@ -302,6 +376,12 @@ const AiSearchPage = () => {
         handleSearch();
     };
 
+    const handleQueryKeyDown = (e) => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        e.preventDefault();
+        handleSearch();
+    };
+
     return (
         <div className="container mx-auto px-4 py-8 max-w-6xl">
             <Link href="/tools" className="text-sm text-amber-500/80 hover:text-amber-400 mb-4 inline-block">
@@ -327,11 +407,40 @@ const AiSearchPage = () => {
                         </span>
                     </div>
                     <p className="text-white/70 text-lg max-w-2xl">
-                        Describe what you want to watch in plain language — Beengie will suggest titles that match your vibe.
+                        Describe what you want to watch in plain language. Beengie will suggest titles that match your vibe.
                     </p>
                 </div>
             </div>
 
+            {authLoading ? (
+                <div className="flex justify-center py-16">
+                    <span className="inline-block w-8 h-8 border-2 border-white/20 border-t-amber-500 rounded-full animate-spin" aria-hidden="true" />
+                </div>
+            ) : !user ? (
+                <div className="futuristic-card p-8 text-center max-w-xl mx-auto">
+                    <p className="text-xl text-white mb-2">Sign in to try AI Search</p>
+                    <p className="text-amber-500/80 mb-6">
+                        This beta feature is available for WatchHive accounts. Sign in to ask Beengie for personalized suggestions.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-4">
+                        <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }))}
+                            className="futuristic-button-yellow px-6 py-3"
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signup' } }))}
+                            className="futuristic-button px-6 py-3"
+                        >
+                            Sign Up
+                        </button>
+                    </div>
+                </div>
+            ) : (
+            <>
             <form onSubmit={handleSubmit} className="mb-6">
                 <label htmlFor="ai-search-input" className="block text-sm font-medium text-amber-500 mb-2">
                     What are you in the mood for?
@@ -340,6 +449,7 @@ const AiSearchPage = () => {
                     id="ai-search-input"
                     value={query}
                     onChange={(e) => setQuery(e.target.value.slice(0, MAX_QUERY_LENGTH))}
+                    onKeyDown={handleQueryKeyDown}
                     rows={3}
                     maxLength={MAX_QUERY_LENGTH}
                     placeholder='e.g. "I want a horror movie with some comedy"'
@@ -470,11 +580,13 @@ const AiSearchPage = () => {
                 </div>
             )}
 
-            {!loading && hasSearched && results.length === 0 && !error && (
+            {!loading && hasSearched && results.length === 0 && !error && sessionReady && (
                 <div className="text-center py-8 text-white">
                     <p className="text-lg mb-2">No matches found.</p>
                     <p className="text-amber-500/80">Try describing the mood, genre, or similar titles you like.</p>
                 </div>
+            )}
+            </>
             )}
         </div>
     );

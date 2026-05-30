@@ -1,5 +1,6 @@
 import { getGeminiSuggestions, GeminiApiError } from '../../utils/gemini';
 import { enrichSuggestionsWithTMDB } from '../../utils/aiSearchEnrich';
+import { getServerUser } from '../../lib/supabase-server';
 
 const AI_SEARCH_TIMEOUT_MS = 30_000;
 
@@ -21,6 +22,11 @@ function withTimeout(promise, ms) {
 
 export async function POST(req) {
     try {
+        const user = await getServerUser();
+        if (!user) {
+            return jsonResponse({ error: 'Sign in to use AI Search.' }, 401);
+        }
+
         const body = await req.json();
         const query = typeof body.query === 'string' ? body.query.trim() : '';
         const mediaType = body.mediaType === 'movie' || body.mediaType === 'tv' ? body.mediaType : 'both';

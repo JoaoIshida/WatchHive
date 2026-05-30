@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import QuickSearch from './components/QuickSearch';
 import ContentCard from './components/ContentCard';
@@ -172,6 +173,25 @@ const Home = () => {
 
     return (
         <div className="page-container">
+            <Link
+                href="/tools/ai-search"
+                className="group mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 transition-colors hover:border-amber-500/55 hover:bg-amber-500/15"
+            >
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
+                    <span className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-1 rounded">
+                        <Sparkles className="w-3 h-3" aria-hidden />
+                        NEW
+                    </span>
+                    <p className="text-sm sm:text-base text-white/90 text-left">
+                        <span className="font-semibold text-amber-400">AI Search</span>
+                        {' '}is in beta. Tell Beengie what you&apos;re in the mood for and get personalized picks.
+                    </p>
+                </div>
+                <span className="text-sm font-semibold text-amber-500 group-hover:text-amber-400 shrink-0 sm:pl-2">
+                    Try it →
+                </span>
+            </Link>
+
             {/* Hero Section with Search */}
             <div className="hero-section text-center">
                 <h1 className="text-4xl md:text-6xl font-bold mb-4 text-amber-500 ">
