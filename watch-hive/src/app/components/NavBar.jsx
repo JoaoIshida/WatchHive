@@ -294,6 +294,7 @@ const Navbar = () => {
     const discoverMenuItems = [
         { href: '/tools', label: 'Overview' },
         { href: '/recommendations', label: 'Get Recommendations' },
+        { href: '/tools/ai-search', label: 'AI Search (Beta)' },
     ];
 
     return (

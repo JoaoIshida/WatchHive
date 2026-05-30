@@ -11,11 +11,12 @@ const TOOLS_CONFIG = [
         available: true,
     },
     {
-        id: 'coming-soon-1',
-        label: 'More tools',
-        description: 'Coming soon.',
-        href: null,
-        available: false,
+        id: 'ai-search',
+        label: 'AI Search',
+        description: 'Describe what you want to watch — Gemini suggests matching titles.',
+        href: '/tools/ai-search',
+        available: true,
+        badge: 'Beta',
     },
 ];
 
@@ -33,7 +34,14 @@ const ToolsPage = () => {
                         className="futuristic-card p-4 flex flex-col sm:flex-row sm:items-center gap-4"
                     >
                         <div className="flex-1 min-w-0">
-                            <h2 className="text-lg font-semibold text-white">{tool.label}</h2>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="text-lg font-semibold text-white">{tool.label}</h2>
+                                {tool.badge && (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                                        {tool.badge}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-white/60 text-sm mt-0.5">{tool.description}</p>
                         </div>
                         <div className="flex-shrink-0">

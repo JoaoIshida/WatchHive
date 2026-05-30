@@ -19,10 +19,6 @@ export default function LoadingSpinner({ size = "md", text = "Loading..." }) {
                     className={`${sizeClasses[size]} border-4 border-transparent border-t-amber-500 border-r-amber-500 rounded-full absolute top-0 left-0 animate-spin-slow`}
                     style={{ animationDuration: '1s' }}
                 ></div>
-                {/* Inner pulsing dot */}
-                <div
-                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-amber-500 rounded-full animate-pulse-glow shadow-subtle"
-                ></div>
             </div>
             {text && (
                 <p className="mt-6 text-amber-400 font-semibold animate-pulse text-lg">
