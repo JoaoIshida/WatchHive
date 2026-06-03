@@ -66,6 +66,8 @@ export async function GET(req) {
             const seasonsMap = {};
 
             seasonsForProgress.forEach(season => {
+                if (season.season_number <= 0) return;
+
                 const seasonEpisodes = allEpisodes
                     .filter(ep => ep.series_season_id === season.id)
                     .map(ep => ep.episode_number)

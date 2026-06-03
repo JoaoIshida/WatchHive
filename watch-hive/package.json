@@ -7,7 +7,8 @@
     "host": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test src/app/utils/seriesProgressCalculator.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

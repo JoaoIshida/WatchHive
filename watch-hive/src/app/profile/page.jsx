@@ -50,18 +50,25 @@ export default function ProfileStatsPage() {
         seriesIds.forEach(seriesId => {
             const progress = seriesProgress[seriesId];
             const seriesInfo = seriesDetails[seriesId];
-            const seasons = seriesInfo?.seasons;
+            const seasons = seriesInfo?.seasons || [];
             const seriesTvMeta = buildSeriesTvReleaseMeta(seriesInfo);
-            if (isSeriesCompletedByEpisodes(progress, seasons || [], {}, seriesTvMeta)) completed++;
+            if (isSeriesCompletedByEpisodes(progress, seasons, {}, seriesTvMeta)) completed++;
             else if (Object.keys(progress?.seasons || {}).length > 0) inProgress++;
         });
         seriesInProgressCount = inProgress;
         completedSeriesCount = completed;
     }
 
-    const totalEpisodesWatched = dbStats?.total_episodes_watched ??
-        Object.values(seriesProgress).reduce((total, progress) =>
-            total + Object.values(progress.seasons || {}).reduce((st, season) => st + (season.episodes?.length || 0), 0), 0);
+    const totalEpisodesWatched =
+        dbStats?.total_episodes_watched ??
+        Object.values(seriesProgress).reduce((total, progress) => {
+            return (
+                total +
+                Object.entries(progress.seasons || {})
+                    .filter(([seasonNum]) => parseInt(seasonNum, 10) > 0)
+                    .reduce((st, [, season]) => st + (season.episodes?.length || 0), 0)
+            );
+        }, 0);
 
     const stats = {
         totalWatched: dbStats?.watched_count ?? watched.length,

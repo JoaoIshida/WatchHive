@@ -735,7 +735,8 @@ BEGIN
          FROM series_episodes se
          JOIN series_seasons ss ON se.series_season_id = ss.id
          JOIN series_progress sp ON ss.series_progress_id = sp.id
-         WHERE sp.user_id = p_user_id) AS total_episodes_watched,
+         WHERE sp.user_id = p_user_id
+           AND ss.season_number > 0) AS total_episodes_watched,
         (SELECT COUNT(*)::INTEGER FROM custom_lists WHERE user_id = p_user_id) AS custom_lists_count;
 END;
 $$ LANGUAGE plpgsql;

@@ -9,7 +9,11 @@ import SeriesNotificationBadge from './SeriesNotificationBadge';
 import ContentRatingBadge from './ContentRatingBadge';
 import QuickActionsMenu from './QuickActionsMenu';
 import { formatDate } from '../utils/dateFormatter';
-import { getSeriesWatchProgress, getMovieWatchStatus } from '../utils/watchProgressHelper';
+import {
+    getSeriesWatchProgress,
+    getMovieWatchStatus,
+    seriesPercentFromReleasedCounts,
+} from '../utils/watchProgressHelper';
 import { formatRuntime, getSeriesInfo } from '../utils/runtimeFormatter';
 import { getContentType } from '../utils/contentTypeHelper';
 import { isSeriesReleased, isMovieReleased } from '../utils/releaseDateValidator';
@@ -27,17 +31,20 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     
     const [watchStatus, setWatchStatus] = useState(null);
     const [releasedGapCount, setReleasedGapCount] = useState(undefined);
+    const [releasedProgress, setReleasedProgress] = useState(null);
     const [firstUnwatchedEpisode, setFirstUnwatchedEpisode] = useState(null);
     const seriesProgressSnapshot = seriesProgress[item.id]
         ? JSON.stringify(seriesProgress[item.id])
         : '';
-
     /** Sync catalog gap (total − watched) so the 3-dot menu can show missing rows on first paint */
     const catalogMissingHint = useMemo(() => {
         if (!user || !isSeries || !item?.id) return 0;
         const progress = seriesProgress[item.id];
         if (!progress) return 0;
         const isWatchedTv = watched.some((w) => w.content_id === item.id && w.media_type === 'tv');
+        if (typeof releasedGapCount === 'number') {
+            return Math.max(0, releasedGapCount);
+        }
         const seriesData = contextSeriesDetails[item.id] || item;
         try {
             const wp = getSeriesWatchProgress(item.id, seriesData, progress, isWatchedTv);
@@ -45,7 +52,7 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
         } catch {
             return 0;
         }
-    }, [user, isSeries, item, seriesProgress, contextSeriesDetails, watched]);
+    }, [user, isSeries, item, seriesProgress, contextSeriesDetails, watched, releasedGapCount]);
 
     useEffect(() => {
         if (!user) {
@@ -60,51 +67,40 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
             // Use context series details if available, otherwise fall back to prop item
             const contextData = contextSeriesDetails[item.id];
             let seriesDataForProgress = contextData || item;
-            const needsDetailsFetch = progress && !contextData && (!item.seasons || !item.seasons.some(s => s.episode_count));
+            const hasSeasonCounts = (data) =>
+                data?.seasons?.some((s) => s.season_number > 0 && s.episode_count > 0);
+            const needsDetailsFetch =
+                progress && !hasSeasonCounts(contextData) && !hasSeasonCounts(item);
 
             if (needsDetailsFetch) {
-                // Only fetch when we have progress but no season data anywhere
                 const fetchAndCalc = async () => {
                     try {
                         const detailsRes = await fetch(`/api/tv/${item.id}`);
                         if (detailsRes.ok) {
-                            const data = await detailsRes.json();
-                            seriesDataForProgress = data;
-
-                            if (data.seasons && progress?.seasons) {
-                                const seasonPromises = Object.keys(progress.seasons).map(async (seasonNum) => {
-                                    try {
-                                        const seasonRes = await fetch(`/api/tv/${item.id}/season/${seasonNum}`);
-                                        if (seasonRes.ok) {
-                                            const seasonData = await seasonRes.json();
-                                            const idx = seriesDataForProgress.seasons.findIndex(
-                                                s => s.season_number === parseInt(seasonNum)
-                                            );
-                                            if (idx !== -1) {
-                                                seriesDataForProgress.seasons[idx] = {
-                                                    ...seriesDataForProgress.seasons[idx],
-                                                    ...seasonData,
-                                                    episode_count: seasonData.episode_count || 
-                                                                  seriesDataForProgress.seasons[idx]?.episode_count || 
-                                                                  (seasonData.episodes?.length || 0)
-                                                };
-                                            }
-                                        }
-                                    } catch {
-                                        // fallback to episode_count
-                                    }
-                                });
-                                await Promise.all(seasonPromises);
-                            }
+                            seriesDataForProgress = await detailsRes.json();
                         }
                     } catch (err) {
                         console.error('Error fetching series details for progress:', err);
                     }
-                    setWatchStatus(getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched));
+                    setWatchStatus(
+                        getSeriesWatchProgress(
+                            item.id,
+                            seriesDataForProgress,
+                            progress,
+                            isWatched,
+                        ),
+                    );
                 };
                 fetchAndCalc();
             } else {
-                setWatchStatus(getSeriesWatchProgress(item.id, seriesDataForProgress, progress, isWatched));
+                setWatchStatus(
+                    getSeriesWatchProgress(
+                        item.id,
+                        seriesDataForProgress,
+                        progress,
+                        isWatched,
+                    ),
+                );
             }
         } else {
             const watchedItem = watched.find(w => w.content_id === item.id && w.media_type === 'movie');
@@ -114,11 +110,13 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
 
     // Prefetch released-only gap count so the 3-dot menu is ready immediately
     useEffect(() => {
-        if (!user || !isSeries || !item.id) {
+        if (!user || !isSeries || !item.id || !seriesProgress[item.id]) {
             setReleasedGapCount(undefined);
+            setReleasedProgress(null);
             return;
         }
         setReleasedGapCount(null);
+        setReleasedProgress(null);
         let cancelled = false;
         (async () => {
             try {
@@ -128,9 +126,18 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                 if (!res.ok || cancelled) return;
                 const data = await res.json();
                 const count = typeof data.count === 'number' ? data.count : 0;
-                if (!cancelled) setReleasedGapCount(count);
+                const watched =
+                    typeof data.watched === 'number' ? data.watched : 0;
+                const { percentage, total } = seriesPercentFromReleasedCounts(watched, count);
+                if (!cancelled) {
+                    setReleasedGapCount(count);
+                    setReleasedProgress({ watched, total, percentage });
+                }
             } catch {
-                if (!cancelled) setReleasedGapCount(0);
+                if (!cancelled) {
+                    setReleasedGapCount(undefined);
+                    setReleasedProgress(null);
+                }
             }
         })();
         return () => {
@@ -179,7 +186,13 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
     // Only show watched border if content is released
     const isReleased = isSeries ? isSeriesReleased(item) : isMovieReleased(item);
     const showWatchedBorder = watchStatus?.isWatched && isReleased;
-    
+
+    const seriesPercentReady =
+        isSeries && !!user && typeof releasedGapCount === 'number';
+    const seriesPercentage = releasedProgress?.percentage ?? 0;
+    const showSeriesPercentBadge =
+        seriesPercentReady && isReleased && seriesPercentage > 0;
+
     return (
         <div className="block relative group">
             <a href={href} className="block">
@@ -230,14 +243,14 @@ const ContentCard = ({ item, mediaType = 'movie', href }) => {
                             {isSeries && getSeriesInfo(item) && (
                                 <p className="text-[10px] text-amber-500/80">• {getSeriesInfo(item)}</p>
                             )}
-                            {isSeries && watchStatus && isReleased && watchStatus.percentage > 0 && (
+                            {showSeriesPercentBadge && (
                                 <div className="flex items-center gap-1 bg-amber-500/30 border border-amber-500/40 px-1.5 py-0.5 rounded shadow-sm">
                                     <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                                         <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                                     </svg>
                                     <span className="text-[10px] text-amber-400 font-bold">
-                                        {watchStatus.percentage}%
+                                        {seriesPercentage}%
                                     </span>
                                 </div>
                             )}

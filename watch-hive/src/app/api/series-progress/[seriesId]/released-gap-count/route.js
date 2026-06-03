@@ -1,11 +1,8 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
-import { fetchTMDB } from '../../../utils';
 import {
-    buildSeriesTvReleaseMeta,
-    isEpisodeReleasedOrdered,
-    isSeasonReleased,
-} from '../../../../utils/releaseDateValidator';
-import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
+    computeReleasedGapForSeries,
+    loadWatchedEpisodesBySeries,
+} from '../../../../lib/releasedGapProgress';
 
 /**
  * GET /api/series-progress/[seriesId]/released-gap-count
@@ -25,68 +22,15 @@ export async function GET(req, { params }) {
         const seriesIdStr = String(seriesId);
         const supabase = await createServerClient();
 
-        const { data: seriesProgress } = await supabase
-            .from('series_progress')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('series_id', seriesId)
-            .maybeSingle();
+        const watchedBySeries = await loadWatchedEpisodesBySeries(supabase, user.id, [
+            seriesIdStr,
+        ]);
+        const stats = await computeReleasedGapForSeries(
+            seriesIdStr,
+            watchedBySeries.get(seriesIdStr) || new Map(),
+        );
 
-        const { data: seasonRows } = seriesProgress
-            ? await supabase
-                  .from('series_seasons')
-                  .select('id, season_number')
-                  .eq('series_progress_id', seriesProgress.id)
-            : { data: [] };
-
-        const seasonNumberById = new Map();
-        for (const s of seasonRows || []) {
-            seasonNumberById.set(s.id, s.season_number);
-        }
-
-        const { data: episodeRows } =
-            seasonRows && seasonRows.length > 0
-                ? await supabase
-                      .from('series_episodes')
-                      .select('episode_number, series_season_id')
-                      .in(
-                          'series_season_id',
-                          seasonRows.map((s) => s.id),
-                      )
-                : { data: [] };
-
-        const watchedBySeason = new Map();
-        for (const ep of episodeRows || []) {
-            const sn = seasonNumberById.get(ep.series_season_id);
-            if (sn === undefined) continue;
-            if (!watchedBySeason.has(sn)) watchedBySeason.set(sn, new Set());
-            watchedBySeason.get(sn).add(ep.episode_number);
-        }
-
-        const seriesData = await fetchTMDB(`/tv/${seriesIdStr}`, { language: 'en-CA' });
-        const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
-        const allSeasons = seriesData?.seasons || [];
-        const sorted = [...allSeasons]
-            .filter((s) => s.season_number > 0 && isSeasonReleased(s))
-            .sort((a, b) => a.season_number - b.season_number);
-
-        let count = 0;
-        for (const seasonInfo of sorted) {
-            const sn = seasonInfo.season_number;
-            const seasonData = await fetchTMDB(`/tv/${seriesIdStr}/season/${sn}`, {
-                language: 'en-CA',
-            });
-            const mazeMap = await getTvmazeEpisodeScheduleMap(seriesIdStr, sn);
-            const released = (seasonData?.episodes || []).filter((ep) =>
-                isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
-            );
-            const watched = watchedBySeason.get(sn) || new Set();
-            for (const ep of released) {
-                if (!watched.has(ep.episode_number)) count++;
-            }
-        }
-
-        return new Response(JSON.stringify({ count }), {
+        return new Response(JSON.stringify(stats), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
         });

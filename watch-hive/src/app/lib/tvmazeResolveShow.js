@@ -51,7 +51,9 @@ export async function resolveTvmazeShowIdFromTmdb(tmdbTvId, cache = {}) {
             if (data?.id) return Number(data.id);
         }
     } catch (e) {
-        console.error('TVMaze resolve (TMDB external_ids) failed:', e);
+        if (process.env.NODE_ENV === 'development') {
+            console.warn('TVMaze resolve skipped (network or lookup failed):', e?.message ?? e);
+        }
     }
     return null;
 }

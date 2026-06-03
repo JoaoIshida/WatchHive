@@ -109,7 +109,7 @@ export function UserDataProvider({ children }) {
                 if (!seriesData?.seasons) return;
                 const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 for (const season of seriesData.seasons) {
-                    if (season.season_number < 0) continue;
+                    if (season.season_number <= 0) continue;
                     try {
                         const seasonResponse = await fetch(`/api/tv/${seriesId}/season/${season.season_number}`);
                         let mazeSchedule = null;

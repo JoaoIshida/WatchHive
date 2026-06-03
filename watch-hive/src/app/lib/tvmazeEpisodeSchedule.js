@@ -16,9 +16,17 @@ import {
  * @param {string | number} tmdbTvId
  * @param {number} seasonNumber regular season (typically >= 1)
  */
-export async function getTvmazeEpisodeScheduleMap(tmdbTvId, seasonNumber) {
+/**
+ * @param {string | number} tmdbTvId
+ * @param {number} seasonNumber
+ * @param {{ mazeShowId?: number | null }} [options] - reuse show id when fetching multiple seasons
+ */
+export async function getTvmazeEpisodeScheduleMap(tmdbTvId, seasonNumber, options = {}) {
     try {
-        const mazeShowId = await resolveTvmazeShowIdFromTmdb(String(tmdbTvId), {});
+        let mazeShowId = options.mazeShowId;
+        if (mazeShowId === undefined) {
+            mazeShowId = await resolveTvmazeShowIdFromTmdb(String(tmdbTvId), {});
+        }
         if (!mazeShowId) return null;
 
         const seasonsRes = await fetch(tvmazeFetchUrl(`/shows/${mazeShowId}/seasons`), {

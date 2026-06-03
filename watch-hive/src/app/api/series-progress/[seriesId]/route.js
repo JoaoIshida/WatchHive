@@ -71,6 +71,8 @@ export async function GET(req, { params }) {
         // Build the response structure matching localStorage format
         const seasonsMap = {};
         seasons.forEach(season => {
+            if (season.season_number <= 0) return;
+
             const seasonEpisodes = episodes
                 .filter(ep => ep.series_season_id === season.id)
                 .map(ep => ep.episode_number)

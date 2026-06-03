@@ -30,6 +30,13 @@ export async function POST(req, { params }) {
             });
         }
 
+        if (Number(seasonNumber) <= 0) {
+            return new Response(
+                JSON.stringify({ error: 'Specials (season 0) are not tracked in series progress' }),
+                { status: 400, headers: { 'Content-Type': 'application/json' } },
+            );
+        }
+
         // If marking as watched, verify the episode exists and has aired (TMDB + TV Maze when mapped)
         if (watched) {
             try {

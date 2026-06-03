@@ -3,11 +3,25 @@ import { useMemo, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { formatDate } from '../utils/dateFormatter';
 import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../utils/releaseDateValidator';
-import { calculateSeriesProgress, calculateSeasonProgress } from '../utils/seriesProgressCalculator';
+import { calculateSeasonProgress } from '../utils/seriesProgressCalculator';
+import { useReleasedGapProgressBatch } from '../hooks/useReleasedGapProgressBatch';
 import Pagination from '../components/Pagination';
-import { parsePageParam, useReplaceQuery } from './useReplaceQuery';
+import { parsePageParam, parseSortParam, useReplaceQuery } from './useReplaceQuery';
 
 const SERIES_PAGE_SIZE = 10;
+const SERIES_SORTS = [
+    'date-desc',
+    'date-asc',
+    'name-asc',
+    'name-desc',
+    'progress-desc',
+];
+
+function lastWatchedTime(progress) {
+    const raw = progress?.lastWatched ?? progress?.last_watched ?? null;
+    const t = raw ? new Date(raw).getTime() : 0;
+    return Number.isFinite(t) ? t : 0;
+}
 
 export default function ProfileSeriesSection({
     seriesProgress,
@@ -19,6 +33,10 @@ export default function ProfileSeriesSection({
 }) {
     const { replaceParams, searchParams } = useReplaceQuery();
     const page = useMemo(() => parsePageParam(searchParams, 'page'), [searchParams]);
+    const sortMode = useMemo(
+        () => parseSortParam(searchParams, SERIES_SORTS, 'date-desc'),
+        [searchParams],
+    );
 
     const seriesIdsKey = useMemo(() => Object.keys(seriesProgress).sort().join(','), [seriesProgress]);
     const prevSeriesIdsKeyRef = useRef(null);
@@ -33,19 +51,77 @@ export default function ProfileSeriesSection({
         }
     }, [seriesIdsKey, replaceParams]);
 
+    const isProgressSort = sortMode === 'progress-desc';
+
+    const allSeriesIds = useMemo(
+        () => Object.keys(seriesProgress),
+        [seriesProgress],
+    );
+    /** Progress sort needs % for every series; date/name only fetch the current page (10). */
+    const releasedProgressForSort = useReleasedGapProgressBatch(
+        isProgressSort ? allSeriesIds : [],
+    );
+
     const sortedEntries = useMemo(() => {
-        return Object.entries(seriesProgress).sort(([idA], [idB]) => {
+        const tie = (idA, idB) => String(idA).localeCompare(String(idB));
+        const progressPercent = (seriesId) => {
+            const r = releasedProgressForSort[seriesId];
+            if (r?.ready && !r.error) return r.percentage ?? 0;
+            return -1;
+        };
+
+        return Object.entries(seriesProgress).sort(([idA, progA], [idB, progB]) => {
             const nameA = seriesDetails[idA]?.name || '';
             const nameB = seriesDetails[idB]?.name || '';
-            const byName = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
-            if (byName !== 0) return byName;
-            return String(idA).localeCompare(String(idB));
+
+            if (sortMode === 'name-asc') {
+                const c = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
+                return c !== 0 ? c : tie(idA, idB);
+            }
+            if (sortMode === 'name-desc') {
+                const c = String(nameB).localeCompare(String(nameA), undefined, { sensitivity: 'base' });
+                return c !== 0 ? c : tie(idA, idB);
+            }
+
+            if (sortMode === 'progress-desc') {
+                const pA = progressPercent(idA);
+                const pB = progressPercent(idB);
+                if (pA !== pB) return pB - pA;
+                const c = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
+                return c !== 0 ? c : tie(idA, idB);
+            }
+
+            const dateA = lastWatchedTime(progA);
+            const dateB = lastWatchedTime(progB);
+            if (sortMode === 'date-asc') {
+                if (dateA !== dateB) return dateA - dateB;
+                const c = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
+                return c !== 0 ? c : tie(idA, idB);
+            }
+            if (dateB !== dateA) return dateB - dateA;
+            const c = String(nameA).localeCompare(String(nameB), undefined, { sensitivity: 'base' });
+            return c !== 0 ? c : tie(idA, idB);
         });
-    }, [seriesProgress, seriesDetails]);
+    }, [seriesProgress, seriesDetails, sortMode, releasedProgressForSort]);
 
     const totalPages = Math.max(1, Math.ceil(sortedEntries.length / SERIES_PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const pageEntries = sortedEntries.slice((safePage - 1) * SERIES_PAGE_SIZE, safePage * SERIES_PAGE_SIZE);
+
+    const pageSeriesIds = useMemo(
+        () => pageEntries.map(([seriesId]) => seriesId),
+        [pageEntries],
+    );
+    const releasedProgressForPage = useReleasedGapProgressBatch(
+        isProgressSort ? [] : pageSeriesIds,
+    );
+    const releasedProgressById = useMemo(
+        () =>
+            isProgressSort
+                ? releasedProgressForSort
+                : releasedProgressForPage,
+        [isProgressSort, releasedProgressForSort, releasedProgressForPage],
+    );
 
     useEffect(() => {
         if (page > totalPages) {
@@ -62,6 +138,13 @@ export default function ProfileSeriesSection({
             else next.set('page', String(newPage));
         });
 
+    const setSortInUrl = (nextSort) =>
+        replaceParams((next) => {
+            next.delete('page');
+            if (nextSort === 'date-desc') next.delete('sort');
+            else next.set('sort', nextSort);
+        });
+
     if (Object.keys(seriesProgress).length === 0) {
         return (
             <div>
@@ -75,11 +158,28 @@ export default function ProfileSeriesSection({
 
     return (
         <div className="space-y-4">
-            {sortedEntries.length > SERIES_PAGE_SIZE && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <p className="text-sm text-amber-500/80">
-                    Showing {(safePage - 1) * SERIES_PAGE_SIZE + 1}–{(safePage - 1) * SERIES_PAGE_SIZE + pageEntries.length} of {sortedEntries.length} series
+                    {sortedEntries.length > SERIES_PAGE_SIZE
+                        ? `Showing ${(safePage - 1) * SERIES_PAGE_SIZE + 1}–${(safePage - 1) * SERIES_PAGE_SIZE + pageEntries.length} of ${sortedEntries.length} series`
+                        : `${sortedEntries.length} ${sortedEntries.length === 1 ? 'series' : 'series'}`}
                 </p>
-            )}
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-white/70">Sort:</span>
+                    <select
+                        value={sortMode}
+                        onChange={(e) => setSortInUrl(e.target.value)}
+                        className="rounded-lg border border-charcoal-600 bg-charcoal-800 px-3 py-2 text-sm font-semibold text-white focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        aria-label="Sort series list"
+                    >
+                        <option value="date-desc">Last watched (newest)</option>
+                        <option value="date-asc">Last watched (oldest)</option>
+                        <option value="name-asc">Title A–Z</option>
+                        <option value="name-desc">Title Z–A</option>
+                        <option value="progress-desc">Progress (high → low)</option>
+                    </select>
+                </div>
+            </div>
             {pageEntries.map(([seriesId, progress]) => {
                 const seriesInfo = seriesDetails[seriesId];
                 const seriesTvMeta = buildSeriesTvReleaseMeta(seriesInfo);
@@ -95,16 +195,16 @@ export default function ProfileSeriesSection({
                     .filter(([seasonNum]) => parseInt(seasonNum) > 0)
                     .reduce((total, [, season]) => total + (season.episodes?.length || 0), 0);
 
-                const getSeriesOverallProgress = () => {
-                    return calculateSeriesProgress(
-                        progress,
-                        seriesInfo?.seasons,
-                        seriesSeasonDetails[seriesId],
-                        seriesTvMeta,
-                        null,
-                    );
-                };
-                const overallProgress = getSeriesOverallProgress();
+                const releasedOverall = releasedProgressById[seriesId];
+                const overallPercentLoading = releasedOverall?.ready !== true;
+                const overallPercentage =
+                    releasedOverall?.ready && !releasedOverall.error
+                        ? releasedOverall.percentage
+                        : null;
+                const overallTotal =
+                    releasedOverall?.ready && !releasedOverall.error
+                        ? releasedOverall.total
+                        : 0;
 
                 const toggleSeries = async () => {
                     if (isExpanded) {
@@ -180,18 +280,29 @@ export default function ProfileSeriesSection({
                                 </p>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
-                                {overallProgress.total > 0 && (
+                                {overallPercentLoading ? (
                                     <div className="flex items-center gap-2">
-                                        <div className="w-24 bg-charcoal-800 rounded-full h-2">
-                                            <div
-                                                className="bg-amber-500 h-2 rounded-full transition-all"
-                                                style={{ width: `${overallProgress.percentage}%` }}
-                                            />
-                                        </div>
-                                        <span className="text-sm text-amber-500/80 tabular-nums">
-                                            {overallProgress.percentage}%
+                                        <div className="w-24 bg-charcoal-800 rounded-full h-2 animate-pulse" />
+                                        <span className="text-sm text-amber-500/60 tabular-nums">
+                                            …
                                         </span>
                                     </div>
+                                ) : (
+                                    overallTotal > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-24 bg-charcoal-800 rounded-full h-2">
+                                                <div
+                                                    className="bg-amber-500 h-2 rounded-full transition-all"
+                                                    style={{
+                                                        width: `${overallPercentage}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-sm text-amber-500/80 tabular-nums">
+                                                {overallPercentage}%
+                                            </span>
+                                        </div>
+                                    )
                                 )}
                                 <a
                                     href={`/series/${seriesId}`}
