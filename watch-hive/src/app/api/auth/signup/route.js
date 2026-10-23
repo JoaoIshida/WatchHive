@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateToken, setAuthCookie } from '../../../utils/jwt';
+import { createAuthClient } from '../../../lib/supabase-server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -408,15 +408,18 @@ export async function POST(request) {
       );
     }
 
-    // Generate JWT token
-    const token = generateToken({
-      id: authData.user.id,
-      email: authData.user.email,
-      role: 'user',
-    });
+    // Sign the new user in: writes the Supabase session cookies onto this response.
+    const authClient = await createAuthClient();
+    const { error: signInError } = await authClient.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      console.error('Sign-in after signup failed:', signInError);
+      return NextResponse.json(
+        { error: 'Account created, but signing in failed. Please sign in.' },
+        { status: 500 }
+      );
+    }
 
-    // Create response with success message
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
       message: 'Signup successful!',
       user: {
@@ -426,9 +429,6 @@ export async function POST(request) {
         role: 'user',
       }
     });
-
-    // Set secure HTTP-only cookie with JWT token
-    return setAuthCookie(response, token);
 
   } catch (error) {
     console.error('Signup error:', error);

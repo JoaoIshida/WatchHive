@@ -53,7 +53,7 @@ Short definitions so the steps below make sense:
 
 - **Supabase:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (Dashboard → Project Settings → API).
 - **TMDB:** `TMDB_API_KEY` and `AUTH_TOKEN`. `AUTH_TOKEN` must be your TMDB **API Read Access Token** (Bearer auth on `api.themoviedb.org/3`); create both under [TMDB API settings](https://www.themoviedb.org/settings/api).
-- **Sessions:** `JWT_SECRET` — use a long random string in production (not the default).
+- **Sessions:** none to configure — logins are Supabase Auth sessions (cookies via `@supabase/ssr`).
 
 **Optional**
 

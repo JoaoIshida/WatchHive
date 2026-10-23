@@ -1,25 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { generateToken, setAuthCookie } from '../../../utils/jwt';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Create Supabase admin client for server-side operations
-const supabaseAdmin = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : null;
+import { createAuthClient, createServerClient } from '../../../lib/supabase-server';
 
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
 
-    // Validate input
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
@@ -27,18 +12,9 @@ export async function POST(request) {
       );
     }
 
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    // Verify credentials on a throwaway anon client: signing in on the shared admin client stored
-    // the user's session on it, so later queries (this and concurrent requests) ran as that user.
-    const authClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    // Signs in and writes the Supabase session cookies onto this response. The browser client
+    // reads the same cookies, so Realtime works without a separate session handoff.
+    const authClient = await createAuthClient();
     const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
       email,
       password,
@@ -51,23 +27,15 @@ export async function POST(request) {
       );
     }
 
-    // Get user profile from profiles table
     // Note: profiles table doesn't have email - email is in auth.users
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const supabase = await createServerClient();
+    const { data: profile } = await supabase
       .from('profiles')
       .select('id, display_name, preferences')
       .eq('id', authData.user.id)
       .single();
 
-    // Generate JWT token
-    const token = generateToken({
-      id: authData.user.id,
-      email: authData.user.email,
-      role: 'user', // Default role, can be extended later
-    });
-
-    // Create response with success message (session for Supabase Realtime in the browser)
-    const response = NextResponse.json({
+    return NextResponse.json({
       success: true,
       message: 'Login successful!',
       user: {
@@ -79,22 +47,19 @@ export async function POST(request) {
         // saving there silently made a private profile public.
         profile_visibility: profile?.preferences?.profile_visibility || 'anyone',
       },
+      // The browser client already initialized without a session; it adopts this one via
+      // setSession so Realtime subscribes as the user. Same tokens as the cookies just set.
       session: authData.session
         ? {
             access_token: authData.session.access_token,
             refresh_token: authData.session.refresh_token,
-            expires_at: authData.session.expires_at,
           }
         : null,
     });
-
-    // Set secure HTTP-only cookie with JWT token
-    return setAuthCookie(response, token);
-
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: 'Error during login: ' + error.message },
+      { error: 'Error during login' },
       { status: 500 }
     );
   }

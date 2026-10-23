@@ -1,17 +1,19 @@
 /**
  * Supabase Server Client Helper
- * Creates a Supabase client for server-side use (API routes, Server Components)
- * Uses JWT token authentication with service role key for database operations
+ * - createServerClient(): service-role client for database operations in API routes.
+ * - createAuthClient(): anon client bound to the request's Supabase session cookies (sign in/out).
+ * - getServerUser(): the signed-in user from the Supabase session cookie, or null.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { verifyToken, isTokenExpired } from '../utils/jwt';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
+if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables.');
 }
 
@@ -30,36 +32,43 @@ export async function createServerClient() {
 }
 
 /**
- * Get authenticated user from cookies (validates JWT token)
- * Returns user object with id, email, role if valid, null otherwise
- * Use this in API routes to get the authenticated user
+ * Anon client that reads/writes the Supabase auth cookies for this request. Used to sign in,
+ * sign out and read the session. Never use it for privileged queries.
+ */
+export async function createAuthClient() {
+  const cookieStore = await cookies();
+  return createSsrClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          // Server Components can't set cookies; the middleware refreshes the session instead.
+        }
+      },
+    },
+  });
+}
+
+/**
+ * Get the authenticated user from the Supabase session cookie.
+ * getClaims() verifies the access token (locally with asymmetric signing keys, otherwise
+ * against Supabase Auth), so a forged cookie is rejected.
+ * Returns { id, email, role } or null.
  */
 export async function getServerUser() {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('watchhive-token')?.value;
-
-    if (!token) {
-      return null;
-    }
-
-    // Validate JWT token
-    const userPayload = verifyToken(token);
-
-    if (!userPayload) {
-      return null;
-    }
-
-    // Check if token is expired
-    if (isTokenExpired(userPayload)) {
-      return null;
-    }
-
-    // Return user object with consistent structure
+    const supabase = await createAuthClient();
+    const { data, error } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    if (error || !claims?.sub) return null;
     return {
-      id: userPayload.userId || userPayload.id,
-      email: userPayload.email,
-      role: userPayload.role || 'user',
+      id: claims.sub,
+      email: claims.email ?? null,
+      role: 'user',
     };
   } catch (error) {
     console.error('Error getting server user:', error);

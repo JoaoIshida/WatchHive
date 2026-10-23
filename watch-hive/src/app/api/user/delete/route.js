@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTokenFromRequest, validateUserFromToken, isTokenExpired } from '../../../utils/jwt';
+import { getServerUser } from '../../../lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,32 +17,9 @@ const supabaseAdmin = supabaseUrl && supabaseServiceKey
 
 export async function DELETE(request) {
   try {
-    // Extract JWT token from request
-    const token = getTokenFromRequest(request);
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'No authentication token found' },
-        { status: 401 }
-      );
-    }
-
-    // Validate JWT token
-    const userPayload = validateUserFromToken(token);
-
-    if (!userPayload) {
-      return NextResponse.json(
-        { error: 'Invalid authentication token' },
-        { status: 401 }
-      );
-    }
-
-    // Check if token is expired
-    if (isTokenExpired(userPayload)) {
-      return NextResponse.json(
-        { error: 'Authentication token expired' },
-        { status: 401 }
-      );
+    const user = await getServerUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
     }
 
     if (!supabaseAdmin) {
@@ -52,7 +29,7 @@ export async function DELETE(request) {
       );
     }
 
-    const userId = userPayload.userId;
+    const userId = user.id;
 
     // Deleting the auth user cascades: profiles -> auth.users ON DELETE CASCADE, and every user
     // table -> profiles ON DELETE CASCADE. Deleting tables first (errors ignored) wiped the data

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTokenFromRequest, validateUserFromToken, isTokenExpired } from '../../../utils/jwt';
+import { getServerUser } from '../../../lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,17 +16,9 @@ const supabaseAdmin = supabaseUrl && supabaseServiceKey
 
 export async function PUT(request) {
   try {
-    const token = getTokenFromRequest(request);
-    if (!token) {
-      return NextResponse.json({ error: 'No authentication token found' }, { status: 401 });
-    }
-
-    const userPayload = validateUserFromToken(token);
-    if (!userPayload) {
-      return NextResponse.json({ error: 'Invalid authentication token' }, { status: 401 });
-    }
-    if (isTokenExpired(userPayload)) {
-      return NextResponse.json({ error: 'Authentication token expired' }, { status: 401 });
+    const user = await getServerUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
     }
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
@@ -55,7 +47,7 @@ export async function PUT(request) {
       const { data: me, error: meErr } = await supabaseAdmin
         .from('profiles')
         .select('display_name')
-        .eq('id', userPayload.userId)
+        .eq('id', user.id)
         .maybeSingle();
       if (meErr) {
         console.error(meErr);
@@ -71,7 +63,7 @@ export async function PUT(request) {
           console.error(rpcErr);
           return NextResponse.json({ error: 'Could not validate username' }, { status: 500 });
         }
-        if (takenId && takenId !== userPayload.userId) {
+        if (takenId && takenId !== user.id) {
           return NextResponse.json({ error: 'That username is already taken' }, { status: 400 });
         }
       }
@@ -90,7 +82,7 @@ export async function PUT(request) {
       const { data: current } = await supabaseAdmin
         .from('profiles')
         .select('preferences')
-        .eq('id', userPayload.userId)
+        .eq('id', user.id)
         .single();
 
       const prefs = current?.preferences || {};
@@ -100,7 +92,7 @@ export async function PUT(request) {
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .update(dbUpdates)
-      .eq('id', userPayload.userId)
+      .eq('id', user.id)
       .select()
       .single();
 
@@ -109,8 +101,8 @@ export async function PUT(request) {
         const { data: newProfile, error: createError } = await supabaseAdmin
           .from('profiles')
           .insert({
-            id: userPayload.userId,
-            display_name: (dbUpdates.display_name ?? userPayload.email ?? 'User').trim(),
+            id: user.id,
+            display_name: (dbUpdates.display_name ?? user.email ?? 'User').trim(),
             ...(dbUpdates.preferences && { preferences: dbUpdates.preferences }),
           })
           .select()
@@ -125,7 +117,7 @@ export async function PUT(request) {
           success: true,
           user: {
             id: newProfile.id,
-            email: userPayload.email,
+            email: user.email,
             display_name: newProfile.display_name,
             profile_visibility: newProfile.preferences?.profile_visibility || 'anyone',
           }
@@ -140,7 +132,7 @@ export async function PUT(request) {
       success: true,
       user: {
         id: profile.id,
-        email: userPayload.email,
+        email: user.email,
         display_name: profile.display_name,
         profile_visibility: profile.preferences?.profile_visibility || 'anyone',
       }

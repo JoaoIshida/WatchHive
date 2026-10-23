@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server';
-import { clearAuthCookie } from '../../../utils/jwt';
+import { createAuthClient } from '../../../lib/supabase-server';
 
-export async function POST(request) {
+export async function POST() {
   try {
-    // Create response with success message
+    // Revokes the refresh token and clears the Supabase session cookies.
+    const authClient = await createAuthClient();
+    await authClient.auth.signOut();
+
     const response = NextResponse.json({
       success: true,
       message: 'Logout successful!'
     });
-
-    // Clear the authentication cookie
-    return clearAuthCookie(response);
-
+    // Clear the pre-Supabase-session cookie too, for browsers that still carry it.
+    response.cookies.set('watchhive-token', '', { maxAge: 0, path: '/' });
+    return response;
   } catch (error) {
     console.error('Logout error:', error);
     return NextResponse.json(
-      { error: 'Error during logout: ' + error.message },
+      { error: 'Error during logout' },
       { status: 500 }
     );
   }
