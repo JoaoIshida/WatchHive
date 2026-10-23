@@ -7,18 +7,18 @@ import ActiveFilters from '../components/ActiveFilters';
 import MoviesList from '../components/MoviesList';
 
 const PopularMoviesContent = () => {
-    const [page, setPage] = useState(1);
+    const searchParams = useSearchParams();
+    // Page comes from the URL on the first render. Starting at 1 and syncing in an effect let the
+    // URL-update effect write page 1 back over ?page=N on refresh / Back (and fetched page 1 first).
+    const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1));
     const [genres, setGenres] = useState([]);
     const [watchProviders, setWatchProviders] = useState([]);
     const [sortConfig, setSortConfig] = useState({ sortBy: 'popularity', sortOrder: 'desc' });
     const [filters, setFilters] = useState({});
-    const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
     const queryPage = searchParams.get('page');
     const isInitialMount = useRef(true);
-    const hasInitializedFromURL = useRef(false);
-    const previousFiltersRef = useRef({});
 
     // Initialize state from URL params
     useEffect(() => {
@@ -122,11 +122,7 @@ const PopularMoviesContent = () => {
         }
         if (Object.keys(urlFilters).length > 0) {
             setFilters(urlFilters);
-            previousFiltersRef.current = urlFilters; // Set previous filters to prevent reset on initial load
         }
-        
-        // Mark URL initialization as complete
-        hasInitializedFromURL.current = true;
     }, []); // Only run on mount
 
     // Update URL when filters, sort, or page changes
@@ -257,8 +253,11 @@ const PopularMoviesContent = () => {
         setSortConfig(newSortConfig);
     }, []);
 
+    // Back to page 1 only when the user changes a filter. An effect that diffed filters also fired
+    // when the URL defaults loaded on refresh / Back, and reset ?page=N to 1.
     const handleFilterChange = useCallback((newFilters) => {
         setFilters(newFilters);
+        setPage(1);
     }, []);
 
     // Update URL when filters change (but not on initial mount)
@@ -269,20 +268,6 @@ const PopularMoviesContent = () => {
         }
         updateURL(page, filters, sortConfig);
     }, [page, filters, sortConfig, updateURL]);
-
-    // Reset page to 1 when filters change (but not on initial load)
-    useEffect(() => {
-        if (!hasInitializedFromURL.current) {
-            previousFiltersRef.current = filters;
-            return; // Skip until URL initialization is complete
-        }
-        // Only reset if filters actually changed (not just initialized)
-        const filtersChanged = JSON.stringify(previousFiltersRef.current) !== JSON.stringify(filters);
-        if (filtersChanged && Object.keys(filters).length > 0 && page > 1) {
-            setPage(1);
-        }
-        previousFiltersRef.current = filters;
-    }, [filters, page]);
 
     const handlePageChange = useCallback((newPage) => {
         setPage(newPage);

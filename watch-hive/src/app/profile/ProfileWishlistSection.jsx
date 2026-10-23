@@ -52,14 +52,16 @@ export default function ProfileWishlistSection({ loadingWishlistDetails, wishlis
     const safePage = Math.min(page, totalPages);
     const pageItems = sortedItems.slice((safePage - 1) * WISHLIST_PAGE_SIZE, safePage * WISHLIST_PAGE_SIZE);
 
+    // Only snap an out-of-range page back once the list has loaded: on refresh or Back the list is
+    // empty for a moment, and "page 3 of 1" used to rewrite the URL to page 1.
     useEffect(() => {
-        if (page > totalPages) {
+        if (sortedItems.length > 0 && page > totalPages) {
             replaceParams((next) => {
                 if (totalPages <= 1) next.delete('page');
                 else next.set('page', String(totalPages));
             });
         }
-    }, [totalPages, page, replaceParams]);
+    }, [sortedItems.length, totalPages, page, replaceParams]);
 
     const setPageInUrl = (newPage) =>
         replaceParams((next) => {
