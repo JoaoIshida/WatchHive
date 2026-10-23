@@ -77,6 +77,12 @@ const SeriesSeasons = ({
     const [progress, setProgress] = useState({ seasons: {}, completed: false, last_watched: null });
     const [showNotification, setShowNotification] = useState(false);
     const [skippedItems, setSkippedItems] = useState([]);
+    /** Server-side failures (e.g. 400 unaired, 503 TMDB down) used to fail silently. */
+    const [actionError, setActionError] = useState(null);
+    const readError = async (res) => {
+        const d = await res.json().catch(() => ({}));
+        return d.message || d.error || 'Something went wrong. Please try again.';
+    };
     const [loading, setLoading] = useState(true);
     const [loadingSeriesComplete, setLoadingSeriesComplete] = useState(false);
     const [loadingFillAll, setLoadingFillAll] = useState(false);
@@ -304,13 +310,23 @@ const SeriesSeasons = ({
             window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
             return;
         }
-
         const loadingKey = `${seasonNumber}-${episodeNumber}`;
+        setActionError(null);
         setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: true }));
+        try {
+            await toggleEpisodeWatchedInner(seasonNumber, episodeNumber, loadingKey);
+        } catch (e) {
+            console.error('Error toggling episode:', e);
+            setActionError('Could not update the episode. Check your connection and try again.');
+        } finally {
+            setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const toggleEpisodeWatchedInner = async (seasonNumber, episodeNumber, loadingKey) => {
 
         // Check if episode is in the watched list (matches UI rendering logic)
         const isEpisodeInList = progress.seasons[seasonNumber]?.episodes?.includes(episodeNumber) || false;
-        const isSeasonCompleted = progress.seasons[seasonNumber]?.completed || false;
         // Use same logic as UI: only consider watched if episode is actually in the database
         const isWatched = isEpisodeInList;
         
@@ -376,16 +392,6 @@ const SeriesSeasons = ({
             }
         }
 
-        // If season is completed and we're unmarking an episode, unmark season first
-        // Use deleteEpisodes: false to keep other episodes, only this one will be removed
-        if (isWatched && isSeasonCompleted) {
-            await fetch(`/api/series-progress/${seriesId}/seasons`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ seasonNumber, completed: false, deleteEpisodes: false }),
-            });
-        }
-
         // Update episode via API
         const response = await fetch(`/api/series-progress/${seriesId}/episodes`, {
             method: 'POST',
@@ -406,8 +412,9 @@ const SeriesSeasons = ({
             }
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+        } else {
+            setActionError(await readError(response));
         }
-        setLoadingEpisodes(prev => ({ ...prev, [loadingKey]: false }));
     };
 
     const toggleSeasonCompleted = async (seasonNumber) => {
@@ -536,18 +543,11 @@ const SeriesSeasons = ({
                     setShowNotification(true);
                 }
             } else {
-                const errorText = await response.text();
-                console.error('Error toggling season completion:', errorText);
-                // Try to parse error message
-                try {
-                    const errorData = JSON.parse(errorText);
-                    console.error('Error details:', errorData);
-                } catch (e) {
-                    // Not JSON, just log the text
-                }
+                setActionError(await readError(response));
             }
         } catch (error) {
             console.error('Error toggling season completion:', error);
+            setActionError('Could not update the season. Check your connection and try again.');
         } finally {
             setLoadingSeasons(prev => ({ ...prev, [seasonNumber]: false }));
         }
@@ -558,6 +558,18 @@ const SeriesSeasons = ({
             window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'signin' } }));
             return;
         }
+        setActionError(null);
+        try {
+            await toggleSeriesCompletedInner();
+        } catch (e) {
+            console.error('Error toggling series completion:', e);
+            setActionError('Could not update the series. Check your connection and try again.');
+        } finally {
+            setLoadingSeriesComplete(false);
+        }
+    };
+
+    const toggleSeriesCompletedInner = async () => {
 
         setLoadingSeriesComplete(true);
         const isCompleted = progress.completed || false;
@@ -689,8 +701,9 @@ const SeriesSeasons = ({
             }
             // Dispatch custom event to notify profile page
             window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+        } else {
+            setActionError(await readError(response));
         }
-        setLoadingSeriesComplete(false);
     };
 
     /** Unreleased catalog items (same shape as Mark Series Complete) for UnreleasedNotification */
@@ -840,9 +853,12 @@ const SeriesSeasons = ({
                     setProgress(data);
                 }
                 window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            } else {
+                setActionError(await readError(response));
             }
         } catch (e) {
             console.error('Error filling missing episodes:', e);
+            setActionError('Could not fill missing episodes. Check your connection and try again.');
         } finally {
             setLoadingFillSeason((prev) => ({ ...prev, [seasonNumber]: false }));
         }
@@ -872,9 +888,12 @@ const SeriesSeasons = ({
                     setProgress(data);
                 }
                 window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
+            } else {
+                setActionError(await readError(response));
             }
         } catch (e) {
             console.error('Error filling missing episodes:', e);
+            setActionError('Could not fill missing episodes. Check your connection and try again.');
         } finally {
             setLoadingFillAll(false);
         }
@@ -1229,7 +1248,7 @@ const SeriesSeasons = ({
             </div>
             )}
 
-            {/* Specials Section */}
+            {/* Specials Section (informational: specials are not tracked in progress) */}
             {specials.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-charcoal-700">
                     <h3 className="text-xl font-bold text-amber-500 mb-4">Specials</h3>
@@ -1237,9 +1256,7 @@ const SeriesSeasons = ({
                         {specials.map((season) => {
                             const seasonProgress = getSeasonProgress(season.season_number);
                             const isExpanded = expandedSeasons[season.season_number];
-                            const isSeasonCompleted = progress.seasons[season.season_number]?.completed || false;
                             const seasonData = seasonDetails[season.season_number] || season;
-                            const releasedMissingSpecial = countReleasedMissingInSeason(season.season_number, seasonData);
                             
                             return (
                                 <div key={season.id} className="futuristic-card p-4">
@@ -1285,51 +1302,6 @@ const SeriesSeasons = ({
                                             </div>
                                         </div>
                                         <div className="flex flex-nowrap items-center justify-end gap-1 sm:gap-2 shrink-0 w-full lg:w-auto lg:justify-end min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                                            {releasedMissingSpecial != null && releasedMissingSpecial > 0 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        fillMissingForSeason(season.season_number);
-                                                    }}
-                                                    disabled={loadingFillSeason[season.season_number]}
-                                                    className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 border border-amber-500/40 ${loadingFillSeason[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
-                                                >
-                                                    {loadingFillSeason[season.season_number] ? (
-                                                        <>
-                                                            <LoadingSpinner />
-                                                            <span>...</span>
-                                                        </>
-                                                    ) : (
-                                                        'Mark missing'
-                                                    )}
-                                                </button>
-                                            )}
-                                            {!(releasedMissingSpecial != null && releasedMissingSpecial > 0) && (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleSeasonCompleted(season.season_number);
-                                                }}
-                                                disabled={loadingSeasons[season.season_number]}
-                                                className={`futuristic-button text-[10px] sm:text-xs whitespace-nowrap px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 shrink-0 ${isSeasonCompleted ? 'bg-amber-500 text-black' : ''} ${loadingSeasons[season.season_number] ? 'opacity-75 cursor-not-allowed' : ''}`}
-                                            >
-                                                {loadingSeasons[season.season_number] ? (
-                                                    <>
-                                                        <LoadingSpinner />
-                                                        <span>...</span>
-                                                    </>
-                                                ) : isSeasonCompleted ? (
-                                                    '✓ Complete'
-                                                ) : (
-                                                    <>
-                                                        <span className="hidden sm:inline">Mark Complete</span>
-                                                        <span className="sm:hidden">Complete</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                            )}
                                             <svg
                                                 className={`w-5 h-5 sm:w-6 sm:h-6 text-amber-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                                 fill="none"
@@ -1427,33 +1399,6 @@ const SeriesSeasons = ({
                                                                     —
                                                                 </div>
                                                             )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => toggleEpisodeWatched(season.season_number, episode.episode_number)}
-                                                                disabled={isEpisodeLoading || !episodeIsReleased}
-                                                                className={`w-full sm:w-auto justify-center px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
-                                                                    isEpisodeLoading || !episodeIsReleased
-                                                                        ? 'bg-charcoal-700 text-white/70 cursor-not-allowed opacity-50' 
-                                                                        : isWatched 
-                                                                            ? 'bg-amber-500 text-black hover:bg-amber-500' 
-                                                                            : 'bg-charcoal-700 text-white hover:bg-charcoal-600 border border-charcoal-700/50'
-                                                                }`}
-                                                                title={!episodeIsReleased ? 'Episode not yet released' : ''}
-                                                            >
-                                                                {isEpisodeLoading ? (
-                                                                    <LoadingSpinner />
-                                                                ) : isWatched ? (
-                                                                    <>
-                                                                        <span>✓</span>
-                                                                        <span className="hidden sm:inline">Watched</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <span>+</span>
-                                                                        <span className="text-[10px] sm:text-xs leading-tight">Mark watched</span>
-                                                                    </>
-                                                                )}
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
@@ -1464,6 +1409,22 @@ const SeriesSeasons = ({
                             );
                         })}
                     </div>
+                </div>
+            )}
+            {actionError && (
+                <div
+                    role="alert"
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[99999] max-w-[calc(100vw-2rem)] flex items-start gap-3 rounded-lg border border-red-500/60 bg-charcoal-900 px-4 py-3 text-sm text-white shadow-subtle"
+                >
+                    <span>{actionError}</span>
+                    <button
+                        type="button"
+                        onClick={() => setActionError(null)}
+                        className="text-white/60 hover:text-white"
+                        aria-label="Dismiss"
+                    >
+                        ×
+                    </button>
                 </div>
             )}
             <UnreleasedNotification

@@ -66,12 +66,9 @@ export async function sendPushAndPrune(
     } catch (e: unknown) {
       const status = (e as { statusCode?: number })?.statusCode;
       const msg = String(e);
-      if (
-        status === 410 ||
-        status === 404 ||
-        msg.includes("410") ||
-        msg.includes("404")
-      ) {
+      // 404/410: subscription expired. 403: it was created for a different VAPID key, so it can
+      // never succeed. Matching on the message text pruned on unrelated errors containing "404".
+      if (status === 410 || status === 404 || status === 403) {
         edgeLog(fn, "subscription_gone", {
           ...(ctx || {}),
           subscriptionId: s.id,

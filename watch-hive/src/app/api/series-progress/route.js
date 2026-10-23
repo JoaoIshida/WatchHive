@@ -30,7 +30,7 @@ export async function GET(req) {
                 status: 200,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+                    'Cache-Control': 'private, no-store',
                 },
             });
         }
@@ -92,7 +92,7 @@ export async function GET(req) {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
-                'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+                'Cache-Control': 'private, no-store',
             },
         });
     } catch (error) {

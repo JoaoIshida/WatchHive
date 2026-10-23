@@ -2,11 +2,17 @@
 
 Examples below match the strings built in code. Placeholders use **bold** labels.
 
-**In-app feed:** Every row below is stored in `notifications` and appears under **`/profile/notifications`** whether or not Web Push succeeds (push is a separate step that sets `push_sent_at` when it works).
+**In-app feed:** Every row below is stored in `notifications` and appears under **`/profile/notifications`** whether or not Web Push succeeds (push is a separate step that sets `push_sent_at` when it works). The feed hides categories the user switched off (`push_friends` / `push_catchup` / `push_releases` double as feed filters).
 
 ## `release_reminder` (Edge: `precompute_release_notifications` → `dispatch_notification_queue`)
 
 Wishlist reminders use the user’s reminder offset vs release date; copy uses **(CA)** for calendar semantics.
+
+- **Date-only releases** (movies, TMDB-only airings) are a calendar day, so the reminder lands on that day at 09:00 in the user’s own timezone (not the Toronto instant converted west, which was a day early).
+- **No late reminders:** an offset whose reminder day has already passed is skipped (adding a movie two days before release does not send "in 7 days"). A reminder due earlier today still sends.
+- **TV premiere** reminders are only for a season premiere (episode 1), not for every weekly episode.
+- **Same-day drops:** watching reminders for episodes airing on the same local day are one row ("**3** new episodes").
+- **Dedupe keys carry no date** (`s{S}e{E}`, `show:{id}:s{S}`, `release`), so a reschedule moves the pending row instead of adding a second one. Each precompute run deletes pending rows it did not regenerate (left the wishlist / watched list, changed offsets), and dispatch re-checks the wishlist / watched row before sending.
 
 | Sub-scenario | `title` (in-app) | `message` (in-app) |
 |--------------|------------------|--------------------|
@@ -17,6 +23,7 @@ Wishlist reminders use the user’s reminder offset vs release date; copy uses *
 | Wishlist **TV** premiere, offset **1** | `Premiere: **Show Name**` | `"**Show Name**" premieres tomorrow (CA).` |
 | Wishlist **TV** premiere, offset **N** | `Premiere: **Show Name**` | `"**Show Name**" premieres in **N** days (CA).` |
 | **Watching** (TV on your watched list), offset **0** | `New episode: **Show Name**` | `"**Show Name**" has a new episode airing today (CA).` |
+| **Watching**, several episodes the same day | `New episodes: **Show Name**` | `"**Show Name**" has **3** new episodes airing today (CA).` |
 
 Watching reminders apply when you have watch progress for the series. If you marked the series **completed** but TMDB still has a **next episode** scheduled (e.g. a finale not aired yet), you still receive episode reminders until that air date passes.
 | **Watching**, offset **1** | `New episode: **Show Name**` | `"**Show Name**" has a new episode airing tomorrow (CA).` |
@@ -29,12 +36,12 @@ Watching reminders apply when you have watch progress for the series. If you mar
 
 ## `catalog_expanded` (Edge: `refresh_series_progress_catalog`)
 
-Shown when the catalog episode count for a series increased and the user is still behind on marked-watched episodes. Copy is app-focused (no TMDB wording).
+Shown when the **aired** episode count for a series increased (from TMDB `last_episode_to_air`, so announced-but-unaired episodes don't count) and the user is still behind on marked-watched episodes. Push follows in the same run.
 
 | Field | Example |
 |-------|---------|
-| `title` | `New episodes` |
-| `message` | `**Stranger Things** now has new episodes listed. Open the show when you're ready.` |
+| `title` | `New episodes: **Stranger Things**` |
+| `message` | `**Stranger Things** has new episodes out. Open the show when you're ready.` |
 
 - **Link:** `/series/{id}` (opens the show). The notification still appears in **`/profile/notifications`**.
 
@@ -42,14 +49,14 @@ Shown when the catalog episode count for a series increased and the user is stil
 
 ## `series_catchup` (Edge: `weekly_series_catchup_notifications`)
 
-Weekly nudge for in-progress series where `catalog_total_episodes` is known and the user has **not** marked every episode watched. **`x`** is **episodes not watched yet** (`catalog_total` minus marked watched).
+Weekly nudge for in-progress series where `catalog_total_episodes` (aired regular episodes) is known and the user has **not** marked every episode watched. **`x`** is **aired episodes not watched yet**. Every in-progress row is scanned (paged), not an arbitrary subset.
 
 **Schedule (pg_cron, UTC):** `0 1 * * 6` — Saturday 01:00 UTC = **Friday 9:00 PM** in `America/Toronto` during daylight saving (EDT). In-app row is created then; Web Push follows in the same Edge run when `push_catchup` is enabled (or on the next `daily_push_dispatcher` catch-up).
 
 | Case | `title` | `message` | `link` |
 |------|---------|-------------|--------|
 | **One** qualifying show this run for the user | `Weekly reminder: **The Bear**` | `**The Bear** has **8** episodes not watched yet. Catch up when you're ready.` | `/series/{id}` |
-| **Two or more** qualifying shows in the same run | `Weekly reminder` | `A few titles aren't finalized yet. Catch up when you're ready.` | `/profile/notifications` |
+| **Two or more** qualifying shows in the same run | `Weekly reminder` | `**3** shows have episodes you haven't watched yet. Catch up when you're ready.` | `/profile/series` |
 
 The multi-show row uses dedupe `weekly_catchup:{user_id}:multi:{week}` so the user gets one summary for that week instead of one notification per title.
 
@@ -74,9 +81,10 @@ When a user has **more than one** pending row of types `release_reminder`, `cata
 
 | Case | Push `title` | Push `body` | `url` |
 |------|--------------|-------------|-------|
-| Several rows, **one** series link (no `catalog_expanded`) | `WatchHive` | `**Show Name** - **3** new episodes` | that series link |
-| Several rows, **one** link and **any** row is `catalog_expanded` | `WatchHive` | `New season of **Show Name**` | that link |
+| Several rows, **one** link | newest row's `title` | newest row's `message` | that link |
 | Rows for **multiple** links | `WatchHive` | `**5** new titles available` | `/profile/notifications` |
+
+Pushes are tagged per destination (`wh:{url}`), so a later push for another title doesn't replace an earlier one in the tray. `daily_push_dispatcher` skips rows older than 36 h (marks them pushed) instead of bundling stale ones.
 
 ---
 

@@ -3,13 +3,14 @@ import { attachPostersToListSummaries } from '../../lib/social-profile-posters';
 import { getMockPublicListSearchSummaries } from '../../utils/mockPublicLists';
 import { isLocalhostRequest } from '../../utils/mockUser';
 
-const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
+// Short: a list switched to private must drop out of search quickly.
+const CACHE_CONTROL = 'public, s-maxage=60';
 
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url, 'http://localhost');
         const query = searchParams.get('query') || '';
-        const page = parseInt(searchParams.get('page') || '1', 10);
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
         const limit = 20;
         const offset = (page - 1) * limit;
 
@@ -23,7 +24,8 @@ export async function GET(req) {
             .range(offset, offset + limit - 1);
 
         if (query.trim()) {
-            const escaped = query.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+            // , ( ) " are PostgREST .or() syntax; left in, they broke the filter (500).
+            const escaped = query.trim().replace(/[,()"]/g, ' ').replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
             const pattern = `%${escaped}%`;
             dbQuery = dbQuery.or(`name.ilike.${pattern},description.ilike.${pattern}`);
         }

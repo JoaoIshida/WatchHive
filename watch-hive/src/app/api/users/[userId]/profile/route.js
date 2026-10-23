@@ -37,7 +37,7 @@ export async function GET(req, { params }) {
 
         const visibility = profile.preferences?.profile_visibility || 'anyone';
 
-        if (visibility === 'no_one') {
+        if (visibility === 'no_one' && caller?.id !== userId) {
             return new Response(JSON.stringify({ error: 'Profile is private' }), {
                 status: 404,
                 headers: { 'Content-Type': 'application/json' },

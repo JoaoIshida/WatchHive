@@ -49,6 +49,13 @@ export function useReleasedGapProgressBatch(seriesIds) {
     }, [seriesIds]);
 
     const [byId, setById] = useState({});
+    /** Marking episodes doesn't change the id list, so refetch on the app-wide update event too. */
+    const [version, setVersion] = useState(0);
+    useEffect(() => {
+        const bump = () => setVersion((v) => v + 1);
+        window.addEventListener('watchhive-data-updated', bump);
+        return () => window.removeEventListener('watchhive-data-updated', bump);
+    }, []);
 
     useEffect(() => {
         const ids = idsKey ? idsKey.split(',') : [];
@@ -97,7 +104,7 @@ export function useReleasedGapProgressBatch(seriesIds) {
         return () => {
             cancelled = true;
         };
-    }, [idsKey]);
+    }, [idsKey, version]);
 
     return byId;
 }

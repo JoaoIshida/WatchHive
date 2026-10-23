@@ -121,13 +121,15 @@ export async function fetchUpcomingTvmazeEpisodes(
   const showRes = await fetch(tvmazeFetchUrl(`/shows/${mazeId}`), {
     headers: TVMAZE_HEADERS,
   });
-  if (!showRes.ok) return [];
+  // Mapped show but TVMaze failed: throw, so ingest doesn't mistake an outage for "no schedule"
+  // and write a TMDB-numbered duplicate of the same episode.
+  if (!showRes.ok) throw new Error(`TVMaze /shows/${mazeId}: ${showRes.status}`);
 
   const show = await showRes.json();
   const seasonsRes = await fetch(tvmazeFetchUrl(`/shows/${mazeId}/seasons`), {
     headers: TVMAZE_HEADERS,
   });
-  if (!seasonsRes.ok) return [];
+  if (!seasonsRes.ok) throw new Error(`TVMaze /shows/${mazeId}/seasons: ${seasonsRes.status}`);
 
   const seasons = (await seasonsRes.json()) as Array<{
     number?: number;

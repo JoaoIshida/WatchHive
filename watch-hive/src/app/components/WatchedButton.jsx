@@ -203,13 +203,37 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
             });
             if (response.ok) {
                 refreshUserData();
-                if (mediaType === 'tv') {
-                    window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
-                }
+            } else {
+                setError('Failed to update watched count. Please try again.');
             }
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error incrementing watched count:', error);
+            setError('Failed to update watched count. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /** "-" drops one viewing; only the last one removes the item (and, for TV, its progress). */
+    const handleDecrement = async () => {
+        if (timesWatched <= 1) {
+            void handleToggle();
+            return;
+        }
+        setError(null);
+        setLoading(true);
+        try {
+            const response = await fetch(
+                `/api/watched?itemId=${itemId}&mediaType=${mediaType}&decrement=1`,
+                { method: 'DELETE' },
+            );
+            if (!response.ok) setError('Failed to update watched count. Please try again.');
+            await refreshUserData();
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error('Error decrementing watched count:', error);
+            setError('Failed to update watched count. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -264,7 +288,7 @@ export default function WatchedButton({ itemId, mediaType, onUpdate, seasons = n
                                 <button
                                     onClick={() => {
                                         if (!loading) {
-                                            void handleToggle();
+                                            void handleDecrement();
                                         }
                                     }}
                                     disabled={loading}

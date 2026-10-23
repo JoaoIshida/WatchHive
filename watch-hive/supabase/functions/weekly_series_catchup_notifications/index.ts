@@ -4,6 +4,10 @@ import { assertCronOrServiceRequest } from "../_shared/cron-auth.ts";
 import { fetchTvCatalogTotals } from "../_shared/tmdb.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
 import { countWatchedRegularEpisodes } from "../_shared/watch-count.ts";
+import {
+  type PendingNotificationRow,
+  pushPendingNotifications,
+} from "../_shared/pushDispatch.ts";
 
 const FN = "weekly_series_catchup_notifications";
 const DEFAULT_BATCH = 350;
@@ -71,22 +75,30 @@ Deno.serve(async (req) => {
   const weekKey = isoWeekUtcKey();
   edgeLog(FN, "batch", { batchLimit, weekKey });
 
-  const { data: rows, error: qErr } = await supabase
-    .from("series_progress")
-    .select("id, user_id, series_id, catalog_total_episodes")
-    .eq("completed", false)
-    .not("catalog_total_episodes", "is", null)
-    .limit(batchLimit);
+  // Page through every in-progress row (ordered by user so one user's shows stay together).
+  // An unordered .limit() used to pick an arbitrary subset, so some users never got a reminder.
+  // ponytail: one run scans everything; past a few thousand rows, split by user_id range per call.
+  const progressList: ProgressRow[] = [];
+  for (let from = 0; ; from += batchLimit) {
+    const { data: rows, error: qErr } = await supabase
+      .from("series_progress")
+      .select("id, user_id, series_id, catalog_total_episodes")
+      .eq("completed", false)
+      .not("catalog_total_episodes", "is", null)
+      .order("user_id")
+      .order("id")
+      .range(from, from + batchLimit - 1);
 
-  if (qErr) {
-    console.error(qErr);
-    return new Response(JSON.stringify({ error: qErr.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    if (qErr) {
+      console.error(qErr);
+      return new Response(JSON.stringify({ error: qErr.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    progressList.push(...((rows || []) as ProgressRow[]));
+    if (!rows || rows.length < batchLimit) break;
   }
-
-  const progressList = (rows || []) as ProgressRow[];
   const titleCache = new Map<number, string>();
 
   async function seriesTitle(sid: number): Promise<string> {
@@ -101,6 +113,7 @@ Deno.serve(async (req) => {
   let candidatesSkipped = 0;
   const errors: string[] = [];
   const weeklyCandidates: WeeklyCandidate[] = [];
+  const insertedRows: PendingNotificationRow[] = [];
 
   for (const row of progressList) {
     const total = row.catalog_total_episodes;
@@ -138,15 +151,15 @@ Deno.serve(async (req) => {
       if (list.length === 1) {
         const c = list[0];
         const dedupeKey = `weekly_catchup:${userId}:${c.series_id}:${weekKey}`;
-        const { error: insErr } = await supabase.from("notifications").insert({
+        const { data: inserted, error: insErr } = await supabase.from("notifications").insert({
           user_id: userId,
           type: "series_catchup",
           title: `Weekly reminder: ${c.title}`,
-          message: `${c.title} has ${c.unwatched} episodes not watched yet. Catch up when you're ready.`,
+          message: `${c.title} has ${c.unwatched} ${c.unwatched === 1 ? "episode" : "episodes"} not watched yet. Catch up when you're ready.`,
           link: `/series/${c.series_id}`,
           read: false,
           dedupe_key: dedupeKey,
-        });
+        }).select("id, user_id, type, title, message, link").maybeSingle();
         if (insErr) {
           if (insErr.code !== "23505") {
             console.error("weekly_catchup insert", insErr);
@@ -154,18 +167,19 @@ Deno.serve(async (req) => {
           }
         } else {
           notificationsInserted += 1;
+          if (inserted) insertedRows.push(inserted as PendingNotificationRow);
         }
       } else {
         const dedupeKey = `weekly_catchup:${userId}:multi:${weekKey}`;
-        const { error: insErr } = await supabase.from("notifications").insert({
+        const { data: inserted, error: insErr } = await supabase.from("notifications").insert({
           user_id: userId,
           type: "series_catchup",
           title: "Weekly reminder",
-          message: `A few titles aren't finalized yet. Catch up when you're ready.`,
-          link: "/profile/notifications",
+          message: `${list.length} shows have episodes you haven't watched yet. Catch up when you're ready.`,
+          link: "/profile/series",
           read: false,
           dedupe_key: dedupeKey,
-        });
+        }).select("id, user_id, type, title, message, link").maybeSingle();
         if (insErr) {
           if (insErr.code !== "23505") {
             console.error("weekly_catchup multi insert", insErr);
@@ -173,6 +187,7 @@ Deno.serve(async (req) => {
           }
         } else {
           notificationsInserted += 1;
+          if (inserted) insertedRows.push(inserted as PendingNotificationRow);
         }
       }
     } catch (e) {
@@ -182,8 +197,14 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Push in the same run (docs promise it); otherwise these waited for the daily dispatcher.
+  const push = insertedRows.length
+    ? await pushPendingNotifications(FN, supabase, insertedRows)
+    : null;
+
   const summary: Record<string, unknown> = {
     ok: true,
+    push,
     weekKey,
     scanned: progressList.length,
     notificationsInserted,

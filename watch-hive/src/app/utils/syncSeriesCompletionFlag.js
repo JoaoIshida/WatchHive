@@ -27,6 +27,10 @@ export async function syncSeriesCompletionFlag(supabase, seriesProgressId, serie
             (s) =>
                 typeof s.season_number === 'number' &&
                 s.season_number > 0 &&
+                // A TBA season (no air_date) or one with no episodes can't be watched yet, so it must
+                // not block completion (otherwise "Mark Series Complete" flips itself back off).
+                Boolean(s.air_date) &&
+                s.episode_count !== 0 &&
                 isSeasonReleased(s),
         );
     } catch (e) {
@@ -36,21 +40,16 @@ export async function syncSeriesCompletionFlag(supabase, seriesProgressId, serie
         }));
     }
 
-    if (regularSeasons.length === 0) {
-        await supabase
-            .from('series_progress')
-            .update({ completed: false, updated_at: new Date().toISOString() })
-            .eq('id', seriesProgressId);
-        return;
-    }
+    const allComplete =
+        regularSeasons.length > 0 &&
+        regularSeasons.every((s) => completedBySeason.get(s.season_number) === true);
 
-    const allComplete = regularSeasons.every((s) => completedBySeason.get(s.season_number) === true);
-
-    await supabase
+    const { error: upErr } = await supabase
         .from('series_progress')
         .update({
             completed: allComplete,
             updated_at: new Date().toISOString(),
         })
         .eq('id', seriesProgressId);
+    if (upErr) throw upErr;
 }

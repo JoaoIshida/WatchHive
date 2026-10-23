@@ -4,6 +4,10 @@ import { assertCronOrServiceRequest } from "../_shared/cron-auth.ts";
 import { fetchTvCatalogTotals } from "../_shared/tmdb.ts";
 import { edgeLog } from "../_shared/edgeLog.ts";
 import { countWatchedRegularEpisodes } from "../_shared/watch-count.ts";
+import {
+  type PendingNotificationRow,
+  pushPendingNotifications,
+} from "../_shared/pushDispatch.ts";
 
 const FN = "refresh_series_progress_catalog";
 const DEFAULT_LIMIT = 40;
@@ -73,6 +77,7 @@ Deno.serve(async (req) => {
   let progressRowsUpdated = 0;
   let notificationsInserted = 0;
   const errors: string[] = [];
+  const insertedRows: PendingNotificationRow[] = [];
 
   for (const sid of ids) {
     try {
@@ -107,21 +112,22 @@ Deno.serve(async (req) => {
             watched,
           });
           const dedupeKey = `new_eps:${sid}:${totalEpisodes}`;
-          const { error: insErr } = await supabase.from("notifications").insert({
+          const { data: inserted, error: insErr } = await supabase.from("notifications").insert({
             user_id: row.user_id,
             type: "catalog_expanded",
-            title: "New episodes",
-            message: `${title} now has new episodes listed. Open the show when you're ready.`,
+            title: `New episodes: ${title}`,
+            message: `${title} has new episodes out. Open the show when you're ready.`,
             link: `/series/${sid}`,
             read: false,
             dedupe_key: dedupeKey,
-          });
+          }).select("id, user_id, type, title, message, link").maybeSingle();
           if (insErr) {
             if (insErr.code !== "23505") {
               console.error("notification insert", insErr);
             }
           } else {
             notificationsInserted += 1;
+            if (inserted) insertedRows.push(inserted as PendingNotificationRow);
           }
         }
 
@@ -141,11 +147,23 @@ Deno.serve(async (req) => {
       errors.push(`series ${sid}: ${msg}`);
       edgeLog(FN, "series_error", { series_id: sid, err: msg });
       console.error(e);
+      // Mark it refreshed anyway: series_ids_for_catalog_refresh is stalest-first, so a series
+      // that always fails (e.g. removed from TMDB) would otherwise be picked every run and starve
+      // the rest.
+      await supabase
+        .from("series_progress")
+        .update({ catalog_refreshed_at: new Date().toISOString() })
+        .eq("series_id", sid);
     }
   }
 
+  const push = insertedRows.length
+    ? await pushPendingNotifications(FN, supabase, insertedRows)
+    : null;
+
   const summary: Record<string, unknown> = {
     ok: true,
+    push,
     seriesProcessed,
     progressRowsUpdated,
     notificationsInserted,

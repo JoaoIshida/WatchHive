@@ -40,15 +40,17 @@ export function buildWatchingEpisodeCopy(
   showTitle: string,
   offset: number,
   link: string,
+  episodeCount = 1,
 ): ReleaseNotifyPayload {
+  const what = episodeCount > 1 ? `${episodeCount} new episodes` : "a new episode";
   const epWhen =
     offset === 0
-      ? "has a new episode airing today (CA)"
+      ? `has ${what} airing today (CA)`
       : offset === 1
-      ? "has a new episode airing tomorrow (CA)"
-      : `has a new episode in ${offset} days (CA)`;
+      ? `has ${what} airing tomorrow (CA)`
+      : `has ${what} in ${offset} days (CA)`;
   return {
-    title: `New episode: ${showTitle}`,
+    title: episodeCount > 1 ? `New episodes: ${showTitle}` : `New episode: ${showTitle}`,
     message: `"${showTitle}" ${epWhen}.`,
     link,
   };
@@ -73,23 +75,35 @@ export function watchingDedupeKey(
   return `rel:${userId}:${contentId}:tv:${releaseKey}:${offset}:w`;
 }
 
-/** Stable key segment for movie (date) or TV episode (season-ep or date). */
-export function releaseKeyForMovie(releaseDate: string): string {
-  return releaseDate.slice(0, 10);
+/**
+ * Release-key segments are identity only (never the date): a reschedule then updates the pending
+ * queue row in place instead of inserting a second one. Stale rows are removed by precompute.
+ */
+export function releaseKeyForMovie(): string {
+  return "release";
 }
 
-export function releaseKeyForEpisode(
-  season: number,
-  episode: number,
-  releaseAtUtc: string,
-): string {
-  return `s${season}e${episode}:${releaseAtUtc.slice(0, 10)}`;
+export function releaseKeyForEpisode(season: number, episode: number): string {
+  return `s${season}e${episode}`;
 }
 
-/** Wishlist TV: one reminder per show per air date per offset (not per episode). */
-export function releaseKeyForWishlistTv(
-  showId: number,
-  releaseAtUtc: string,
-): string {
-  return `show:${showId}:${releaseAtUtc.slice(0, 10)}`;
+/** Wishlist TV: one premiere reminder per show per season premiere (episode 1). */
+export function releaseKeyForWishlistTv(showId: number, season: number): string {
+  return `show:${showId}:s${season}`;
+}
+
+/** Parse `rel:{user}:{contentId}:{mediaType}:...` (`:w` suffix = watching reminder). */
+export function parseReleaseDedupeKey(
+  key: string,
+): { userId: string; contentId: number; mediaType: string; watching: boolean } | null {
+  const parts = key.split(":");
+  if (parts[0] !== "rel" || parts.length < 5) return null;
+  const contentId = Number(parts[2]);
+  if (!Number.isFinite(contentId)) return null;
+  return {
+    userId: parts[1],
+    contentId,
+    mediaType: parts[3],
+    watching: parts[parts.length - 1] === "w",
+  };
 }

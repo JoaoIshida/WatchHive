@@ -1,4 +1,5 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
+import { isUuid } from '../utils';
 import { notifyFriendRequestReceived } from '../../lib/friend-request-notify';
 
 function jsonResponse(data, status = 200) {
@@ -121,6 +122,7 @@ export async function POST(req) {
         }
 
         if (targetUserId === user.id) return jsonResponse({ error: 'Cannot send request to yourself' }, 400);
+        if (!isUuid(targetUserId)) return jsonResponse({ error: 'Invalid userId' }, 400);
 
         // Check for existing row in either direction
         const { data: existingRows, error: existErr } = await supabase

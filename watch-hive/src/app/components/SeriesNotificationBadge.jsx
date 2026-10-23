@@ -10,7 +10,9 @@ const SeriesNotificationBadge = ({ seriesId, lastAirDate, status, numberOfSeason
 
         // Check if new season is available (last air date is recent)
         if (lastAirDate) {
-            const lastAir = new Date(lastAirDate);
+            // Parse YYYY-MM-DD as a local date (new Date('YYYY-MM-DD') is UTC midnight).
+            const [y, m, d] = String(lastAirDate).slice(0, 10).split('-').map(Number);
+            const lastAir = new Date(y, m - 1, d);
             const now = new Date();
             const daysSinceLastAir = Math.floor((now - lastAir) / (1000 * 60 * 60 * 24));
             
@@ -18,11 +20,6 @@ const SeriesNotificationBadge = ({ seriesId, lastAirDate, status, numberOfSeason
             if (daysSinceLastAir >= 0 && daysSinceLastAir <= 7) {
                 shouldNotify = true;
             }
-        }
-
-        // Check if series is still airing (ongoing season)
-        if (status === 'Returning Series' || status === 'In Production') {
-            shouldNotify = true;
         }
 
         setHasNotification(shouldNotify);

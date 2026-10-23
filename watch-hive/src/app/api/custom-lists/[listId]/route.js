@@ -24,6 +24,13 @@ export async function GET(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
         // Check if user can view this list: owner, or public, or collaborator
@@ -97,6 +104,13 @@ export async function PUT(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
         // Check if user is owner or admin collaborator
@@ -170,6 +184,13 @@ export async function DELETE(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
         if (list.user_id !== user.id) {

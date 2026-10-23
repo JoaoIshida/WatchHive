@@ -1,3 +1,10 @@
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids interpolated into PostgREST `.or()` filters must be validated, or `),` injects new terms. */
+export function isUuid(value) {
+    return typeof value === 'string' && UUID_RE.test(value);
+}
+
 /** Thrown when TMDB responds with a non-OK status; `status` is the HTTP status code. */
 export class TMDBRequestError extends Error {
     /**

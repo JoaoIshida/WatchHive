@@ -52,8 +52,11 @@ Deno.serve(async (req) => {
 
     const allShows = [...tvShows].sort((a, b) => a - b);
     const slots = Math.max(1, Math.ceil(allShows.length / BATCH_SHOWS));
+    // Day number + 3h bucket: a once-a-day cron still advances one slot per day. The bucket alone
+    // repeated the same slot daily whenever `slots` divided 8, so some shows were never ingested.
+    const nowMs = Date.now();
     const slot =
-      Math.floor(Date.now() / (3 * 3600 * 1000)) % slots;
+      (Math.floor(nowMs / 86400000) + Math.floor((nowMs % 86400000) / (3 * 3600 * 1000))) % slots;
     const showIds = allShows.slice(
       slot * BATCH_SHOWS,
       (slot + 1) * BATCH_SHOWS,
@@ -66,7 +69,13 @@ Deno.serve(async (req) => {
     for (const showId of showIds) {
       await ensureReleaseCacheTitle(supabase, apiKey, showId);
 
-      const eps = await fetchUpcomingTvmazeEpisodes(showId, apiKey, 4);
+      let eps;
+      try {
+        eps = await fetchUpcomingTvmazeEpisodes(showId, apiKey, 4);
+      } catch (e) {
+        edgeLog(FN, "tvmaze_error_skip", { show_id: showId, err: String(e) });
+        continue;
+      }
       if (eps.length === 0) {
         tvmazeMiss++;
         const t = await tmdbTvNextAir(apiKey, showId);
@@ -236,14 +245,17 @@ async function syncAiringsFromReleaseCache(
         .limit(1);
       if ((existing ?? []).length > 0) continue;
       const t = await tmdbTvNextAir(apiKey, c.content_id);
-      if (t.next?.season_number && t.next?.episode_number) {
+      // Date must come from the same fresh response as the episode number; the cached date may
+      // belong to an earlier "next" episode.
+      const freshAt = releaseAtUtc({ tmdbDate: t.release_date, regionCode: REGION });
+      if (freshAt && t.next?.season_number && t.next?.episode_number) {
         await upsertTmdbEpisodeAiring(
           supabase,
           c.content_id,
           t.next.season_number,
           t.next.episode_number,
           null,
-          at,
+          freshAt,
         );
       }
       n++;

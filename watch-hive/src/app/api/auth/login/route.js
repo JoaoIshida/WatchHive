@@ -34,8 +34,12 @@ export async function POST(request) {
       );
     }
 
-    // Verify credentials using Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+    // Verify credentials on a throwaway anon client: signing in on the shared admin client stored
+    // the user's session on it, so later queries (this and concurrent requests) ran as that user.
+    const authClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
       email,
       password,
     });
@@ -51,7 +55,7 @@ export async function POST(request) {
     // Note: profiles table doesn't have email - email is in auth.users
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, display_name')
+      .select('id, display_name, preferences')
       .eq('id', authData.user.id)
       .single();
 
@@ -71,6 +75,9 @@ export async function POST(request) {
         email: authData.user.email,
         display_name: profile?.display_name || authData.user.email,
         role: 'user',
+        // Same field /api/auth/me returns; without it Settings showed "Anyone" after login and
+        // saving there silently made a private profile public.
+        profile_visibility: profile?.preferences?.profile_visibility || 'anyone',
       },
       session: authData.session
         ? {

@@ -151,6 +151,23 @@ export const AuthProvider = ({ children }) => {
     };
 
     const signOut = async () => {
+        // Drop this device's push subscription first (needs the session), otherwise a shared
+        // browser keeps receiving the signed-out user's notifications.
+        try {
+            const reg = await navigator.serviceWorker?.getRegistration();
+            const sub = await reg?.pushManager?.getSubscription();
+            if (sub) {
+                await fetch('/api/push/unsubscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ endpoint: sub.endpoint }),
+                });
+                await sub.unsubscribe();
+            }
+        } catch (error) {
+            console.warn('Push unsubscribe on sign-out:', error);
+        }
         try {
             await supabase.auth.signOut();
         } catch (error) {

@@ -27,6 +27,18 @@ export async function POST(req) {
       await supabase.from('push_subscriptions').delete().eq('user_id', user.id);
     }
 
+    // "Turn off on this device" must not disable push on the user's other devices.
+    const { count: remaining } = await supabase
+      .from('push_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+    if ((remaining ?? 0) > 0) {
+      return new Response(JSON.stringify({ success: true, remainingDevices: remaining }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const { data: existingPref } = await supabase
       .from('notification_preferences')
       .select('*')

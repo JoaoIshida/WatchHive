@@ -53,10 +53,6 @@ function allowPushForType(pref: PrefRow | null, type: string): boolean {
   return false;
 }
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function decideVariant(rows: PendingNotificationRow[]): Variant {
   if (rows.length === 1) {
     const r = rows[0];
@@ -75,22 +71,13 @@ export function decideVariant(rows: PendingNotificationRow[]): Variant {
     byLink.set(key, list);
   }
 
+  // Several rows for one title are usually different reminders for the same show (a weekly
+  // catch-up plus a release reminder, or a late "tomorrow" plus "today"), not N new episodes.
+  // The newest row carries the current information, so send that one.
   if (byLink.size === 1) {
     const [link, group] = [...byLink.entries()][0];
-    const seriesTitle = extractSeriesName(group);
-    const hasCatalogExpanded = group.some((r) => r.type === "catalog_expanded");
-    if (hasCatalogExpanded) {
-      return {
-        title: "WatchHive",
-        body: `New season of ${seriesTitle}`,
-        url: link,
-      };
-    }
-    return {
-      title: "WatchHive",
-      body: `${seriesTitle} - ${group.length} new episodes`,
-      url: link,
-    };
+    const latest = group[group.length - 1];
+    return { title: latest.title, body: latest.message, url: link };
   }
 
   return {
@@ -98,30 +85,6 @@ export function decideVariant(rows: PendingNotificationRow[]): Variant {
     body: `${byLink.size} new titles available`,
     url: "/profile/notifications",
   };
-}
-
-function extractSeriesName(rows: PendingNotificationRow[]): string {
-  for (const r of rows) {
-    const fromTitle = r.title.match(
-      /^(?:New episode|Premiere|In theatres|Episodes waiting|Weekly reminder):\s*(.+)$/i,
-    );
-    if (fromTitle?.[1]) return fromTitle[1].trim();
-  }
-  for (const r of rows) {
-    const catalog = r.message.match(/^(.+?)\s+now has new episodes listed\./);
-    if (catalog?.[1]) return catalog[1].trim();
-  }
-  for (const r of rows) {
-    const weekly = r.message.match(/^(.+?)\s+has\s+\d+\s+episodes not watched yet\./);
-    if (weekly?.[1]) return weekly[1].trim();
-  }
-  for (const r of rows) {
-    const fromMsg = r.message.match(/^[“"](?<name>[^"”]+)[”"]\s/);
-    if (fromMsg?.groups?.name) return fromMsg.groups.name;
-    const fromMsgPlain = r.message.match(/^([^.]+?)\s+has\s/);
-    if (fromMsgPlain?.[1]) return fromMsgPlain[1].trim();
-  }
-  return "your show";
 }
 
 async function markRowsPushed(
@@ -182,7 +145,6 @@ export async function pushPendingNotifications(
   const userIds = [...byUser.keys()];
   summary.usersConsidered = userIds.length;
 
-  const dayTag = `wh-daily-${todayKey()}`;
   const nowIso = new Date().toISOString();
 
   for (const userId of userIds) {
@@ -244,7 +206,8 @@ export async function pushPendingNotifications(
         title: variant.title,
         body: variant.body,
         url: variant.url,
-        tag: dayTag,
+        // One tray slot per destination: a later push for another title must not replace this one.
+        tag: `wh:${variant.url}`,
         renotify: true,
       };
 

@@ -19,14 +19,21 @@ export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  /** Unread across all notifications, not just the 50 loaded (older unread kept the badge lit). */
+  const [unreadTotal, setUnreadTotal] = useState(0);
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=50", { credentials: "include" });
+      const [res, countRes] = await Promise.all([
+        fetch("/api/notifications?limit=50", { credentials: "include" }),
+        fetch("/api/notifications?unreadCount=1", { credentials: "include" }),
+      ]);
       const data = res.ok ? await res.json() : { notifications: [] };
+      const count = countRes.ok ? await countRes.json() : { unread: 0 };
       setItems(data.notifications || []);
+      setUnreadTotal(count.unread ?? 0);
     } finally {
       setLoading(false);
     }
@@ -88,7 +95,7 @@ export default function NotificationsPage() {
             <Settings className="w-4 h-4" />
             Notification settings
           </Link>
-          {items.some((n) => !n.read) && (
+          {(unreadTotal > 0 || items.some((n) => !n.read)) && (
             <button
               type="button"
               onClick={markAll}

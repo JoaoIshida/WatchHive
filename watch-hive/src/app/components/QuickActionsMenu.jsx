@@ -273,8 +273,8 @@ export default function QuickActionsMenu({
                                 skipped.push({
                                     type: 'season',
                                     seriesName: itemData?.name || 'Series',
-                                    seasonName: s.name || `Season ${s.season_number}`,
-                                    releaseDate: formatDate(s.air_date)
+                                    seasonName: s.seasonName || `Season ${s.seasonNumber}`,
+                                    releaseDate: formatDate(s.releaseDate)
                                 });
                             });
                         }
@@ -311,6 +311,7 @@ export default function QuickActionsMenu({
                 }
             }
             refreshUserData();
+            if (mediaType === 'tv') window.dispatchEvent(new CustomEvent('watchhive-data-updated'));
             if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error toggling watched:', error);

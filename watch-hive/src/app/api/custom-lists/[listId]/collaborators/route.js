@@ -24,6 +24,13 @@ export async function GET(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
         if (list.user_id !== user.id) {
@@ -113,9 +120,17 @@ export async function POST(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
-        if (list.user_id !== user.id) {
+        // Anyone may remove themselves (leave a shared list); removing others needs owner/admin.
+        if (list.user_id !== user.id && userId !== user.id) {
             // Check if user is admin collaborator
             const { data: collaborator } = await supabase
                 .from('list_collaborators')
@@ -217,6 +232,13 @@ export async function DELETE(req, { params }) {
             .eq('id', listId)
             .single();
 
+        // PGRST116 = no row, 22P02 = listId is not a UUID: both are "not found", not a 500.
+        if (listError?.code === 'PGRST116' || listError?.code === '22P02') {
+            return new Response(JSON.stringify({ error: 'List not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (listError) throw listError;
 
         if (list.user_id !== user.id) {

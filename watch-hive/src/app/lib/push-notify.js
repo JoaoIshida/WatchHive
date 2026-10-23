@@ -44,7 +44,8 @@ export async function sendWebPushPayloadToUser(supabase, userId, payloadObj) {
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (pref && pref.push_enabled === false) return false;
+  // Same rule as the Edge dispatcher (and the column default): no row means push is off.
+  if (pref?.push_enabled !== true) return false;
 
   const { data: subs } = await supabase
     .from('push_subscriptions')

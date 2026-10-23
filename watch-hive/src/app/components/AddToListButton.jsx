@@ -200,7 +200,10 @@ export default function AddToListButton({ itemId, mediaType, itemTitle }) {
                         )}
 
                         <div className="space-y-2 flex-1 overflow-y-auto mb-3 min-h-0">
-                            {customLists.map(list => {
+                            {/* Viewer-only (and other users' public) lists would just 403 on add. */}
+                            {customLists
+                                .filter((list) => ['owner', 'editor', 'admin'].includes(list.my_permission))
+                                .map(list => {
                                 const isInList = itemLists.includes(list.id);
                                 return (
                                     <button

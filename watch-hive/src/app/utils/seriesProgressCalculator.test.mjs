@@ -127,3 +127,15 @@ describe('calculateSeasonProgress', () => {
         assert.strictEqual(percentage, 100);
     });
 });
+
+describe('isUnreleased (local calendar dates)', () => {
+    it("treats today's YYYY-MM-DD as released in any timezone", async () => {
+        const { isUnreleased } = await import('./releaseDateValidator.js');
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const tomorrow = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const tmr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+        assert.strictEqual(isUnreleased(today), false);
+        assert.strictEqual(isUnreleased(tmr), true);
+    });
+});

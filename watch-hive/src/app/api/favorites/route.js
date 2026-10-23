@@ -80,6 +80,13 @@ export async function POST(req) {
             .select()
             .single();
 
+        // A double-click races the existence check; the UNIQUE key makes the second one a no-op.
+        if (error?.code === '23505') {
+            return new Response(JSON.stringify({ success: true, alreadyExisted: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         if (error) throw error;
 
         return new Response(JSON.stringify({ favorite: data, success: true, alreadyExisted: false }), {

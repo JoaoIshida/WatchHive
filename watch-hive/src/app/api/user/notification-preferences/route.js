@@ -80,7 +80,13 @@ export async function PATCH(req) {
     const patch = {};
 
     if (body.timezone !== undefined) {
-      patch.timezone = String(body.timezone).trim() || DEFAULTS.timezone;
+      const tz = String(body.timezone).trim() || DEFAULTS.timezone;
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz });
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid timezone' }), { status: 400 });
+      }
+      patch.timezone = tz;
     }
     if (body.push_enabled !== undefined) {
       patch.push_enabled = !!body.push_enabled;

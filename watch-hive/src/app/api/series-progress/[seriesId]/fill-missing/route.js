@@ -7,33 +7,11 @@ import {
     isSeasonReleased,
 } from '../../../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../../../lib/tvmazeEpisodeSchedule';
-
-async function getOrCreateSeason(supabase, seriesProgressId, seasonNumber) {
-    let { data: season, error: seasonError } = await supabase
-        .from('series_seasons')
-        .select('*')
-        .eq('series_progress_id', seriesProgressId)
-        .eq('season_number', seasonNumber)
-        .single();
-
-    if (seasonError && seasonError.code === 'PGRST116') {
-        const { data: newSeason, error: createSeasonError } = await supabase
-            .from('series_seasons')
-            .insert({
-                series_progress_id: seriesProgressId,
-                season_number: seasonNumber,
-                completed: false,
-            })
-            .select()
-            .single();
-
-        if (createSeasonError) throw createSeasonError;
-        season = newSeason;
-    } else if (seasonError) {
-        throw seasonError;
-    }
-    return season;
-}
+import {
+    ensureSeriesProgress,
+    ensureSeriesSeason,
+    insertMissingEpisodes,
+} from '../../../../utils/seriesProgressDb';
 
 /**
  * Fill season: insert only released episodes not already in DB. Update season.completed.
@@ -56,7 +34,7 @@ async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumb
         return { filled: 0, skippedUnreleased, seasonCompleted: false };
     }
 
-    const season = await getOrCreateSeason(supabase, seriesProgressId, seasonNumber);
+    const season = await ensureSeriesSeason(supabase, seriesProgressId, seasonNumber);
 
     const { data: existingRows, error: exErr } = await supabase
         .from('series_episodes')
@@ -68,27 +46,22 @@ async function fillOneSeason(supabase, seriesIdStr, seriesProgressId, seasonNumb
     const have = new Set((existingRows || []).map((r) => r.episode_number));
     const toInsert = releasedEpisodes.filter((ep) => !have.has(ep.episode_number));
 
-    if (toInsert.length > 0) {
-        const now = new Date().toISOString();
-        const rows = toInsert.map((ep) => ({
-            series_season_id: season.id,
-            episode_number: ep.episode_number,
-            watched_at: now,
-        }));
-
-        const { error: insErr } = await supabase.from('series_episodes').insert(rows);
-        if (insErr) throw insErr;
-    }
+    await insertMissingEpisodes(
+        supabase,
+        season.id,
+        toInsert.map((ep) => ep.episode_number),
+    );
 
     for (const ep of releasedEpisodes) {
         have.add(ep.episode_number);
     }
     const seasonFullyWatched = releasedEpisodes.every((ep) => have.has(ep.episode_number));
 
-    await supabase
+    const { error: upErr } = await supabase
         .from('series_seasons')
         .update({ completed: seasonFullyWatched })
         .eq('id', season.id);
+    if (upErr) throw upErr;
 
     return {
         filled: toInsert.length,
@@ -167,37 +140,15 @@ export async function POST(req, { params }) {
 
         const supabase = await createServerClient();
 
-        let { data: seriesProgress, error: progressError } = await supabase
-            .from('series_progress')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('series_id', seriesId)
-            .single();
-
-        if (progressError && progressError.code === 'PGRST116') {
-            const { data: newProgress, error: createError } = await supabase
-                .from('series_progress')
-                .insert({
-                    user_id: user.id,
-                    series_id: parseInt(seriesIdStr, 10),
-                    last_watched: new Date().toISOString(),
-                })
-                .select()
-                .single();
-
-            if (createError) throw createError;
-            seriesProgress = newProgress;
-        } else if (progressError) {
-            throw progressError;
-        }
+        const seriesProgress = await ensureSeriesProgress(supabase, user.id, seriesIdStr);
 
         let totalFilled = 0;
         let totalSkippedUnreleased = 0;
 
         if (seasonNumber !== undefined && seasonNumber !== null) {
             const sn = parseInt(String(seasonNumber), 10);
-            if (Number.isNaN(sn)) {
-                return new Response(JSON.stringify({ error: 'Invalid seasonNumber' }), {
+            if (Number.isNaN(sn) || sn <= 0) {
+                return new Response(JSON.stringify({ error: 'Invalid seasonNumber (specials are not tracked)' }), {
                     status: 400,
                     headers: { 'Content-Type': 'application/json' },
                 });
@@ -230,13 +181,14 @@ export async function POST(req, { params }) {
 
         const caughtUp = await computeSeriesCaughtUp(supabase, seriesProgress.id, seriesIdStr);
 
-        await supabase
+        const { error: progUpErr } = await supabase
             .from('series_progress')
             .update({
                 completed: caughtUp,
                 last_watched: new Date().toISOString(),
             })
             .eq('id', seriesProgress.id);
+        if (progUpErr) throw progUpErr;
 
         await syncTvWatchedContentFromProgress(
             supabase,

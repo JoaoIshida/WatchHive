@@ -305,16 +305,17 @@ export async function getDiscoverRecommendations(
         fetchTMDB(`/discover/${type}`, { ...params, page: 2 }).catch(() => ({ results: [] })),
     ]);
 
-    let allResults = [...(page1.results || []), ...(page2.results || [])].filter((item) =>
-        !excludeSet.has(item.id)
-    );
+    // TMDB /discover results carry no media_type; the UI routes on it (movie -> /movies, else /series).
+    let allResults = [...(page1.results || []), ...(page2.results || [])]
+        .filter((item) => !excludeSet.has(item.id))
+        .map((item) => ({ ...item, media_type: type }));
 
     if (type === 'movie' && profile.collectionParts?.length) {
         const discoverIds = new Set(allResults.map((r) => r.id));
         for (const part of profile.collectionParts) {
             if (part.id && !excludeSet.has(part.id) && !discoverIds.has(part.id)) {
                 discoverIds.add(part.id);
-                allResults.push(part);
+                allResults.push({ ...part, media_type: 'movie' });
             }
         }
     }
@@ -357,9 +358,10 @@ export async function getMultiTitleRecommendations(
 
     const fetchPromises = discoverTypes.flatMap(type => {
         const params = buildDiscoverParams(merged, type);
+        const tag = (p) => ({ results: (p.results || []).map((r) => ({ ...r, media_type: type })) });
         return [
-            fetchTMDB(`/discover/${type}`, { ...params, page: 1 }),
-            fetchTMDB(`/discover/${type}`, { ...params, page: 2 }).catch(() => ({ results: [] })),
+            fetchTMDB(`/discover/${type}`, { ...params, page: 1 }).then(tag),
+            fetchTMDB(`/discover/${type}`, { ...params, page: 2 }).then(tag).catch(() => ({ results: [] })),
         ];
     });
 
@@ -378,10 +380,12 @@ export async function getMultiTitleRecommendations(
         }
     }
 
+    // Movie and TV ids overlap in TMDB, so dedupe on type + id.
     const seenIds = new Set();
     const unique = allResults.filter((item) => {
-        if (seenIds.has(item.id)) return false;
-        seenIds.add(item.id);
+        const key = `${item.media_type}-${item.id}`;
+        if (seenIds.has(key)) return false;
+        seenIds.add(key);
         return true;
     });
 

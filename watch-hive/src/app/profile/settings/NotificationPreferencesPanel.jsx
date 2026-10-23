@@ -38,7 +38,8 @@ function prefsPayload(
     timezone,
     default_reminder_kinds: reminderKinds,
     custom_days_before: hasCustom ? customDays : null,
-    push_enabled: pushEnabled,
+    // push_enabled is account-wide; only the enable/disable push actions change it, so saving
+    // other settings on a device without push can't switch it off for every device.
     push_friends: pushFriends,
     push_catchup: pushCatchup,
     push_releases: pushReleases,
@@ -121,7 +122,15 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
     if (preferences.custom_days_before != null) {
       setCustomDays(preferences.custom_days_before);
     }
-    setPushEnabled(!!preferences.push_enabled);
+    // The toggle reflects this device: account push on AND this browser subscribed.
+    let deviceSubscribed = false;
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      deviceSubscribed = !!(await reg?.pushManager?.getSubscription());
+    } catch {
+      /* no service worker / push support */
+    }
+    setPushEnabled(!!preferences.push_enabled && deviceSubscribed);
     setPushFriends(preferences.push_friends !== false);
     setPushCatchup(preferences.push_catchup !== false);
     setPushReleases(preferences.push_releases !== false);
@@ -272,13 +281,8 @@ export default function NotificationPreferencesPanel({ showNavLinks = false }) {
         credentials: "include",
         body: JSON.stringify({ endpoint }),
       });
+      // The unsubscribe route turns account push off only when no other device is subscribed.
       setPushEnabled(false);
-      await fetch("/api/user/notification-preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ push_enabled: false }),
-      });
       setMsg("Push notifications are off for this device.");
     } catch (e) {
       console.error(e);

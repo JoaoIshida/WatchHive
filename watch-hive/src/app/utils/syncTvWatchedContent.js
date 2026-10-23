@@ -1,7 +1,8 @@
 /**
  * Keeps watched_content (media_type tv) in sync with episode-level progress:
  * - ≥1 episode watched → ensure a watched row exists (for catalog cron, reminders, list).
- * - 0 episodes → remove watched row (unless forceWatched).
+ * - 0 episodes → remove watched row and the empty progress row (unless forceWatched).
+ * Specials (season 0) are not counted, matching the progress GET routes and get_user_stats.
  * POST /api/watched (tv) uses forceWatched so "mark watched" sticks even when no episodes were synced yet.
  */
 
@@ -9,7 +10,8 @@ export async function countWatchedEpisodesForProgress(supabase, progressId) {
     const { data: seasons, error: se } = await supabase
         .from('series_seasons')
         .select('id')
-        .eq('series_progress_id', progressId);
+        .eq('series_progress_id', progressId)
+        .gt('season_number', 0);
     if (se) throw se;
     const seasonIds = (seasons || []).map((s) => s.id);
     if (seasonIds.length === 0) return 0;
@@ -84,5 +86,8 @@ export async function syncTvWatchedContentFromProgress(
             .eq('content_id', sid)
             .eq('media_type', 'tv');
         if (delErr) throw delErr;
+        // An empty progress row would still count as "in progress" (stats, profile strip).
+        const { error: progDelErr } = await supabase.from('series_progress').delete().eq('id', progressId);
+        if (progDelErr) throw progDelErr;
     }
 }

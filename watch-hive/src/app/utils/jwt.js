@@ -1,8 +1,17 @@
 import jwt from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'watchhive-jwt-default';
 const JWT_EXPIRES_IN = '30d'; // 30 days
+
+/**
+ * A public fallback secret lets anyone forge a session for any user id, so production refuses
+ * to sign or accept tokens without JWT_SECRET (logins fail, public pages still render).
+ */
+function jwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET is not set');
+  return 'watchhive-dev-only-secret';
+}
 
 /**
  * Generate JWT token for user
@@ -14,7 +23,7 @@ export function generateToken(user) {
     role: user.role || 'user',
   };
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, jwtSecret(), { expiresIn: JWT_EXPIRES_IN });
 }
 
 /**
@@ -22,7 +31,7 @@ export function generateToken(user) {
  */
 export function verifyToken(token) {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret());
     return decoded;
   } catch (error) {
     console.error('JWT verification failed:', error);
@@ -38,7 +47,7 @@ export function setAuthCookie(response, token) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: 30 * 24 * 60 * 60, // 30 days (seconds)
     path: '/',
   });
 

@@ -54,40 +54,9 @@ export async function DELETE(request) {
 
     const userId = userPayload.userId;
 
-    // Delete all user data from related tables (cascade should handle this, but being explicit)
-    // Note: Supabase handles cascading deletes if foreign keys are set up correctly
-    // We'll delete from all related tables first, then delete the auth user
-
-    // Delete watched content
-    await supabaseAdmin
-      .from('watched_content')
-      .delete()
-      .eq('user_id', userId);
-
-    // Delete wishlist
-    await supabaseAdmin
-      .from('wishlist')
-      .delete()
-      .eq('user_id', userId);
-
-    // Delete series progress
-    await supabaseAdmin
-      .from('series_progress')
-      .delete()
-      .eq('user_id', userId);
-
-    // Delete custom lists (and their items via cascade)
-    await supabaseAdmin
-      .from('custom_lists')
-      .delete()
-      .eq('user_id', userId);
-
-    // Delete profile
-    await supabaseAdmin
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-
+    // Deleting the auth user cascades: profiles -> auth.users ON DELETE CASCADE, and every user
+    // table -> profiles ON DELETE CASCADE. Deleting tables first (errors ignored) wiped the data
+    // even when the auth delete then failed, leaving an empty account behind.
     // Delete auth user (this requires admin privileges)
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 

@@ -4,7 +4,7 @@
 # Deploy examples:
 #   npx supabase functions deploy enqueue_release_sync_candidates --no-verify-jwt
 #   npx supabase functions deploy daily_push_dispatcher --no-verify-jwt
-# Also: refresh_series_progress_catalog (series TMDB totals + new_episodes notifications)
+# Also: refresh_series_progress_catalog (aired-episode totals + catalog_expanded notifications)
 
 [api]
 enabled = true

@@ -45,7 +45,10 @@ export async function GET(req) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { titleId, mediaType, movieIds, seriesIds } = body;
+        const { titleId, mediaType } = body;
+        // Unauthenticated and each id costs several TMDB calls: cap to what the UI sends (4).
+        const movieIds = Array.isArray(body.movieIds) ? body.movieIds.slice(0, 4) : [];
+        const seriesIds = Array.isArray(body.seriesIds) ? body.seriesIds.slice(0, 4) : [];
         const limit = Math.min(parseInt(body.limit, 10) || 20, 50);
 
         let recommendations;

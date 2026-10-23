@@ -656,55 +656,22 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION create_profile_for_new_user() IS 'Automatically creates a profile with a required unique display_name when a new user signs up';
 
 -- ----------------------------------------------------------------------------
--- update_series_completion() - Function to check/update series completion status
+-- bump_times_watched() - Atomic +1 / -1 on watched_content.times_watched (service role only)
+-- Series/season completion is computed in app code; the old update_series_completion() trigger
+-- marked a season complete after one episode and was dropped (20261022120000).
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION update_series_completion()
-RETURNS TRIGGER AS $$
-DECLARE
-    total_episodes INTEGER;
-    watched_episodes INTEGER;
-    season_completed BOOLEAN;
-    all_seasons_completed BOOLEAN;
-BEGIN
-    -- Update season completion status
-    SELECT COUNT(*) INTO total_episodes
-    FROM series_episodes se
-    WHERE se.series_season_id = NEW.series_season_id;
-    
-    SELECT COUNT(*) INTO watched_episodes
-    FROM series_episodes se
-    WHERE se.series_season_id = NEW.series_season_id;
-    
-    -- If all episodes are watched, mark season as completed
-    IF watched_episodes > 0 AND watched_episodes = total_episodes THEN
-        UPDATE series_seasons
-        SET completed = TRUE, updated_at = NOW()
-        WHERE id = NEW.series_season_id;
-    END IF;
-    
-    -- Check if all regular seasons are completed (specials / season_number 0 excluded)
-    SELECT COUNT(*) = 0 INTO all_seasons_completed
-    FROM series_seasons ss
-    WHERE ss.series_progress_id = (
-        SELECT series_progress_id FROM series_seasons WHERE id = NEW.series_season_id
-    )
-    AND ss.season_number > 0
-    AND ss.completed = FALSE;
-    
-    -- If all seasons are completed, mark series as completed
-    IF all_seasons_completed THEN
-        UPDATE series_progress
-        SET completed = TRUE, updated_at = NOW()
-        WHERE id = (
-            SELECT series_progress_id FROM series_seasons WHERE id = NEW.series_season_id
-        );
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION bump_times_watched(p_id UUID, p_delta INTEGER, p_date_watched TIMESTAMPTZ DEFAULT NULL)
+RETURNS SETOF watched_content AS $$
+    UPDATE watched_content
+    SET times_watched = GREATEST(1, times_watched + p_delta),
+        date_watched = COALESCE(p_date_watched, date_watched),
+        updated_at = NOW()
+    WHERE id = p_id
+    RETURNING *;
+$$ LANGUAGE sql SECURITY INVOKER;
 
-COMMENT ON FUNCTION update_series_completion() IS 'Automatically updates season and series completion status when episodes are watched';
+REVOKE ALL ON FUNCTION bump_times_watched(UUID, INTEGER, TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION bump_times_watched(UUID, INTEGER, TIMESTAMPTZ) TO service_role;
 
 -- ----------------------------------------------------------------------------
 -- get_user_stats() - Function to calculate user statistics
@@ -948,12 +915,6 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW
     EXECUTE FUNCTION create_profile_for_new_user();
 
--- Auto-update series completion when episodes are watched
-CREATE TRIGGER on_episode_watched
-    AFTER INSERT ON series_episodes
-    FOR EACH ROW
-    EXECUTE FUNCTION update_series_completion();
-
 -- Prevent list owners from being added as collaborators
 CREATE TRIGGER prevent_owner_collaborator
     BEFORE INSERT OR UPDATE ON list_collaborators
@@ -1001,7 +962,8 @@ CREATE POLICY "Users can view own profile"
 
 CREATE POLICY "Users can view public profiles"
     ON profiles FOR SELECT
-    USING (true); -- All authenticated users can view profiles (can be restricted later)
+    TO authenticated
+    USING (true); -- Signed-in users only; the anon key must not list every profile
 
 -- Users can only update their own profile
 CREATE POLICY "Users can update own profile"
@@ -1388,13 +1350,8 @@ CREATE POLICY "Users can view own friendships"
     ON friends FOR SELECT
     USING (auth.uid() = user_id OR auth.uid() = friend_id);
 
-CREATE POLICY "Users can insert own friend requests"
-    ON friends FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own friendships"
-    ON friends FOR UPDATE
-    USING (auth.uid() = user_id OR auth.uid() = friend_id);
+-- No client INSERT/UPDATE: friend requests and accepts go through the API (service role).
+-- Client policies let a sender insert or accept their own request (20261022130000).
 
 CREATE POLICY "Users can delete own friendships"
     ON friends FOR DELETE
@@ -1766,6 +1723,8 @@ END $$;
 --   20260521120000_precompute_release_notifications.sql — catalog_episodes, regional_airings, notification_queue
 --   20260521130000_notification_pipeline_cron.sql — pg_cron templates for ingest / precompute / dispatch
 --   20260522130000_weekly_catchup_cron.sql — series_catchup Fridays 9 PM America/Toronto (EDT)
+--   20261022120000_watched_marking_fixes.sql — drop on_episode_watched trigger, add bump_times_watched()
+--   20261022130000_tighten_friends_profiles_rls.sql — drop client friends INSERT/UPDATE, profiles SELECT to authenticated
 -- A greenfield run of this schema.sql already includes those objects; use migrations only for upgrades.
 
 -- ============================================================================

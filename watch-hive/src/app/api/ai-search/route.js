@@ -32,7 +32,10 @@ export async function POST(req) {
         const mediaType = body.mediaType === 'movie' || body.mediaType === 'tv' ? body.mediaType : 'both';
         const loadMore = body.loadMore === true;
         const excludeTitles = Array.isArray(body.excludeTitles)
-            ? body.excludeTitles.filter((t) => typeof t === 'string' && t.trim()).slice(0, 40)
+            ? body.excludeTitles
+                  .filter((t) => typeof t === 'string' && t.trim())
+                  .slice(0, 40)
+                  .map((t) => t.slice(0, 120))
             : [];
         const excludeIds = Array.isArray(body.excludeIds)
             ? body.excludeIds.map(Number).filter((id) => id > 0).slice(0, 40)

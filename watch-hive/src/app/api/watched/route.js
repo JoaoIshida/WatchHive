@@ -1,8 +1,15 @@
 import { getServerUser, createServerClient } from '../../lib/supabase-server';
 import { fetchTMDB } from '../utils';
 import { syncTvWatchedContentFromProgress } from '../../utils/syncTvWatchedContent';
-import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered } from '../../utils/releaseDateValidator';
+import { buildSeriesTvReleaseMeta, isEpisodeReleasedOrdered, isUnreleased } from '../../utils/releaseDateValidator';
 import { getTvmazeEpisodeScheduleMap } from '../../lib/tvmazeEpisodeSchedule';
+import { syncSeriesCompletionFlag } from '../../utils/syncSeriesCompletionFlag';
+import {
+    ensureSeriesProgress,
+    ensureSeriesSeason,
+    insertMissingEpisodes,
+    setSeasonCompletedFromReleased,
+} from '../../utils/seriesProgressDb';
 
 export async function GET(req) {
     try {
@@ -58,32 +65,35 @@ export async function POST(req) {
         }
 
         const supabase = await createServerClient();
-        
+
         // Check if already exists
         // Uses index: idx_watched_content_user_content_media (composite index for fast lookup)
-        const { data: existing } = await supabase
+        const { data: existing, error: existingErr } = await supabase
             .from('watched_content')
             .select('*')
             .eq('user_id', user.id)
             .eq('content_id', itemId)
             .eq('media_type', mediaType)
-            .single();
+            .maybeSingle();
+        if (existingErr) throw existingErr;
 
         let result;
         if (existing) {
-            // Update existing record - increment times_watched
-            const { data, error } = await supabase
-                .from('watched_content')
-                .update({
-                    times_watched: existing.times_watched + 1,
-                    date_watched: dateWatched || new Date().toISOString(),
-                })
-                .eq('id', existing.id)
-                .select()
-                .single();
-            
+            // Rewatch: atomic increment (read-modify-write would lose concurrent clicks).
+            const { data, error } = await supabase.rpc('bump_times_watched', {
+                p_id: existing.id,
+                p_delta: 1,
+                p_date_watched: dateWatched || new Date().toISOString(),
+            });
             if (error) throw error;
-            result = data;
+            result = Array.isArray(data) ? data[0] : data;
+
+            // A rewatch only bumps the counter. Re-running "mark all" here used to delete and
+            // re-insert every episode, re-marking ones the user had deliberately unmarked.
+            return new Response(JSON.stringify({ watched: result, success: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
         } else {
             // Insert new record
             const { data, error } = await supabase
@@ -97,7 +107,7 @@ export async function POST(req) {
                 })
                 .select()
                 .single();
-            
+
             if (error) throw error;
             result = data;
         }
@@ -127,59 +137,20 @@ export async function POST(req) {
                 const seriesData = await fetchTMDB(`/tv/${itemId}`, { language: 'en-CA' });
                 const seriesTvMeta = buildSeriesTvReleaseMeta(seriesData);
                 const seasons = seriesData?.seasons || [];
-                
-                // Get or create series progress
-                // Uses index: idx_series_progress_user_series (composite index for fast lookup)
-                let { data: seriesProgress, error: progressError } = await supabase
-                    .from('series_progress')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .eq('series_id', parseInt(itemId))
-                    .single();
-
-                if (progressError && progressError.code === 'PGRST116') {
-                    const { data: newProgress, error: createError } = await supabase
-                        .from('series_progress')
-                        .insert({
-                            user_id: user.id,
-                            series_id: parseInt(itemId),
-                            completed: true, // Mark as completed since we're marking all released episodes
-                            last_watched: new Date().toISOString(),
-                        })
-                        .select()
-                        .single();
-
-                    if (createError) throw createError;
-                    seriesProgress = newProgress;
-                } else if (progressError) {
-                    throw progressError;
-                } else {
-                    // Update existing progress - mark as completed since we're marking all released episodes
-                    await supabase
-                        .from('series_progress')
-                        .update({
-                            completed: true,
-                            last_watched: new Date().toISOString(),
-                        })
-                        .eq('id', seriesProgress.id);
-                }
 
                 // OPTIMIZATION: Parallel fetch all seasons with date validation
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
                 // Track skipped content for user feedback
                 const skippedSeasons = [];
                 const skippedEpisodes = [];
-                
+
                 // Filter unreleased seasons BEFORE fetching and fetch all released seasons in parallel
                 const seasonPromises = seasons
                     .filter(season => {
+                        // Specials (season 0) are not tracked in series progress.
+                        if (!(season.season_number > 0)) return false;
                         // Pre-filter: Skip unreleased seasons before making API calls
                         if (season.air_date) {
-                            const releaseDate = new Date(season.air_date);
-                            releaseDate.setHours(0, 0, 0, 0);
-                            if (releaseDate > today) {
+                            if (isUnreleased(season.air_date)) {
                                 skippedSeasons.push({
                                     seasonNumber: season.season_number,
                                     seasonName: season.name || `Season ${season.season_number}`,
@@ -206,14 +177,14 @@ export async function POST(req) {
                             const unreleasedEpisodes = allEpisodes.filter(
                                 (ep) => !isEpisodeReleasedOrdered(ep, seasonData, mazeMap, seriesTvMeta),
                             );
-                            
+
                             // Track skipped episodes
                             unreleasedEpisodes.forEach(ep => {
                                 // Handle cases where episode data might be incomplete
                                 const episodeNumber = ep.episode_number ?? ep.episodeNumber ?? null;
-                                const episodeName = ep.name || 
+                                const episodeName = ep.name ||
                                     (episodeNumber !== null ? `Episode ${episodeNumber}` : 'Episode');
-                                
+
                                 skippedEpisodes.push({
                                     seasonNumber: season.season_number,
                                     seasonName: seasonData.name || season.name || `Season ${season.season_number}`,
@@ -222,7 +193,7 @@ export async function POST(req) {
                                     releaseDate: ep.air_date || ep.release_date || null
                                 });
                             });
-                            
+
                             if (releasedEpisodes.length > 0) {
                                 return {
                                     seasonNumber: season.season_number,
@@ -235,14 +206,14 @@ export async function POST(req) {
                             return null; // No released episodes in this season
                         } catch (error) {
                             console.error(`Error fetching season ${season.season_number}:`, error);
-                            return null;
+                            throw error;
                         }
                     });
-                
+
                 // Wait for all season fetches to complete in parallel
                 const seasonResults = await Promise.all(seasonPromises);
                 const allSeasonsData = {};
-                
+
                 // Build seasons data object (only includes seasons with released episodes)
                 seasonResults.forEach(result => {
                     if (result && result.seasonData) {
@@ -250,95 +221,17 @@ export async function POST(req) {
                     }
                 });
 
-                // OPTIMIZATION: Batch database operations
                 let markedSeasons = 0;
                 let markedEpisodes = 0;
-                
-                if (Object.keys(allSeasonsData).length > 0) {
-                    // Collect all operations first
-                    const seasonOperations = [];
-                    const allEpisodeInserts = [];
-                    const seasonIdsToDelete = [];
-                    const seasonMap = {}; // Map season number to season record
 
-                    // Process all seasons to get/create season records
-                    for (const [seasonNumStr, seasonData] of Object.entries(allSeasonsData)) {
-                        const seasonNumber = parseInt(seasonNumStr);
-                        
-                        // Get or create season
-                        // Uses index: idx_series_seasons_progress_season (composite index)
-                        let { data: season, error: seasonError } = await supabase
-                            .from('series_seasons')
-                            .select('*')
-                            .eq('series_progress_id', seriesProgress.id)
-                            .eq('season_number', seasonNumber)
-                            .single();
-
-                        if (seasonError && seasonError.code === 'PGRST116') {
-                            const { data: newSeason, error: createSeasonError } = await supabase
-                                .from('series_seasons')
-                                .insert({
-                                    series_progress_id: seriesProgress.id,
-                                    season_number: seasonNumber,
-                                    completed: true,
-                                })
-                                .select()
-                                .single();
-
-                            if (createSeasonError) throw createSeasonError;
-                            season = newSeason;
-                        } else if (seasonError) {
-                            throw seasonError;
-                        } else {
-                            // Queue season update
-                            seasonOperations.push({
-                                id: season.id,
-                                update: { completed: true }
-                            });
-                        }
-
-                        seasonMap[seasonNumber] = season;
-
-                        // Collect episodes for batch insert (only released episodes)
-                        if (seasonData.episodes && Array.isArray(seasonData.episodes) && seasonData.episodes.length > 0) {
-                            seasonIdsToDelete.push(season.id);
-                            markedSeasons++;
-                            markedEpisodes += seasonData.episodes.length;
-                            
-                            const episodeInserts = seasonData.episodes.map(ep => ({
-                                series_season_id: season.id,
-                                episode_number: typeof ep === 'number' ? ep : ep.episode_number,
-                                watched_at: new Date().toISOString(),
-                            }));
-                            
-                            allEpisodeInserts.push(...episodeInserts);
-                        }
-                    }
-
-                    // Batch delete all existing episodes for these seasons
-                    if (seasonIdsToDelete.length > 0) {
-                        await supabase
-                            .from('series_episodes')
-                            .delete()
-                            .in('series_season_id', seasonIdsToDelete);
-                    }
-
-                    // Batch insert all released episodes at once
-                    if (allEpisodeInserts.length > 0) {
-                        const { error: episodesError } = await supabase
-                            .from('series_episodes')
-                            .insert(allEpisodeInserts);
-
-                        if (episodesError) throw episodesError;
-                    }
-
-                    // Batch update all seasons
-                    for (const operation of seasonOperations) {
-                        await supabase
-                            .from('series_seasons')
-                            .update(operation.update)
-                            .eq('id', operation.id);
-                    }
+                const seriesProgress = await ensureSeriesProgress(supabase, user.id, itemId);
+                for (const [seasonNumStr, seasonData] of Object.entries(allSeasonsData)) {
+                    const released = seasonData.episodes.map((ep) => ep.episode_number);
+                    const season = await ensureSeriesSeason(supabase, seriesProgress.id, parseInt(seasonNumStr, 10));
+                    await insertMissingEpisodes(supabase, season.id, released);
+                    await setSeasonCompletedFromReleased(supabase, season.id, released);
+                    markedSeasons++;
+                    markedEpisodes += released.length;
                 }
 
                 // Return skipped content information for user feedback
@@ -356,9 +249,10 @@ export async function POST(req) {
                     seriesProgress.id,
                     { forceWatched: true, removeIfNoEpisodes: false },
                 );
+                await syncSeriesCompletionFlag(supabase, seriesProgress.id, itemId);
 
-                return new Response(JSON.stringify({ 
-                    watched: result, 
+                return new Response(JSON.stringify({
+                    watched: result,
                     success: true,
                     seriesProgress: seriesProgressInfo
                 }), {
@@ -386,11 +280,11 @@ export async function POST(req) {
                         console.error('syncTvWatchedContentFromProgress after partial tv watch:', syncErr);
                     }
                 }
-                // Don't fail the watched operation if series progress sync fails
-                // Return with error info
-                return new Response(JSON.stringify({ 
-                    watched: result, 
-                    success: true,
+                // The watched row exists but episodes may be partial: say so instead of claiming success.
+                return new Response(JSON.stringify({
+                    watched: result,
+                    success: false,
+                    error: 'Marked as watched, but episodes could not be synced. Try again shortly.',
                     seriesProgress: {
                         skippedSeasons: [],
                         skippedEpisodes: [],
@@ -399,12 +293,12 @@ export async function POST(req) {
                         error: 'Failed to sync series progress'
                     }
                 }), {
-                    status: 200,
+                    status: 502,
                     headers: { 'Content-Type': 'application/json' },
                 });
             }
         }
-        
+
         // Fallback return (should not be reached in normal flow)
         return new Response(JSON.stringify({ watched: result, success: true }), {
             status: 200,
@@ -441,6 +335,31 @@ export async function DELETE(req) {
         }
 
         const supabase = await createServerClient();
+
+        // "-" on the watched counter: drop one viewing, keep the item (and its episode progress).
+        if (searchParams.get('decrement') === '1') {
+            const { data: existing, error: exErr } = await supabase
+                .from('watched_content')
+                .select('id, times_watched')
+                .eq('user_id', user.id)
+                .eq('content_id', itemId)
+                .eq('media_type', mediaType)
+                .maybeSingle();
+            if (exErr) throw exErr;
+            if (existing && existing.times_watched > 1) {
+                const { data, error } = await supabase.rpc('bump_times_watched', {
+                    p_id: existing.id,
+                    p_delta: -1,
+                    p_date_watched: null,
+                });
+                if (error) throw error;
+                return new Response(
+                    JSON.stringify({ success: true, watched: Array.isArray(data) ? data[0] : data }),
+                    { status: 200, headers: { 'Content-Type': 'application/json' } },
+                );
+            }
+            // Count of 1 (or missing): fall through to a full removal.
+        }
 
         if (mediaType === 'tv') {
             const { data: seriesProgressData, error: progressError } = await supabase

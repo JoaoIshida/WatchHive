@@ -1,4 +1,4 @@
-import { createServerClient } from '../../../lib/supabase-server';
+import { createServerClient, getServerUser } from '../../../lib/supabase-server';
 import { fetchTMDB } from '../../../api/utils';
 import { getMockPublicList, isMockListId } from '../../../utils/mockPublicLists';
 import { isLocalhostRequest } from '../../../utils/mockUser';
@@ -24,10 +24,25 @@ export async function GET(req, { params }) {
             .from('custom_lists')
             .select('*')
             .eq('id', listId)
-            .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
-        if (listError || !list) {
+        // Private lists open for their owner and collaborators ("Shared with you" links here).
+        let allowed = !!list?.is_public;
+        if (list && !allowed) {
+            const caller = await getServerUser();
+            if (caller?.id === list.user_id) allowed = true;
+            else if (caller?.id) {
+                const { data: collab } = await supabase
+                    .from('list_collaborators')
+                    .select('id')
+                    .eq('list_id', listId)
+                    .eq('user_id', caller.id)
+                    .maybeSingle();
+                allowed = !!collab;
+            }
+        }
+
+        if (listError || !list || !allowed) {
             return new Response(JSON.stringify({ error: 'List not found or is private' }), {
                 status: 404,
                 headers: { 'Content-Type': 'application/json' },
@@ -60,7 +75,7 @@ export async function GET(req, { params }) {
                 status: 200,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+                    'Cache-Control': 'private, no-store',
                 },
             }
         );

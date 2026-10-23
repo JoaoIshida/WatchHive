@@ -11,12 +11,26 @@ export async function fetchTvCatalogTotals(
     throw new Error(`TMDB tv/${seriesId}: ${res.status} ${t.slice(0, 200)}`);
   }
   const tv = await res.json();
-  // TMDB season 0 = specials; never include in catalog_total_episodes
+  // Aired regular episodes only (season 0 = specials excluded). TMDB episode_count includes
+  // announced-but-unaired episodes, which made caught-up users "behind" every week.
   const seasons = (tv.seasons || []) as Array<{ season_number: number; episode_count?: number }>;
+  const last = tv.last_episode_to_air as
+    | { season_number?: number; episode_number?: number }
+    | null
+    | undefined;
   let totalEpisodes = 0;
-  for (const s of seasons) {
-    if (s.season_number <= 0) continue;
-    totalEpisodes += s.episode_count ?? 0;
+  if (
+    last &&
+    typeof last.season_number === "number" &&
+    last.season_number > 0 &&
+    typeof last.episode_number === "number"
+  ) {
+    for (const s of seasons) {
+      if (s.season_number > 0 && s.season_number < last.season_number) {
+        totalEpisodes += s.episode_count ?? 0;
+      }
+    }
+    totalEpisodes += last.episode_number;
   }
   const name = typeof tv.name === "string" ? tv.name : null;
   return { totalEpisodes, name };
@@ -54,8 +68,15 @@ export async function tmdbMovieCa(
     const ca = (dates.results || []).find(
       (r: { iso_3166_1?: string }) => r.iso_3166_1 === "CA",
     );
-    const entries = ca?.release_dates as Array<{ release_date?: string }> | undefined;
-    const first = entries?.[0];
+    const entries = ca?.release_dates as
+      | Array<{ release_date?: string; type?: number }>
+      | undefined;
+    // TMDB types: 1 premiere (festival), 2 limited theatrical, 3 theatrical, 4 digital.
+    // The first entry is often a festival premiere months before the real release.
+    const first =
+      entries?.find((e) => e.type === 3) ??
+      entries?.find((e) => e.type === 2) ??
+      entries?.[0];
     if (first?.release_date) {
       release_date = String(first.release_date).slice(0, 10);
     }

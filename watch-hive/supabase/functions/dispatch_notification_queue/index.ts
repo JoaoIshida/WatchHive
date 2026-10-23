@@ -5,6 +5,8 @@ import {
   pushPendingNotifications,
 } from "../_shared/pushDispatch.ts";
 import { serviceClient } from "../_shared/supabase.ts";
+import { parseReleaseDedupeKey } from "../_shared/releaseNotifyCopy.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const FN = "dispatch_notification_queue";
 const BATCH = 500;
@@ -41,9 +43,19 @@ Deno.serve(async (req) => {
     let materialized = 0;
     let failed = 0;
     let deduped = 0;
+    let stale = 0;
     const materializedRows: PendingNotificationRow[] = [];
+    const stillTracked = await loadStillTracked(supabase, (pending ?? []) as QueueRow[]);
 
     for (const row of (pending ?? []) as QueueRow[]) {
+      // Removed from wishlist / watched since precompute queued it: don't send.
+      if (!stillTracked(row.dedupe_key)) {
+        const { error: delErr } = await supabase.from("notification_queue").delete().eq("id", row.id);
+        if (delErr) throw delErr;
+        stale++;
+        continue;
+      }
+
       const title = row.payload?.title ?? "WatchHive";
       const message = row.payload?.message ?? "";
       const link = row.payload?.link ?? null;
@@ -123,6 +135,7 @@ Deno.serve(async (req) => {
       picked: (pending ?? []).length,
       materialized,
       deduped,
+      stale,
       failed,
       push: pushSummary,
     };
@@ -139,3 +152,30 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+/** Returns a predicate: is the wishlist / watched row behind this release reminder still there? */
+async function loadStillTracked(supabase: SupabaseClient, rows: QueueRow[]) {
+  const parsed = rows.map((r) => parseReleaseDedupeKey(r.dedupe_key)).filter((k) => k !== null);
+  const userIds = [...new Set(parsed.map((k) => k!.userId))];
+  const contentIds = [...new Set(parsed.map((k) => k!.contentId))];
+  const wish = new Set<string>();
+  const watching = new Set<string>();
+  if (userIds.length) {
+    const [w, wc] = await Promise.all([
+      supabase.from("wishlist").select("user_id, content_id, media_type")
+        .in("user_id", userIds).in("content_id", contentIds),
+      supabase.from("watched_content").select("user_id, content_id, media_type")
+        .in("user_id", userIds).in("content_id", contentIds).eq("media_type", "tv"),
+    ]);
+    if (w.error) throw w.error;
+    if (wc.error) throw wc.error;
+    for (const r of w.data ?? []) wish.add(`${r.user_id}:${r.content_id}:${r.media_type}`);
+    for (const r of wc.data ?? []) watching.add(`${r.user_id}:${r.content_id}:${r.media_type}`);
+  }
+  return (dedupeKey: string) => {
+    const k = parseReleaseDedupeKey(dedupeKey);
+    if (!k) return true; // not a release reminder key: nothing to re-check
+    const id = `${k.userId}:${k.contentId}:${k.mediaType}`;
+    return k.watching ? watching.has(id) : wish.has(id);
+  };
+}

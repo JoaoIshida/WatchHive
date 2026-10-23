@@ -5,7 +5,9 @@ export function isUnreleased(dateString) {
     if (!dateString) return false; // If no date, assume it's released (callers rarely pass unset here)
 
     try {
-        const releaseDate = new Date(dateString);
+        // `new Date('YYYY-MM-DD')` is UTC midnight, which is the previous local day west of UTC.
+        const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateString));
+        const releaseDate = ymd ? new Date(+ymd[1], +ymd[2] - 1, +ymd[3]) : new Date(dateString);
         releaseDate.setHours(0, 0, 0, 0);
 
         const today = new Date();

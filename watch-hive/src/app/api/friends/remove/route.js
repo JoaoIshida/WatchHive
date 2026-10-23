@@ -1,4 +1,5 @@
 import { getServerUser, createServerClient } from '../../../lib/supabase-server';
+import { isUuid } from '../../utils';
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -19,6 +20,7 @@ export async function DELETE(req) {
         const body = await req.json().catch(() => ({}));
         const friendUserId = body.userId;
         if (!friendUserId) return jsonResponse({ error: 'userId is required' }, 400);
+        if (!isUuid(friendUserId)) return jsonResponse({ error: 'Invalid userId' }, 400);
         if (friendUserId === user.id) return jsonResponse({ error: 'Cannot remove yourself' }, 400);
 
         const supabase = await createServerClient();

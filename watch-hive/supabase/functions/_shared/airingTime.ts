@@ -45,6 +45,31 @@ export function releaseAtUtc(input: AiringInput): string | null {
   return null;
 }
 
+/** A tz the runtime can't resolve would make toISO() null and abort the whole precompute run. */
+export function safeZone(userTimezone: string | null | undefined): string {
+  if (userTimezone && DateTime.utc().setZone(userTimezone).isValid) return userTimezone;
+  return DEFAULT_REGION_ZONE;
+}
+
+/**
+ * Date-only releases (no airstamp) are stored as midnight in the region zone. Converting that
+ * instant into a zone west of Toronto lands on the previous day, so those are read as a calendar
+ * date instead.
+ * ponytail: midnight-Toronto is the date-only marker; a real airstamp at exactly 00:00 ET is read
+ * as that calendar day too (harmless: same-day reminder). Add regional_airings.is_date_only if it matters.
+ */
+function releaseDayInZone(releaseAtUtcIso: string, zone: string): DateTime {
+  const utc = DateTime.fromISO(releaseAtUtcIso, { zone: "utc" });
+  const region = utc.setZone(DEFAULT_REGION_ZONE);
+  if (region.hour === 0 && region.minute === 0 && region.second === 0) {
+    return DateTime.fromObject(
+      { year: region.year, month: region.month, day: region.day },
+      { zone },
+    );
+  }
+  return utc.setZone(zone).startOf("day");
+}
+
 /**
  * When to fire the in-app / push reminder for a user (UTC), given release instant and offset days.
  */
@@ -53,11 +78,8 @@ export function sendAtUtc(
   userTimezone: string,
   offsetDays: number,
 ): string {
-  const releaseLocal = DateTime.fromISO(releaseAtUtcIso, { zone: "utc" }).setZone(
-    userTimezone,
-  );
-  const reminderLocal = releaseLocal
-    .startOf("day")
+  const zone = safeZone(userTimezone);
+  const reminderLocal = releaseDayInZone(releaseAtUtcIso, zone)
     .minus({ days: offsetDays })
     .set({
       hour: REMINDER_DELIVERY_HOUR,
@@ -66,4 +88,20 @@ export function sendAtUtc(
       millisecond: 0,
     });
   return reminderLocal.toUTC().toISO()!;
+}
+
+/** User's local calendar date of the release (for grouping same-day drops). */
+export function releaseLocalDate(releaseAtUtcIso: string, userTimezone: string): string {
+  return releaseDayInZone(releaseAtUtcIso, safeZone(userTimezone)).toISODate()!;
+}
+
+/**
+ * True when the reminder's local day is already over. Such a reminder would fire immediately with
+ * stale copy ("in 7 days" two days before release), so it is skipped. A reminder due earlier
+ * today still sends (late "airing today" is still right).
+ */
+export function isSendDayPast(sendAtUtcIso: string, userTimezone: string, now = DateTime.utc()): boolean {
+  const zone = safeZone(userTimezone);
+  const sendDay = DateTime.fromISO(sendAtUtcIso, { zone: "utc" }).setZone(zone).startOf("day");
+  return sendDay < now.setZone(zone).startOf("day");
 }

@@ -37,6 +37,9 @@ export function UserDataProvider({ children }) {
     /** False until /api watched+wishlist+favorites+lists+series-progress have been fetched for this user. Prevents profile enrichment from running with empty watched on first paint (loading also starts false). */
     const [userDataHydrated, setUserDataHydrated] = useState(false);
     const loadedForUserRef = useRef(null);
+    /** Monotonic ids so an older, slower response can't overwrite a newer one. */
+    const loadSeqRef = useRef(0);
+    const watchRefreshSeqRef = useRef(0);
     /** True after TMDB/content enrichment ran for this session (cleared on refresh / user change). */
     const profileEnrichmentLoadedRef = useRef(false);
     const profileEnrichmentInFlightRef = useRef(false);
@@ -344,6 +347,7 @@ export function UserDataProvider({ children }) {
                 return;
             }
             setLoading(true);
+            const seq = ++loadSeqRef.current;
             try {
                 const [watchedRes, wishlistRes, favoritesRes, customListsRes] = await Promise.all([
                     fetch('/api/watched'),
@@ -355,13 +359,14 @@ export function UserDataProvider({ children }) {
                 const wishlistItems = wishlistRes.ok ? (await wishlistRes.json()).wishlist : [];
                 const favoritesItems = favoritesRes.ok ? (await favoritesRes.json()).favorites : [];
                 const customListsData = customListsRes.ok ? (await customListsRes.json()).lists : [];
+                const seriesProgressRes = await fetch('/api/series-progress');
+                const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
+                if (seq !== loadSeqRef.current) return;
+
                 setWatched(watchedItems);
                 setWishlist(wishlistItems);
                 setFavorites(favoritesItems);
                 setCustomLists(customListsData || []);
-
-                const seriesProgressRes = await fetch('/api/series-progress');
-                const seriesProgressData = seriesProgressRes.ok ? (await seriesProgressRes.json()) : {};
                 setSeriesProgress(seriesProgressData);
 
                 loadedForUserRef.current = user.id;
@@ -379,7 +384,7 @@ export function UserDataProvider({ children }) {
         loadedForUserRef.current = null;
         profileEnrichmentLoadedRef.current = false;
         setListDetails({});
-        void (async () => {
+        return (async () => {
             await loadUserData(true);
             await loadDbStats();
         })();
@@ -432,14 +437,24 @@ export function UserDataProvider({ children }) {
     useEffect(() => {
         if (!user?.id) return;
 
-        const onWatchDataUpdated = () => {
+        // Episode/season/series routes also create or delete the watched_content row, so the
+        // watched list must be refetched too (otherwise "Mark as Watched" shows the old state).
+        const onWatchDataUpdated = async () => {
             void loadDbStats();
-            void fetch('/api/series-progress')
-                .then((res) => (res.ok ? res.json() : null))
-                .then((data) => {
-                    if (data && typeof data === 'object') setSeriesProgress(data);
-                })
-                .catch((e) => console.error('Error refreshing series progress:', e));
+            const seq = ++watchRefreshSeqRef.current;
+            try {
+                const [progressRes, watchedRes] = await Promise.all([
+                    fetch('/api/series-progress'),
+                    fetch('/api/watched'),
+                ]);
+                const progress = progressRes.ok ? await progressRes.json() : null;
+                const watchedData = watchedRes.ok ? await watchedRes.json() : null;
+                if (seq !== watchRefreshSeqRef.current) return;
+                if (progress && typeof progress === 'object') setSeriesProgress(progress);
+                if (Array.isArray(watchedData?.watched)) setWatched(watchedData.watched);
+            } catch (e) {
+                console.error('Error refreshing watch data:', e);
+            }
         };
 
         window.addEventListener('watchhive-data-updated', onWatchDataUpdated);
