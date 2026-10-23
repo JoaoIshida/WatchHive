@@ -1,4 +1,5 @@
 import { getServerUser, createServerClient } from '../../../lib/supabase-server';
+import { after } from 'next/server';
 import { computeReleasedGapBatch } from '../../../lib/releasedGapProgress';
 
 const MAX_SERIES_IDS = 30;
@@ -42,7 +43,7 @@ export async function POST(req) {
         }
 
         const supabase = await createServerClient();
-        const results = await computeReleasedGapBatch(supabase, user.id, seriesIds);
+        const results = await computeReleasedGapBatch(supabase, user.id, seriesIds, { defer: after });
 
         return new Response(JSON.stringify(results), {
             status: 200,

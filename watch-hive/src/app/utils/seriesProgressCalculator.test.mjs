@@ -139,3 +139,13 @@ describe('isUnreleased (local calendar dates)', () => {
         assert.strictEqual(isUnreleased(tmr), true);
     });
 });
+
+describe('seriesPercentFromCounts', () => {
+    it('caps watched at the released total and handles an empty total', async () => {
+        const { seriesPercentFromCounts } = await import('./seriesProgressCalculator.js');
+        assert.deepStrictEqual(seriesPercentFromCounts(10, 40), { watched: 10, total: 40, percentage: 25 });
+        assert.deepStrictEqual(seriesPercentFromCounts(45, 40), { watched: 40, total: 40, percentage: 100 });
+        assert.deepStrictEqual(seriesPercentFromCounts(3, 0), { watched: 0, total: 0, percentage: 0 });
+        assert.deepStrictEqual(seriesPercentFromCounts(3, null), { watched: 0, total: 0, percentage: 0 });
+    });
+});

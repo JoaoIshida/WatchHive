@@ -4,9 +4,10 @@ import ContentCard from '../components/ContentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
 import { parsePageParam, parseSortParam, useReplaceQuery } from './useReplaceQuery';
+import { useReleasedGapProgressBatch } from '../hooks/useReleasedGapProgressBatch';
 
 const WATCHED_PAGE_SIZE = 18;
-const WATCHED_SORTS = ['date-desc', 'date-asc', 'name-asc', 'name-desc'];
+const WATCHED_SORTS = ['date-desc', 'date-asc', 'name-asc', 'name-desc', 'progress-desc', 'progress-asc'];
 
 function displayTitle(item) {
     return String(item.title ?? item.name ?? '');
@@ -20,7 +21,21 @@ export default function ProfileWatchedSection({ watchedDetails, watchedFilter, s
         [searchParams]
     );
 
+    const isProgressSort = sortMode === 'progress-desc' || sortMode === 'progress-asc';
+    /** % only matters for the progress sorts; skip the request otherwise. */
+    const seriesIds = useMemo(
+        () => (isProgressSort ? watchedDetails.filter((i) => i.media_type === 'tv').map((i) => String(i.id)) : []),
+        [isProgressSort, watchedDetails],
+    );
+    const progressById = useReleasedGapProgressBatch(seriesIds);
+
     const sortedFilteredItems = useMemo(() => {
+        /** Movies count as fully watched; series use the released-episode %. Unknown sorts last. */
+        const pct = (item) => {
+            if (item.media_type !== 'tv') return 100;
+            const r = progressById[String(item.id)];
+            return r?.ready && !r.error ? r.percentage ?? 0 : null;
+        };
         const filtered = watchedDetails.filter((item) => {
             if (watchedFilter === 'all') return true;
             if (watchedFilter === 'movie') return item.media_type === 'movie';
@@ -34,6 +49,18 @@ export default function ProfileWatchedSection({ watchedDetails, watchedFilter, s
             return String(a.media_type).localeCompare(String(b.media_type));
         };
         return filtered.sort((a, b) => {
+            if (isProgressSort) {
+                const pa = pct(a);
+                const pb = pct(b);
+                if (pa !== pb) {
+                    if (pa === null) return 1;
+                    if (pb === null) return -1;
+                    return sortMode === 'progress-desc' ? pb - pa : pa - pb;
+                }
+                const da = new Date(a.dateWatched || 0).getTime();
+                const db = new Date(b.dateWatched || 0).getTime();
+                return db !== da ? db - da : tie(a, b);
+            }
             if (sortMode === 'name-asc') {
                 const c = displayTitle(a).localeCompare(displayTitle(b), undefined, { sensitivity: 'base' });
                 return c !== 0 ? c : tie(a, b);
@@ -51,7 +78,7 @@ export default function ProfileWatchedSection({ watchedDetails, watchedFilter, s
             if (dateB !== dateA) return dateB - dateA;
             return tie(a, b);
         });
-    }, [watchedDetails, watchedFilter, sortMode]);
+    }, [watchedDetails, watchedFilter, sortMode, isProgressSort, progressById]);
 
     const totalPages = Math.max(1, Math.ceil(sortedFilteredItems.length / WATCHED_PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
@@ -149,6 +176,8 @@ export default function ProfileWatchedSection({ watchedDetails, watchedFilter, s
                                 <option value="date-asc">Watched date (oldest)</option>
                                 <option value="name-asc">Title A–Z</option>
                                 <option value="name-desc">Title Z–A</option>
+                                <option value="progress-desc">% watched (most)</option>
+                                <option value="progress-asc">% watched (least)</option>
                             </select>
                         </div>
                     </div>

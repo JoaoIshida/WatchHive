@@ -1,4 +1,4 @@
-import { getServerUser, createServerClient } from '../../lib/supabase-server';
+import { getServerUser, createServerClient, selectAllPages } from '../../lib/supabase-server';
 
 /**
  * GET /api/series-progress
@@ -37,26 +37,28 @@ export async function GET(req) {
 
         // Get all seasons for all series
         const progressIds = allProgress.map(p => p.id);
-        const { data: allSeasons, error: seasonsError } = await supabase
-            .from('series_seasons')
-            .select('*')
-            .in('series_progress_id', progressIds)
-            .order('season_number', { ascending: true });
-
-        if (seasonsError) throw seasonsError;
+        // Paged: a single select caps at 1000 rows, which dropped half of large watch histories.
+        const allSeasons = await selectAllPages(() =>
+            supabase
+                .from('series_seasons')
+                .select('*')
+                .in('series_progress_id', progressIds)
+                .order('season_number', { ascending: true })
+                .order('id', { ascending: true }),
+        );
 
         // Get all episodes for all seasons
         const seasonIds = allSeasons.map(s => s.id);
         let allEpisodes = [];
         if (seasonIds.length > 0) {
-            const { data: episodesData, error: episodesError } = await supabase
-                .from('series_episodes')
-                .select('*')
-                .in('series_season_id', seasonIds)
-                .order('episode_number', { ascending: true });
-
-            if (episodesError) throw episodesError;
-            allEpisodes = episodesData || [];
+            allEpisodes = await selectAllPages(() =>
+                supabase
+                    .from('series_episodes')
+                    .select('series_season_id, episode_number')
+                    .in('series_season_id', seasonIds)
+                    .order('episode_number', { ascending: true })
+                    .order('id', { ascending: true }),
+            );
         }
 
         // Build response structure matching localStorage format

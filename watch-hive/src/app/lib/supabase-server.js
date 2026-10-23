@@ -75,3 +75,18 @@ export async function getServerUser() {
     return null;
   }
 }
+
+/**
+ * PostgREST returns at most 1000 rows per request, silently. Page through a select until a short
+ * page comes back. `buildQuery` must return a fresh, ordered query each call.
+ * @param {() => any} buildQuery
+ */
+export async function selectAllPages(buildQuery, pageSize = 1000) {
+  const all = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) throw error;
+    all.push(...(data || []));
+    if (!data || data.length < pageSize) return all;
+  }
+}

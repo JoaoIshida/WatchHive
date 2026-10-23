@@ -159,6 +159,8 @@ CREATE TABLE series_progress (
     last_watched TIMESTAMPTZ,
     catalog_total_episodes INTEGER,
     catalog_refreshed_at TIMESTAMPTZ,
+    released_total_episodes INTEGER,
+    released_total_checked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (user_id, series_id)
@@ -168,6 +170,7 @@ COMMENT ON TABLE series_progress IS 'Tracks overall progress for TV series';
 COMMENT ON COLUMN series_progress.series_id IS 'TMDB series ID';
 COMMENT ON COLUMN series_progress.catalog_total_episodes IS 'TMDB regular-season episode count sum; refreshed by refresh_series_progress_catalog Edge function';
 COMMENT ON COLUMN series_progress.catalog_refreshed_at IS 'When catalog_total_episodes was last updated from TMDB';
+COMMENT ON COLUMN series_progress.released_total_episodes IS 'App-computed released regular episodes (TMDB + TVMaze gating) for % watched; NULL checked_at = recompute';
 
 -- ----------------------------------------------------------------------------
 -- series_seasons - Season-level progress
@@ -672,6 +675,30 @@ $$ LANGUAGE sql SECURITY INVOKER;
 
 REVOKE ALL ON FUNCTION bump_times_watched(UUID, INTEGER, TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION bump_times_watched(UUID, INTEGER, TIMESTAMPTZ) TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- series_watch_counts() - Per-series watched regular-episode counts (no 1000-row API cap)
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION series_watch_counts(p_user_id UUID)
+RETURNS TABLE (
+    series_id INTEGER,
+    watched INTEGER,
+    released_total INTEGER,
+    released_checked_at TIMESTAMPTZ
+) AS $$
+    SELECT sp.series_id,
+           COUNT(se.id)::INTEGER,
+           sp.released_total_episodes,
+           sp.released_total_checked_at
+    FROM series_progress sp
+    LEFT JOIN series_seasons ss ON ss.series_progress_id = sp.id AND ss.season_number > 0
+    LEFT JOIN series_episodes se ON se.series_season_id = ss.id
+    WHERE sp.user_id = p_user_id
+    GROUP BY sp.id;
+$$ LANGUAGE sql STABLE SECURITY INVOKER;
+
+REVOKE ALL ON FUNCTION series_watch_counts(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION series_watch_counts(UUID) TO service_role;
 
 -- ----------------------------------------------------------------------------
 -- get_user_stats() - Function to calculate user statistics
@@ -1725,6 +1752,7 @@ END $$;
 --   20260522130000_weekly_catchup_cron.sql — series_catchup Fridays 9 PM America/Toronto (EDT)
 --   20261022120000_watched_marking_fixes.sql — drop on_episode_watched trigger, add bump_times_watched()
 --   20261022130000_tighten_friends_profiles_rls.sql — drop client friends INSERT/UPDATE, profiles SELECT to authenticated
+--   20261023120000_series_watch_counts.sql — series_watch_counts(), series_progress.released_total_*
 -- A greenfield run of this schema.sql already includes those objects; use migrations only for upgrades.
 
 -- ============================================================================

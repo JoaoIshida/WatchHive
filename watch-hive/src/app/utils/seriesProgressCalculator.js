@@ -208,3 +208,17 @@ export const calculateSeasonProgress = (
             episodeCount > 0 ? Math.round((watchedEpisodes.length / episodeCount) * 100) : 0,
     };
 };
+
+/**
+ * % watched from a watched count and the released total. Watched is capped at the total
+ * (episodes marked under different numbering would otherwise read >100%).
+ */
+export function seriesPercentFromCounts(watched, releasedTotal) {
+    const total = typeof releasedTotal === 'number' ? Math.max(0, releasedTotal) : 0;
+    const marked = Math.min(total, typeof watched === 'number' ? Math.max(0, watched) : 0);
+    return {
+        watched: marked,
+        total,
+        percentage: total > 0 ? Math.round((marked / total) * 100) : 0,
+    };
+}

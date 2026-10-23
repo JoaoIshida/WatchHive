@@ -1,8 +1,6 @@
 import { getServerUser, createServerClient } from '../../../../lib/supabase-server';
-import {
-    computeReleasedGapForSeries,
-    loadWatchedEpisodesBySeries,
-} from '../../../../lib/releasedGapProgress';
+import { after } from 'next/server';
+import { computeReleasedGapBatch } from '../../../../lib/releasedGapProgress';
 
 /**
  * GET /api/series-progress/[seriesId]/released-gap-count
@@ -22,17 +20,12 @@ export async function GET(req, { params }) {
         const seriesIdStr = String(seriesId);
         const supabase = await createServerClient();
 
-        const watchedBySeries = await loadWatchedEpisodesBySeries(supabase, user.id, [
-            seriesIdStr,
-        ]);
-        const stats = await computeReleasedGapForSeries(
-            seriesIdStr,
-            watchedBySeries.get(seriesIdStr) || new Map(),
-        );
+        const stats = (await computeReleasedGapBatch(supabase, user.id, [seriesIdStr], { defer: after }))[seriesIdStr];
+        if (stats?.error) throw new Error('released total unavailable');
 
         return new Response(JSON.stringify(stats), {
             status: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
         });
     } catch (error) {
         console.error('Error counting released gaps:', error);

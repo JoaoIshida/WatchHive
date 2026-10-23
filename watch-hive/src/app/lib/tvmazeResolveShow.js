@@ -27,7 +27,7 @@ export async function resolveTvmazeShowIdFromTmdb(tmdbTvId, cache = {}) {
     if (!tmdb) return null;
 
     try {
-        const ext = await fetchTMDB(`/tv/${tmdb}/external_ids`);
+        const ext = await fetchTMDB(`/tv/${tmdb}/external_ids`, {}, cache);
         const imdb = ext?.imdb_id ? String(ext.imdb_id).trim() : '';
         const tvdbRaw = ext?.tvdb_id;
         const tvdb =

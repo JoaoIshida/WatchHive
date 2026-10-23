@@ -33,8 +33,9 @@ export function buildQueryString(params) {
 
 /**
  * Helper function to make TMDB API requests using Fetch
+ * @param {Record<string, unknown>} [fetchOptions] - extra fetch options, e.g. `{ next: { revalidate: 3600 } }`
  */
-export async function fetchTMDB(endpoint, params = {}) {
+export async function fetchTMDB(endpoint, params = {}, fetchOptions = {}) {
     const queryString = buildQueryString({
         ...params,
         api_key: process.env.TMDB_API_KEY,
@@ -43,6 +44,7 @@ export async function fetchTMDB(endpoint, params = {}) {
     const url = `https://api.themoviedb.org/3${endpoint}?${queryString}`;
     
     const response = await fetch(url, {
+        ...fetchOptions,
         headers: {
             'Accept': 'application/json',
         },

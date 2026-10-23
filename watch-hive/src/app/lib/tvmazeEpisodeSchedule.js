@@ -19,17 +19,19 @@ import {
 /**
  * @param {string | number} tmdbTvId
  * @param {number} seasonNumber
- * @param {{ mazeShowId?: number | null }} [options] - reuse show id when fetching multiple seasons
+ * @param {{ mazeShowId?: number | null, cache?: Record<string, unknown> }} [options] - reuse show id
+ *        when fetching multiple seasons; `cache` = fetch cache options (e.g. `{ next: { revalidate: 3600 } }`)
  */
 export async function getTvmazeEpisodeScheduleMap(tmdbTvId, seasonNumber, options = {}) {
     try {
         let mazeShowId = options.mazeShowId;
         if (mazeShowId === undefined) {
-            mazeShowId = await resolveTvmazeShowIdFromTmdb(String(tmdbTvId), {});
+            mazeShowId = await resolveTvmazeShowIdFromTmdb(String(tmdbTvId), options.cache ?? {});
         }
         if (!mazeShowId) return null;
 
         const seasonsRes = await fetch(tvmazeFetchUrl(`/shows/${mazeShowId}/seasons`), {
+            ...(options.cache ?? {}),
             headers: TVMAZE_HEADERS,
         });
         if (!seasonsRes.ok) return null;
@@ -42,6 +44,7 @@ export async function getTvmazeEpisodeScheduleMap(tmdbTvId, seasonNumber, option
         if (!seasonMeta?.id) return null;
 
         const epRes = await fetch(tvmazeFetchUrl(`/seasons/${seasonMeta.id}/episodes`), {
+            ...(options.cache ?? {}),
             headers: TVMAZE_HEADERS,
         });
         if (!epRes.ok) return null;
